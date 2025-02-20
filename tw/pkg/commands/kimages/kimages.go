@@ -18,10 +18,11 @@ import (
 )
 
 type cfg struct {
-	AllNamespaces   bool
-	Namespace       string
-	Timeout         time.Duration
-	EnforceRegistry string
+	AllNamespaces        bool
+	Namespace            string
+	Timeout              time.Duration
+	EnforceRegistry      string
+	EnforceRegistrySkips []string
 }
 
 func Command() *cobra.Command {
@@ -40,6 +41,7 @@ func Command() *cobra.Command {
 	cmd.Flags().BoolVarP(&cfg.AllNamespaces, "all", "A", false, "search across all namespaces")
 	cmd.Flags().DurationVarP(&cfg.Timeout, "timeout", "t", time.Minute, "timeout for the operation")
 	cmd.Flags().StringVar(&cfg.EnforceRegistry, "enforce-registry", "", "enforce all discovered images belong to this registry")
+	cmd.Flags().StringArrayVar(&cfg.EnforceRegistrySkips, "enforce-registry-skips", []string{}, "references (cgr.dev/chainguard/foo:latest) to skip enforcing the registry on")
 
 	return cmd
 }
@@ -152,7 +154,16 @@ func (c *cfg) Run(cmd *cobra.Command, args []string) error {
 	if c.EnforceRegistry != "" {
 		violations := []ParsedImage{}
 
+		skips := make(map[string]struct{})
+		for _, skip := range c.EnforceRegistrySkips {
+			skips[skip] = struct{}{}
+		}
+
 		for _, image := range images {
+			if _, ok := skips[image.Ref]; ok {
+				clog.InfoContextf(ctx, "skipping enforcement of registry %s on image ref: %q", c.EnforceRegistry, image.Ref)
+				continue
+			}
 			if image.Registry != c.EnforceRegistry {
 				violations = append(violations, image)
 			}
