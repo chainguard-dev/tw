@@ -25,16 +25,17 @@ const (
 )
 
 type cfg struct {
-	Name       string
-	Namespace  string
-	Timeout    time.Duration
-	IgnoreCase bool
-	Container  string
-	Retry      int
+	Name        string
+	Namespace   string
+	Timeout     time.Duration
+	IgnoreCase  bool
+	Container   string
+	Retry       int
+	Patterns    []string
+	InvertMatch bool
 
 	names       []string
-	matchText   string
-	compiled    *regexp.Regexp
+	compiled    []*regexp.Regexp
 	highlighter func(string) string
 }
 
@@ -42,7 +43,7 @@ func Command() *cobra.Command {
 	cfg := &cfg{}
 
 	cmd := &cobra.Command{
-		Use:          "kgrep",
+		Use:          "kgrep RESOURCE [PATTERN]",
 		Short:        "Simple kubernetes pod grepping",
 		Args:         cobra.MinimumNArgs(1),
 		SilenceUsage: true,
@@ -59,6 +60,8 @@ func Command() *cobra.Command {
 	cmd.Flags().IntVarP(&cfg.Retry, "retry", "r", 0, "number of times to retry a failed request")
 	cmd.Flags().BoolVarP(&cfg.IgnoreCase, "ignore-case", "i", false, "toggle to ignore case for the match")
 	cmd.Flags().StringVarP(&cfg.Container, "container", "c", "", "container to grep logs from (if not specified, will search in all)")
+	cmd.Flags().StringArrayVarP(&cfg.Patterns, "regexp", "e", nil, "regular expression to match")
+	cmd.Flags().BoolVarP(&cfg.InvertMatch, "invert-match", "v", false, "toggle to invert the match")
 
 	return cmd
 }
@@ -67,7 +70,6 @@ func (c *cfg) Run(cmd *cobra.Command) error {
 	ctx := cmd.Context()
 
 	l := clog.FromContext(ctx).With("resource", c.names, "namespace", c.Namespace)
-	l.InfoContext(ctx, "running kgrep", "match", c.matchText)
 
 	attempt := 0
 	err := wait.ExponentialBackoffWithContext(ctx, wait.Backoff{
@@ -131,26 +133,32 @@ func (c *cfg) retryableRun(ctx context.Context) error {
 
 		scanner := bufio.NewScanner(stream)
 		for scanner.Scan() {
-			matchText, matched := c.matched(scanner.Text())
-			if matched {
-				matches = append(matches, match{
-					Name:      obj.Name,
-					Namespace: obj.Namespace,
-					Text:      matchText,
-				})
+			line := scanner.Text()
+			for _, re := range c.compiled {
+				if re.MatchString(line) {
+					matches = append(matches, match{
+						Name:      obj.Name,
+						Namespace: obj.Namespace,
+						Text:      re.ReplaceAllStringFunc(line, c.highlighter),
+					})
+					break
+				}
 			}
 		}
 	}
 
 	nmatches := len(matches)
-
-	if nmatches == 0 {
-		return fmt.Errorf("no match found for pattern: %s", c.matchText)
-	}
-
 	clog.InfoContextf(ctx, "found %d matches in %s", nmatches, infos[0].String())
 	for i, m := range matches {
 		clog.InfoContextf(ctx, "-- [%d/%d] in %s/%s: %s", i+1, nmatches, m.Name, m.Namespace, m.Text)
+	}
+
+	if c.InvertMatch && nmatches > 0 {
+		return fmt.Errorf("found %d unwanted matches in %s", nmatches, infos[0].String())
+	}
+
+	if !c.InvertMatch && nmatches == 0 {
+		return fmt.Errorf("no match found for pattern: %v", c.Patterns)
 	}
 
 	return nil
@@ -159,16 +167,17 @@ func (c *cfg) retryableRun(ctx context.Context) error {
 func (c *cfg) prerun(_ context.Context, args []string) error {
 	c.names = strings.Split(args[0], "/")
 
-	if args[1] == "" {
-		return fmt.Errorf("expected a match pattern")
+	if len(c.Patterns) == 0 {
+		return fmt.Errorf("expected at least one pattern via -e/--regexp")
 	}
-	c.matchText = args[1]
 
-	p := args[1]
-	if c.IgnoreCase {
-		p = "(?i)" + p
+	// Compile all the patterns
+	for _, p := range c.Patterns {
+		if c.IgnoreCase {
+			p = "(?i)" + p
+		}
+		c.compiled = append(c.compiled, regexp.MustCompile(p))
 	}
-	c.compiled = regexp.MustCompile(p)
 
 	c.highlighter = func(s string) string {
 		if isatty.IsTerminal(os.Stdout.Fd()) {
@@ -183,11 +192,4 @@ type match struct {
 	Name      string
 	Namespace string
 	Text      string
-}
-
-func (c *cfg) matched(line string) (string, bool) {
-	if !c.compiled.MatchString(line) {
-		return "", false
-	}
-	return c.compiled.ReplaceAllStringFunc(line, c.highlighter), true
 }
