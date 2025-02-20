@@ -3,6 +3,7 @@ package kimages
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/chainguard-dev/clog"
@@ -18,11 +19,11 @@ import (
 )
 
 type cfg struct {
-	AllNamespaces        bool
-	Namespace            string
-	Timeout              time.Duration
-	EnforceRegistry      string
-	EnforceRegistrySkips []string
+	AllNamespaces       bool
+	Namespace           string
+	Timeout             time.Duration
+	EnforceRegistry     string
+	EnforceRegistrySkip string
 }
 
 func Command() *cobra.Command {
@@ -41,7 +42,7 @@ func Command() *cobra.Command {
 	cmd.Flags().BoolVarP(&cfg.AllNamespaces, "all", "A", false, "search across all namespaces")
 	cmd.Flags().DurationVarP(&cfg.Timeout, "timeout", "t", time.Minute, "timeout for the operation")
 	cmd.Flags().StringVar(&cfg.EnforceRegistry, "enforce-registry", "", "enforce all discovered images belong to this registry")
-	cmd.Flags().StringArrayVar(&cfg.EnforceRegistrySkips, "enforce-registry-skips", []string{}, "references (cgr.dev/chainguard/foo:latest) to skip enforcing the registry on")
+	cmd.Flags().StringVar(&cfg.EnforceRegistrySkip, "enforce-registry-skip", "^$", "regex pattern to match on image references to skip enforcement of")
 
 	return cmd
 }
@@ -154,17 +155,17 @@ func (c *cfg) Run(cmd *cobra.Command, args []string) error {
 	if c.EnforceRegistry != "" {
 		violations := []ParsedImage{}
 
-		skips := make(map[string]struct{})
-		for _, skip := range c.EnforceRegistrySkips {
-			skips[skip] = struct{}{}
+		skipPattern, err := regexp.Compile(c.EnforceRegistrySkip)
+		if err != nil {
+			return fmt.Errorf("failed to compile skip pattern %q: %v", c.EnforceRegistrySkip, err)
 		}
 
 		for _, image := range images {
-			if _, ok := skips[image.Ref]; ok {
-				clog.InfoContextf(ctx, "skipping enforcement of registry %s on image ref: %q", c.EnforceRegistry, image.Ref)
-				continue
-			}
 			if image.Registry != c.EnforceRegistry {
+				if skipPattern.MatchString(image.Ref) {
+					clog.InfoContextf(ctx, "skipping enforcement of registry %s on image ref: %q", c.EnforceRegistry, image.Ref)
+					continue
+				}
 				violations = append(violations, image)
 			}
 		}
