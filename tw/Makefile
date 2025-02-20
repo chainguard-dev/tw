@@ -7,10 +7,9 @@ MELANGE_INSTALL_PATH = $(MELANGE_CONTEXTDIR)/usr
 build:
 	mkdir -p bin
 	go test -c -o bin/tw
-	$(eval MULTICALLS := $(shell bin/tw list-multicalls))
-	$(foreach cmd,$(MULTICALLS),\
-		ln -sf tw bin/$(cmd) && echo "Created symlink for $(cmd)";\
-	)
+	for cmd in `bin/tw list-multicalls`; do \
+		ln -sf tw bin/$$cmd && echo "Created symlink for $$cmd"; \
+	done
 
 melange-install: build
 	echo $@
