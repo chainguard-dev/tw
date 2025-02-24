@@ -91,7 +91,7 @@ check_file() {
   case "$f" in
     *python*site-packages*)
       [ -n "$ld_library_path" ] && ld_library_path=$ld_library_path:
-      ld_library_path=$(dirname "$f")
+      ld_library_path="${ld_library_path}$(dirname "$f")"
       vmsg "Added python site package directory to ld_library_path, result is $ld_library_path"
   esac
 
