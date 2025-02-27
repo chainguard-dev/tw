@@ -25,8 +25,14 @@ func retryCommand() *cobra.Command {
 	cfg := &retryCfg{}
 
 	cmd := &cobra.Command{
-		Use:     "retry -- <command>",
-		Example: ``,
+		Use: "retry -- <command>",
+		Example: `
+# Retry a command 5 times with a 1s delay between attempts
+shu retry -- echo "Hello, World!"
+
+# Retry a command with a 10s timeout
+shu retry -t 10s -- echo "Hello, World!"
+    `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cfg.Run(cmd, args)
 		},

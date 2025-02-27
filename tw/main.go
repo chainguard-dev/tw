@@ -7,11 +7,11 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/chainguard-dev/tw/pkg/commands/assert"
 	"github.com/chainguard-dev/tw/pkg/commands/kgrep"
 	"github.com/chainguard-dev/tw/pkg/commands/kimages"
 	"github.com/chainguard-dev/tw/pkg/commands/sfuzz"
 	"github.com/chainguard-dev/tw/pkg/commands/shu"
-	"github.com/chainguard-dev/tw/pkg/commands/wassert"
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +19,7 @@ var cmds = map[string]*cobra.Command{
 	"sfuzz":   sfuzz.Command(),
 	"kgrep":   kgrep.Command(),
 	"kimages": kimages.Command(),
-	"wassert": wassert.Command(),
+	"wassert": assert.Command(),
 	"shu":     shu.Command(),
 }
 
@@ -44,20 +44,20 @@ func main() {
 	}
 
 	// Add a helper command for creating the multicall symlinks
-		cmd.AddCommand(
-			&cobra.Command{
-				Use:    "list-multicalls",
-				Hidden: true,
-				Run: func(cmd *cobra.Command, args []string) {
-					names := make([]string, 0)
-					for _, c := range cmds {
-						names = append(names, c.Name())
-					}
-					sort.Strings(names)
-					fmt.Fprint(cmd.OutOrStdout(), strings.Join(names, " "))
-				},
+	cmd.AddCommand(
+		&cobra.Command{
+			Use:    "list-multicalls",
+			Hidden: true,
+			Run: func(cmd *cobra.Command, args []string) {
+				names := make([]string, 0)
+				for _, c := range cmds {
+					names = append(names, c.Name())
+				}
+				sort.Strings(names)
+				fmt.Fprint(cmd.OutOrStdout(), strings.Join(names, " "))
 			},
-		)
+		},
+	)
 
 	if err := cmd.Execute(); err != nil {
 		os.Exit(1)

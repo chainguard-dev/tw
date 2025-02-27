@@ -1,4 +1,4 @@
-package wassert
+package assert
 
 import (
 	"strings"
@@ -13,7 +13,8 @@ func Command() *cobra.Command {
 	_ = cfg
 
 	cmd := &cobra.Command{
-		Use: "wassert",
+		Use:   "assert",
+		Short: "Helper cli for making assertions about an environment.",
 	}
 
 	cmd.AddCommand(fileCommand())

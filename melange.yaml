@@ -1,6 +1,6 @@
 package:
   name: tw
-  version: 0.0.0
+  version: 99.0.0
   epoch: 0
   description: Testing tools
   options:
@@ -28,7 +28,7 @@ pipeline:
 
   # Make the tw binary in the main package so we don't end up with `tw-tw`
   - runs: |
-      make -C tw MELANGE_CONTEXTDIR=${{targets.contextdir}} melange-install
+      make -C tw MELANGE_CONTEXTDIR=${{targets.contextdir}} melange-install-tw
 
   - uses: strip
 
@@ -38,7 +38,7 @@ subpackages:
       no-provides: true
     pipeline:
       - runs: |
-          install -Dm755 tw/bin/twt ${{targets.contextdir}}/usr/bin/twt
+          make -C tw MELANGE_CONTEXTDIR=${{targets.contextdir}} melange-install-twt
       - uses: strip
 
   - name: ldd-check

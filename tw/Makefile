@@ -1,18 +1,28 @@
 PROJECT = tw
 MELANGE_CONTEXTDIR ?= /tmp/melange-context/$(PROJECT)
-MELANGE_INSTALL_PATH = $(MELANGE_CONTEXTDIR)/usr
+MELANGE_INSTALL_PATH = $(MELANGE_CONTEXTDIR)/usr/bin
 
-.PHONY: build melange-install
+.PHONY: build build-tw build-twt melange-install-tw melange-install-twt
 
-build:
-	mkdir -p bin
-	go build -o bin/tw
-	for cmd in `bin/tw list-multicalls`; do \
-		ln -sf tw bin/$$cmd && echo "Created symlink for $$cmd"; \
+build: build-tw build-twt
+
+build-tw:
+	mkdir -p bin/tw
+	go build -o bin/tw/tw
+	for cmd in `bin/tw/tw list-multicalls`; do \
+		ln -sf tw bin/tw/$$cmd && echo "Created symlink for $$cmd at bin/tw/$$cmd"; \
 	done
-	go test -c -o bin/twt
 
-melange-install: build
+build-twt:
+	mkdir -p bin/twt
+	go test -c -o bin/twt/twt
+
+melange-install-tw: build-tw
 	echo $@
 	mkdir -p $(MELANGE_INSTALL_PATH)
-	cp -r bin $(MELANGE_INSTALL_PATH)
+	cp -r bin/tw/* $(MELANGE_INSTALL_PATH)
+
+melange-install-twt: build-twt
+	echo $@
+	mkdir -p $(MELANGE_INSTALL_PATH)
+	cp -r bin/twt/* $(MELANGE_INSTALL_PATH)

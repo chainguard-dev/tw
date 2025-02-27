@@ -10,11 +10,11 @@ import (
 	"testing"
 
 	"github.com/chainguard-dev/clog"
+	"github.com/chainguard-dev/tw/pkg/commands/assert"
 	"github.com/chainguard-dev/tw/pkg/commands/kgrep"
 	"github.com/chainguard-dev/tw/pkg/commands/kimages"
 	"github.com/chainguard-dev/tw/pkg/commands/sfuzz"
 	"github.com/chainguard-dev/tw/pkg/commands/shu"
-	"github.com/chainguard-dev/tw/pkg/commands/wassert"
 	"github.com/rogpeppe/go-internal/testscript"
 	"github.com/spf13/cobra"
 )
@@ -29,7 +29,7 @@ var cmds = map[string]*cobra.Command{
 	"sfuzz":   sfuzz.Command(),
 	"kgrep":   kgrep.Command(),
 	"kimages": kimages.Command(),
-	"wassert": wassert.Command(),
+	"wassert": assert.Command(),
 	"shu":     shu.Command(),
 }
 

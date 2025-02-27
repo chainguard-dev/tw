@@ -10,7 +10,8 @@ func Command() *cobra.Command {
 	cfg := &cfg{}
 
 	cmd := &cobra.Command{
-		Use: "shu",
+		Use:   "shu",
+		Short: "A collection of SHell Utilities useful for testing things",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cfg.Run(cmd, args)
 		},
