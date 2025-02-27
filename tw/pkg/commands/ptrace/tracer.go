@@ -155,23 +155,28 @@ func New(command []string, opts TracerOpts) (*Tracer, error) {
 
 // Start begins the tracing process
 func (t *Tracer) Start(ctx context.Context) error {
-	// Ensure result channel is initialized
 	if t.result == nil {
 		t.result = make(chan TraceResult, 1)
 	}
 
-	// Start event processing in a goroutine
 	go t.processEvents(ctx)
 
-	// Start process tracing in a goroutine
 	go func() {
+		defer close(t.done)
+
 		exitCode, err := t.trace(ctx)
+		if err != nil {
+			clog.ErrorContextf(ctx, "tracer failed: %v", err)
+		}
+
 		select {
 		case t.result <- TraceResult{ExitCode: exitCode, Err: err}:
+		case <-ctx.Done():
+			clog.WarnContextf(ctx, "tracer result channel is closed, discarding result: %v", ctx.Err())
 		default:
 			// If channel is full, we'll just discard the result
+			clog.WarnContext(ctx, "tracer result channel is full, discarding result")
 		}
-		close(t.done)
 	}()
 
 	// Start signal forwarding if we have a signal channel
@@ -334,7 +339,6 @@ type TraceReport struct {
 
 // trace starts the ptrace process
 func (t *Tracer) trace(ctx context.Context) (int, error) {
-	// Ensure result channel is initialized
 	if t.result == nil {
 		t.result = make(chan TraceResult, 1)
 	}
@@ -342,7 +346,6 @@ func (t *Tracer) trace(ctx context.Context) (int, error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	// Use a potentially-cancellable command
 	cmd := exec.CommandContext(ctx, t.args[0], t.args[1:]...)
 	cmd.Stdout = t.stdout
 	cmd.Stderr = t.stderr
@@ -351,64 +354,27 @@ func (t *Tracer) trace(ctx context.Context) (int, error) {
 	}
 
 	if err := cmd.Start(); err != nil {
-		// Avoid blocking by using select with default
-		select {
-		case t.result <- TraceResult{ExitCode: 1, Err: fmt.Errorf("failed to start command: %w", err)}:
-		default:
-		}
-		clog.ErrorContextf(ctx, "failed to start command: %v", err)
 		return 1, fmt.Errorf("failed to start command: %w", err)
 	}
 
 	t.cmd = cmd
 
-	// Check if context is already canceled
-	select {
-	case <-ctx.Done():
-		// Avoid blocking by using select with default
-		select {
-		case t.result <- TraceResult{ExitCode: 1, Err: ctx.Err()}:
-		default:
-		}
-		clog.ErrorContext(ctx, "context canceled before tracing could start")
-		return 1, fmt.Errorf("context canceled before tracing could start")
-	default:
-	}
-
 	// Wait for first stop - process stops after exec due to ptrace
 	var ws syscall.WaitStatus
 	_, err := syscall.Wait4(cmd.Process.Pid, &ws, 0, nil)
 	if err != nil {
-		// Avoid blocking by using select with default
-		select {
-		case t.result <- TraceResult{ExitCode: 1, Err: fmt.Errorf("wait4 failed: %w", err)}:
-		default:
-		}
-		clog.ErrorContextf(ctx, "wait4 failed: %v", err)
 		return 1, fmt.Errorf("wait4 failed: %w", err)
 	}
 
 	// Get process group ID for signal handling
 	t.pgid, err = syscall.Getpgid(cmd.Process.Pid)
 	if err != nil {
-		// Avoid blocking by using select with default
-		select {
-		case t.result <- TraceResult{ExitCode: 1, Err: fmt.Errorf("failed to get process group: %w", err)}:
-		default:
-		}
-		clog.ErrorContextf(ctx, "failed to get process group: %v", err)
 		return 1, fmt.Errorf("failed to get process group: %w", err)
 	}
 
 	// Set comprehensive ptrace options
 	err = syscall.PtraceSetOptions(cmd.Process.Pid, ptOptions)
 	if err != nil {
-		// Avoid blocking by using select with default
-		select {
-		case t.result <- TraceResult{ExitCode: 1, Err: fmt.Errorf("failed to set ptrace options: %w", err)}:
-		default:
-		}
-		clog.ErrorContextf(ctx, "failed to set ptrace options: %v", err)
 		return 1, fmt.Errorf("failed to set ptrace options: %w", err)
 	}
 
