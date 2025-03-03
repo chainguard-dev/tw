@@ -1,15 +1,183 @@
-sfuzz --apk go-1.24
+sfuzz --trace -i /work --apk go-1.24
 cmp stdout sfuzz.go-1.24.golden.json
 
-sfuzz --apk ncurses
+sfuzz --trace -i /etc/terminfo --apk ncurses
 cmp stdout sfuzz.ncurses.golden.json
 
 -- sfuzz.go-1.24.golden.json --
 [
   {
     "command": "/usr/bin/go",
+    "exit_code": 2,
+    "flag": "--version",
+    "files_accessed": {
+      "/bin/gccgo": 1,
+      "/go.work": 1,
+      "/sbin/gccgo": 1,
+      "/tmp": 1,
+      "/usr/bin/gccgo": 1,
+      "/usr/lib/go/bin/gcc": 1,
+      "/usr/lib/go/bin/gccgo": 1,
+      "/usr/lib/go/go.env": 1,
+      "/usr/lib/go/pkg/tool": 1,
+      "/usr/local/bin/gcc": 1,
+      "/usr/local/bin/gccgo": 1,
+      "/usr/local/sbin/gcc": 1,
+      "/usr/local/sbin/gccgo": 1,
+      "/usr/sbin/gccgo": 1
+    }
+  },
+  {
+    "command": "/usr/bin/go",
+    "exit_code": 2,
+    "flag": "--help",
+    "files_accessed": {
+      "/bin/gccgo": 1,
+      "/go.work": 1,
+      "/sbin/gccgo": 1,
+      "/tmp": 1,
+      "/usr/bin/gccgo": 1,
+      "/usr/lib/go/bin/gcc": 1,
+      "/usr/lib/go/bin/gccgo": 1,
+      "/usr/lib/go/go.env": 1,
+      "/usr/lib/go/pkg/tool": 1,
+      "/usr/local/bin/gcc": 1,
+      "/usr/local/bin/gccgo": 1,
+      "/usr/local/sbin/gcc": 1,
+      "/usr/local/sbin/gccgo": 1,
+      "/usr/sbin/gccgo": 1
+    }
+  },
+  {
+    "command": "/usr/bin/go",
     "exit_code": 0,
-    "flag": "version"
+    "flag": "version",
+    "files_accessed": {
+      "/bin/gccgo": 1,
+      "/go.work": 2,
+      "/sbin/gccgo": 1,
+      "/tmp": 1,
+      "/usr/bin/gccgo": 1,
+      "/usr/lib/go/bin/gcc": 1,
+      "/usr/lib/go/bin/gccgo": 1,
+      "/usr/lib/go/go.env": 1,
+      "/usr/lib/go/pkg/tool": 1,
+      "/usr/local/bin/gcc": 1,
+      "/usr/local/bin/gccgo": 1,
+      "/usr/local/sbin/gcc": 1,
+      "/usr/local/sbin/gccgo": 1,
+      "/usr/sbin/gccgo": 1
+    }
+  },
+  {
+    "command": "/usr/bin/go",
+    "exit_code": 2,
+    "flag": "-h",
+    "files_accessed": {
+      "/bin/gccgo": 1,
+      "/go.work": 1,
+      "/sbin/gccgo": 1,
+      "/tmp": 1,
+      "/usr/bin/gccgo": 1,
+      "/usr/lib/go/bin/gcc": 1,
+      "/usr/lib/go/bin/gccgo": 1,
+      "/usr/lib/go/go.env": 1,
+      "/usr/lib/go/pkg/tool": 1,
+      "/usr/local/bin/gcc": 1,
+      "/usr/local/bin/gccgo": 1,
+      "/usr/local/sbin/gcc": 1,
+      "/usr/local/sbin/gccgo": 1,
+      "/usr/sbin/gccgo": 1
+    }
+  },
+  {
+    "command": "/usr/bin/go",
+    "exit_code": 2,
+    "flag": "-v",
+    "files_accessed": {
+      "/bin/gccgo": 1,
+      "/go.work": 1,
+      "/sbin/gccgo": 1,
+      "/tmp": 1,
+      "/usr/bin/gccgo": 1,
+      "/usr/lib/go/bin/gcc": 1,
+      "/usr/lib/go/bin/gccgo": 1,
+      "/usr/lib/go/go.env": 1,
+      "/usr/lib/go/pkg/tool": 1,
+      "/usr/local/bin/gcc": 1,
+      "/usr/local/bin/gccgo": 1,
+      "/usr/local/sbin/gcc": 1,
+      "/usr/local/sbin/gccgo": 1,
+      "/usr/sbin/gccgo": 1
+    }
+  },
+  {
+    "command": "/usr/bin/go",
+    "exit_code": 2,
+    "flag": "-version",
+    "files_accessed": {
+      "/bin/gccgo": 1,
+      "/go.work": 1,
+      "/sbin/gccgo": 1,
+      "/tmp": 1,
+      "/usr/bin/gccgo": 1,
+      "/usr/lib/go/bin/gcc": 1,
+      "/usr/lib/go/bin/gccgo": 1,
+      "/usr/lib/go/go.env": 1,
+      "/usr/lib/go/pkg/tool": 1,
+      "/usr/local/bin/gcc": 1,
+      "/usr/local/bin/gccgo": 1,
+      "/usr/local/sbin/gcc": 1,
+      "/usr/local/sbin/gccgo": 1,
+      "/usr/sbin/gccgo": 1
+    }
+  },
+  {
+    "command": "/usr/bin/go",
+    "exit_code": 2,
+    "flag": "-help",
+    "files_accessed": {
+      "/bin/gccgo": 1,
+      "/go.work": 1,
+      "/sbin/gccgo": 1,
+      "/tmp": 1,
+      "/usr/bin/gccgo": 1,
+      "/usr/lib/go/bin/gcc": 1,
+      "/usr/lib/go/bin/gccgo": 1,
+      "/usr/lib/go/go.env": 1,
+      "/usr/lib/go/pkg/tool": 1,
+      "/usr/local/bin/gcc": 1,
+      "/usr/local/bin/gccgo": 1,
+      "/usr/local/sbin/gcc": 1,
+      "/usr/local/sbin/gccgo": 1,
+      "/usr/sbin/gccgo": 1
+    }
+  },
+  {
+    "command": "/usr/bin/go",
+    "exit_code": 2,
+    "flag": "-V",
+    "files_accessed": {
+      "/bin/gccgo": 1,
+      "/go.work": 1,
+      "/sbin/gccgo": 1,
+      "/tmp": 1,
+      "/usr/bin/gccgo": 1,
+      "/usr/lib/go/bin/gcc": 1,
+      "/usr/lib/go/bin/gccgo": 1,
+      "/usr/lib/go/go.env": 1,
+      "/usr/lib/go/pkg/tool": 1,
+      "/usr/local/bin/gcc": 1,
+      "/usr/local/bin/gccgo": 1,
+      "/usr/local/sbin/gcc": 1,
+      "/usr/local/sbin/gccgo": 1,
+      "/usr/sbin/gccgo": 1
+    }
+  },
+  {
+    "command": "/usr/bin/gofmt",
+    "exit_code": 2,
+    "flag": "--version"
   },
   {
     "command": "/usr/bin/gofmt",
@@ -18,13 +186,33 @@ cmp stdout sfuzz.ncurses.golden.json
   },
   {
     "command": "/usr/bin/gofmt",
+    "exit_code": 2,
+    "flag": "version"
+  },
+  {
+    "command": "/usr/bin/gofmt",
     "exit_code": 0,
     "flag": "-h"
   },
   {
     "command": "/usr/bin/gofmt",
+    "exit_code": 2,
+    "flag": "-v"
+  },
+  {
+    "command": "/usr/bin/gofmt",
+    "exit_code": 2,
+    "flag": "-version"
+  },
+  {
+    "command": "/usr/bin/gofmt",
     "exit_code": 0,
     "flag": "-help"
+  },
+  {
+    "command": "/usr/bin/gofmt",
+    "exit_code": 2,
+    "flag": "-V"
   }
 ]
 -- sfuzz.ncurses.golden.json --
@@ -32,66 +220,955 @@ cmp stdout sfuzz.ncurses.golden.json
   {
     "command": "/usr/bin/captoinfo",
     "exit_code": 0,
-    "flag": "-V"
+    "flag": "--version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/captoinfo",
+    "exit_code": 0,
+    "flag": "--help",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/captoinfo",
+    "exit_code": 0,
+    "flag": "version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/captoinfo",
+    "exit_code": 0,
+    "flag": "-h",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/captoinfo",
+    "exit_code": 0,
+    "flag": "-v",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/etc/termcap": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/captoinfo",
+    "exit_code": 0,
+    "flag": "-version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/etc/termcap": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/captoinfo",
+    "exit_code": 0,
+    "flag": "-help",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/captoinfo",
+    "exit_code": 0,
+    "flag": "-V",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
   },
   {
     "command": "/usr/bin/clear",
     "exit_code": 0,
-    "flag": "-V"
+    "flag": "--version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/clear",
+    "exit_code": 0,
+    "flag": "--help",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/clear",
+    "exit_code": 0,
+    "flag": "version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/clear",
+    "exit_code": 0,
+    "flag": "-h",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/clear",
+    "exit_code": 0,
+    "flag": "-v",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/clear",
+    "exit_code": 0,
+    "flag": "-version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/clear",
+    "exit_code": 0,
+    "flag": "-help",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/clear",
+    "exit_code": 0,
+    "flag": "-V",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
   },
   {
     "command": "/usr/bin/infocmp",
     "exit_code": 0,
-    "flag": "-V"
+    "flag": "--version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/infocmp",
+    "exit_code": 0,
+    "flag": "--help",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/infocmp",
+    "exit_code": 0,
+    "flag": "version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/lib/terminfo": 1,
+      "/root/.terminfo": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1,
+      "/usr/lib/terminfo": 1,
+      "/usr/share/terminfo": 1
+    }
+  },
+  {
+    "command": "/usr/bin/infocmp",
+    "exit_code": 0,
+    "flag": "-h",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/infocmp",
+    "exit_code": 0,
+    "flag": "-v",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/infocmp",
+    "exit_code": 0,
+    "flag": "-version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/infocmp",
+    "exit_code": 0,
+    "flag": "-help",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/infocmp",
+    "exit_code": 0,
+    "flag": "-V",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
   },
   {
     "command": "/usr/bin/infotocap",
     "exit_code": 0,
-    "flag": "-V"
+    "flag": "--version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/infotocap",
+    "exit_code": 0,
+    "flag": "--help",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/infotocap",
+    "exit_code": 0,
+    "flag": "version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/infotocap",
+    "exit_code": 0,
+    "flag": "-h",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/infotocap",
+    "exit_code": 0,
+    "flag": "-v",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/infotocap",
+    "exit_code": 0,
+    "flag": "-version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/infotocap",
+    "exit_code": 0,
+    "flag": "-help",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/infotocap",
+    "exit_code": 0,
+    "flag": "-V",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
   },
   {
     "command": "/usr/bin/reset",
     "exit_code": 0,
-    "flag": "-V"
+    "flag": "--version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/reset",
+    "exit_code": 0,
+    "flag": "--help",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/reset",
+    "exit_code": 0,
+    "flag": "version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/lib/terminfo": 1,
+      "/root/.terminfo": 1,
+      "/usr/lib/libtinfo.so.6": 1,
+      "/usr/lib/terminfo": 1,
+      "/usr/share/terminfo": 1
+    }
+  },
+  {
+    "command": "/usr/bin/reset",
+    "exit_code": 0,
+    "flag": "-h",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/reset",
+    "exit_code": 0,
+    "flag": "-v",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/reset",
+    "exit_code": 0,
+    "flag": "-version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/reset",
+    "exit_code": 0,
+    "flag": "-help",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/reset",
+    "exit_code": 0,
+    "flag": "-V",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
   },
   {
     "command": "/usr/bin/tabs",
     "exit_code": 0,
-    "flag": "-V"
+    "flag": "--version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tabs",
+    "exit_code": 0,
+    "flag": "--help",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tabs",
+    "exit_code": 0,
+    "flag": "version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/lib/terminfo": 1,
+      "/root/.terminfo": 1,
+      "/usr/lib/libtinfo.so.6": 1,
+      "/usr/lib/terminfo": 1,
+      "/usr/share/terminfo": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tabs",
+    "exit_code": 0,
+    "flag": "-h",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tabs",
+    "exit_code": 0,
+    "flag": "-v",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tabs",
+    "exit_code": 0,
+    "flag": "-version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tabs",
+    "exit_code": 0,
+    "flag": "-help",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tabs",
+    "exit_code": 0,
+    "flag": "-V",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
   },
   {
     "command": "/usr/bin/tic",
     "exit_code": 0,
-    "flag": "-V"
+    "flag": "--version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tic",
+    "exit_code": 0,
+    "flag": "--help",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tic",
+    "exit_code": 0,
+    "flag": "version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tic",
+    "exit_code": 0,
+    "flag": "-h",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tic",
+    "exit_code": 0,
+    "flag": "-v",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tic",
+    "exit_code": 0,
+    "flag": "-version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tic",
+    "exit_code": 0,
+    "flag": "-help",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tic",
+    "exit_code": 0,
+    "flag": "-V",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
   },
   {
     "command": "/usr/bin/toe",
     "exit_code": 0,
-    "flag": "version"
+    "flag": "--version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
   },
   {
     "command": "/usr/bin/toe",
     "exit_code": 0,
-    "flag": "-h"
+    "flag": "--help",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
   },
   {
     "command": "/usr/bin/toe",
     "exit_code": 0,
-    "flag": "-v"
+    "flag": "version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
   },
   {
     "command": "/usr/bin/toe",
     "exit_code": 0,
-    "flag": "-V"
+    "flag": "-h",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/lib/terminfo": 1,
+      "/root/.terminfo": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1,
+      "/usr/lib/terminfo": 1,
+      "/usr/share/terminfo": 1
+    }
+  },
+  {
+    "command": "/usr/bin/toe",
+    "exit_code": 0,
+    "flag": "-v",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/lib/terminfo": 1,
+      "/root/.terminfo": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1,
+      "/usr/lib/terminfo": 1,
+      "/usr/share/terminfo": 1
+    }
+  },
+  {
+    "command": "/usr/bin/toe",
+    "exit_code": 0,
+    "flag": "-version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/toe",
+    "exit_code": 0,
+    "flag": "-help",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/toe",
+    "exit_code": 0,
+    "flag": "-V",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libncursesw.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
   },
   {
     "command": "/usr/bin/tput",
     "exit_code": 0,
-    "flag": "-V"
+    "flag": "--version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tput",
+    "exit_code": 0,
+    "flag": "--help",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tput",
+    "exit_code": 0,
+    "flag": "version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/lib/terminfo": 1,
+      "/root/.terminfo": 1,
+      "/usr/lib/libtinfo.so.6": 1,
+      "/usr/lib/terminfo": 1,
+      "/usr/share/terminfo": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tput",
+    "exit_code": 0,
+    "flag": "-h",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tput",
+    "exit_code": 0,
+    "flag": "-v",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/lib/terminfo": 1,
+      "/root/.terminfo": 1,
+      "/usr/lib/libtinfo.so.6": 1,
+      "/usr/lib/terminfo": 1,
+      "/usr/share/terminfo": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tput",
+    "exit_code": 0,
+    "flag": "-version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tput",
+    "exit_code": 0,
+    "flag": "-help",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tput",
+    "exit_code": 0,
+    "flag": "-V",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
   },
   {
     "command": "/usr/bin/tset",
     "exit_code": 0,
-    "flag": "-V"
+    "flag": "--version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tset",
+    "exit_code": 0,
+    "flag": "--help",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tset",
+    "exit_code": 0,
+    "flag": "version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/lib/terminfo": 1,
+      "/root/.terminfo": 1,
+      "/usr/lib/libtinfo.so.6": 1,
+      "/usr/lib/terminfo": 1,
+      "/usr/share/terminfo": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tset",
+    "exit_code": 0,
+    "flag": "-h",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tset",
+    "exit_code": 0,
+    "flag": "-v",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tset",
+    "exit_code": 0,
+    "flag": "-version",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tset",
+    "exit_code": 0,
+    "flag": "-help",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
+  },
+  {
+    "command": "/usr/bin/tset",
+    "exit_code": 0,
+    "flag": "-V",
+    "files_accessed": {
+      "/etc/ld.so.cache": 1,
+      "/etc/ld.so.preload": 1,
+      "/lib/libc.so.6": 1,
+      "/usr/lib/libtinfo.so.6": 1
+    }
   }
 ]

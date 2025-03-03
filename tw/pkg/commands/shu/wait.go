@@ -27,13 +27,13 @@ func waitCommand() *cobra.Command {
 		Use:   "wait --tcp host:port [--tcp host:port]... [-- command...]",
 		Short: "Wait for services to respond to TCP connections before running a command",
 		Example: `  # Wait for a single service
-  shu wait --tcp localhost:8080
+shu wait --tcp localhost:8080
 
-  # Wait for multiple services
-  shu wait --tcp redis:6379 --tcp postgres:5432
+# Wait for multiple services
+shu wait --tcp redis:6379 --tcp postgres:5432
 
-  # Wait and then run a command
-  shu wait --tcp localhost:8080 -- echo "Service is up!"`,
+# Wait and then run a command
+shu wait --tcp localhost:8080 -- echo "Service is up!"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cfg.Run(cmd, args)
 		},
