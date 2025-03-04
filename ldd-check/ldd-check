@@ -12,8 +12,14 @@ files=""
 packages=""
 VERBOSE=false
 
+EXTRA_LIB_PATHS=""
 while [ $# -ne 0 ]; do
     case "$1" in
+        --extra-library-paths=*)
+            EXTRA_LIB_PATHS="${EXTRA_LIB_PATHS:+ ${EXTRA_LIB_PATHS}}${1#*=}";;
+        --extra-library-paths)
+            EXTRA_LIB_PATHS="${EXTRA_LIB_PATHS:+ ${EXTRA_LIB_PATHS}}$2";
+            shift;;
         --files=*) files="${files} ${1#*=}";;
         --files) files="${files} $2"; shift;;
         --packages=*) packages="${packages} ${1#*=}";;
@@ -47,6 +53,23 @@ vmsg() {
   [ "$VERBOSE" = "false" ] || echo "$@"
 }
 
+# join_nonempty(delimiter, tok1, tok2, tok3, ...)
+# return a string joined on delimiter with empty strings removed.
+#   join_nonempty(":", "tok3", "", "tok2", "tok1") = "tok1:tok2:tok3"
+join_nonempty() {
+   local del="$1" tok="" val=""
+   shift
+   for tok in "$@"; do
+      [ -n "$tok" ] || continue
+      if [ -n "$val" ]; then
+         val="$val$del$tok"
+      else
+         val="$tok"
+      fi
+   done
+   echo "$val"
+}
+
 failormsg() {
   local cond="$1" msg="$2"
   case "$cond" in
@@ -77,7 +100,7 @@ check_output() {
 check_file() {
   local f="$1" insist_dyn="$2" rc="0"
   local outf="$tmpd/ldd.stdout" errf="$tmpd/ldd.sterr"
-  local ld_library_path="$LD_LIBRARY_PATH"
+  local ldpath="" dirldpath=""
 
   if [ ! -e "$f" ]; then
     failormsg "$insist_dyn" "$f: did not exist"
@@ -90,12 +113,15 @@ check_file() {
 
   case "$f" in
     *python*site-packages*)
-      [ -n "$ld_library_path" ] && ld_library_path=$ld_library_path:
-      ld_library_path="${ld_library_path}$(dirname "$f")"
-      vmsg "Added python site package directory to ld_library_path, result is $ld_library_path"
+      dirldpath=$(dirname "$f")
+      vmsg "Adding python site package directory '$dirldpath' to ld_library_path";;
   esac
 
-  LD_LIBRARY_PATH="$ld_library_path" ldd "$f" >"$outf" 2>"$errf" || rc=$?
+  ldpath=$(join_nonempty ":" "$dirldpath" "$EXTRA_LIB_PATHS" "$LD_LIBRARY_PATH") ||
+      error "unexpected failure in join_nonempty(:," \
+        "$LD_LIBRARY_PATH, $dirldpath, $EXTRA_LIB_PATHS)"
+
+  LD_LIBRARY_PATH="$ldpath" ldd "$f" >"$outf" 2>"$errf" || rc=$?
 
   if [ $rc -eq 1 ]; then
     if grep -q 'not a dynamic executable' "$errf"; then
