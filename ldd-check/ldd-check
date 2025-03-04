@@ -16,18 +16,28 @@ while [ $# -ne 0 ]; do
     case "$1" in
         --files=*) files="${files} ${1#*=}";;
         --files) files="${files} $2"; shift;;
-        --packages=*) packages="${packages} ${1#*=}";;
-        --packages) packages="${packages} $2"; shift;;
+        --packages=*)
+            if [ "${1#*=}" = "none" ]; then
+                packages=""
+            else
+                packages="${packages} ${1#*=}"
+            fi
+            ;;
+        --packages)
+            if [ "$2" = "none" ]; then
+                packages=""
+            else
+                packages="${packages} $2"
+            fi
+            shift;;
         --verbose=*) VERBOSE=${1#*=};;
         --verbose) VERBOSE=$2; shift;;
+        --*) error "Unknown argument '$1'";;
     esac
     shift
 done
 files=${files# }
 packages=${packages# }
-if [ -n "$packages" ] && [ -n "$files" ]; then
-    error "Cannot provide both packages and files"
-fi
 
 case "$VERBOSE" in
   true|false) :;;
@@ -39,8 +49,6 @@ esac
 tmpd=$(mktemp -d) || fail "ERROR: failed to create tmpdir"
 trap cleanup EXIT
 
-fails=0
-passes=0
 export LANG=C
 
 vmsg() {
@@ -126,6 +134,8 @@ test_files_in() {
   done < "$tmpd/$pkg.list"
 }
 
+fails=0
+passes=0
 set -- $files
 for f in "$@"; do
   check_file "$f" true
