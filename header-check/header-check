@@ -16,12 +16,12 @@ error() {
 
 fail() {
 	echo "FAIL[$PROG]:" "$@"
-	fails=$((fails+1))
+	FAILS=$((FAILS+1))
 }
 
 pass() {
 	echo "PASS[$PROG]:" "$@"
-	passes=$((passes+1))
+	PASSES=$((PASSES+1))
 }
 
 cleanup() {
@@ -139,8 +139,8 @@ AC_OUTPUT()
 EOF
 }
 
-fails=0
-passes=0
+FAILS=0
+PASSES=0
 set -- $files
 for f in "$@"; do
 	success=false
@@ -149,6 +149,8 @@ for f in "$@"; do
 			pass "header test [$f]"
 			success=true
 			break
+		else
+			success=false
 		fi
 	done
 	if [ "$success" = "true" ]; then
@@ -164,15 +166,16 @@ for pkg in "$@"; do
 		for lang in "c" "cpp"; do
 			if test_header "$lang" "$f"; then
 				success=true
+				pass "Success testing header [/usr/include/$f]"
 				break
+			else
+				success=false
 			fi
 		done
+		if [ "$success" = "false" ]; then
+			fail "Failure testing header [/usr/include/$f]"
+		fi
 	done
-	if [ "$success" = "true" ]; then
-		pass "Success testing header [/usr/include/$f]"
-	else
-		fail "Failure testing header [/usr/include/$f]"
-	fi
 done
-info "tested [$((passes+fails))] files with $PROG.  [$passes] passes. [$fails] fails."
-exit $fails
+info "tested [$((PASSES+FAILS))] files with $PROG.  [$PASSES] passes. [$FAILS] fails."
+exit $FAILS
