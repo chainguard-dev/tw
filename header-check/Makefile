@@ -8,6 +8,5 @@ build:
 	chmod +x header-check
 
 melange-install: build
-	echo $@
 	mkdir -p $(MELANGE_INSTALL_PATH)
 	install -Dm755 $(PROJECT) $(MELANGE_INSTALL_PATH)/$(PROJECT)
