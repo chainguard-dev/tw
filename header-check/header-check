@@ -29,12 +29,28 @@ cleanup() {
 	rm -Rf "$tmpd"
 }
 
+configure_opts=""
 files=""
 packages=""
 VERBOSE=false
 
 while [ $# -ne 0 ]; do
 	case "$1" in
+		--configure-opts=*)
+			if [ "${1#*=}" = "none" ]; then
+				configure_opts=""
+			else
+				configure_opts="${configure_opts} ${1#*=}"
+			fi
+		;;
+		--configure-opts)
+			if [ "$2" = "none" ]; then
+				configure_opts=""
+			else
+				configure_opts="${configure_opts} $2"
+			fi
+			shift
+		;;
 		--files=*)
 			files="${files} ${1#*=}"
 		;;
@@ -70,6 +86,7 @@ while [ $# -ne 0 ]; do
 	esac
 	shift
 done
+configure_opts=${configure_opts# }
 files=${files# }
 packages=${packages# }
 
@@ -90,6 +107,8 @@ trap cleanup EXIT
 test_header() {
 	local lang="$1"
 	local header="$2"
+	local configure_opts="$3"
+	local flags=
 	local rc=1
 	d=$(mktemp -d $tmpd/XXXXXXXX)
 	cd $d
@@ -106,7 +125,7 @@ test_header() {
 	esac
 	cat configure.ac
 	autoconf
-	./configure && rc=0 || rc=1
+	./configure "$configure_opts" && rc=0 || rc=1
 	cat config.log
 	cd ..
 	rm -rf $d
@@ -145,7 +164,7 @@ set -- $files
 for f in "$@"; do
 	success=false
 	for lang in "c" "cpp"; do
-		if test_header "$lang" "$f"; then
+		if test_header "$lang" "$f" "$configure_opts"; then
 			pass "header test [$f]"
 			success=true
 			break
@@ -162,7 +181,7 @@ for pkg in "$@"; do
 	for f in $(apk info -qL "$pkg" | grep "^usr/include/.*\.h[p]*$" | sed -e "s:^usr/include/::"); do
 		success=false
 		for lang in "c" "cpp"; do
-			if test_header "$lang" "$f"; then
+			if test_header "$lang" "$f" "$configure_opts"; then
 				success=true
 				pass "Success testing header [$f]"
 				break
