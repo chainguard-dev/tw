@@ -159,7 +159,7 @@ for f in "$@"; do
 done
 set -- $packages
 for pkg in "$@"; do
-	for f in $(apk info -L "$pkg" 2>/dev/null | grep "^usr/include/.*\.h[p]*$" | sed -e "s:^usr/include/::"); do
+	for f in $(apk info -qL "$pkg" | grep "^usr/include/.*\.h[p]*$" | sed -e "s:^usr/include/::"); do
 		success=false
 		for lang in "c" "cpp"; do
 			if test_header "$lang" "$f"; then
@@ -176,4 +176,8 @@ for pkg in "$@"; do
 	done
 done
 info "tested [$((PASSES+FAILS))] files with $PROG.  [$PASSES] passes. [$FAILS] fails."
-exit $FAILS
+if [ "$FAILS" = "0" ]; then
+	exit 0
+else
+	exit 1
+fi
