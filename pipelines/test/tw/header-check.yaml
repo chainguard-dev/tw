@@ -1,0 +1,16 @@
+name: headers
+needs:
+  packages:
+   - autoconf
+   - build-base
+
+inputs:
+  packages:
+    description: check the header files in provided packages
+    required: false
+    default: "${{context.name}}"
+
+pipeline:
+  - name: check header files using header-check
+    runs: |
+      header-check "--packages=${{context.name}}"
