@@ -174,5 +174,5 @@ for pkg in "$@"; do
 		fail "Failure testing header [/usr/include/$f]"
 	fi
 done
-info "tested [$((passes+fails))] files with ldd.  [$passes] passes. [$fails] fails."
+info "tested [$((passes+fails))] files with $PROG.  [$passes] passes. [$fails] fails."
 exit $fails
