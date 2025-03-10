@@ -153,10 +153,8 @@ for f in "$@"; do
 			success=false
 		fi
 	done
-	if [ "$success" = "true" ]; then
-		pass "Success testing header [/usr/include/$f]"
-	else
-		fail "Failure testing header [/usr/include/$f]"
+	if [ "$success" = "false" ]; then
+		fail "Failure testing header [$f]"
 	fi
 done
 set -- $packages
@@ -166,14 +164,14 @@ for pkg in "$@"; do
 		for lang in "c" "cpp"; do
 			if test_header "$lang" "$f"; then
 				success=true
-				pass "Success testing header [/usr/include/$f]"
+				pass "Success testing header [$f]"
 				break
 			else
 				success=false
 			fi
 		done
 		if [ "$success" = "false" ]; then
-			fail "Failure testing header [/usr/include/$f]"
+			fail "Failure testing header [$f]"
 		fi
 	done
 done
