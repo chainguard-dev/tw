@@ -162,9 +162,12 @@ PASSES=0
 set -- $files
 for f in "$@"; do
 	success=false
+	# File paths may be absolute, or relative to /usr/include
+	# Strip off leading optional usr/include/ or /usr/include/
+	h=$(printf "$f" | sed -e "s:^[/]*usr/include/::")
 	for lang in "c" "cpp"; do
-		if test_header "$lang" "$f" "$configure_opts"; then
-			pass "header test [$f]"
+		if test_header "$lang" "$h" "$configure_opts"; then
+			pass "header test [$h]"
 			success=true
 			break
 		else
@@ -172,7 +175,7 @@ for f in "$@"; do
 		fi
 	done
 	if [ "$success" = "false" ]; then
-		fail "Failure testing header [$f]"
+		fail "Failure testing header [$h]"
 	fi
 done
 set -- $packages

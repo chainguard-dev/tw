@@ -1,4 +1,4 @@
-name: headers
+name: header-check
 needs:
   packages:
     - header-check
@@ -8,6 +8,10 @@ inputs:
     description: check the header files in provided packages
     required: false
     default: "${{context.name}}"
+  files:
+    description: check specific headers by file name
+    required: false
+    default: ""
   configure-opts:
     description: any additional configure options required for the headers in this package
     required: false
@@ -16,4 +20,8 @@ inputs:
 pipeline:
   - name: check header files using header-check
     runs: |
-      header-check "--packages=${{context.name}}"
+      if [ -z "${{inputs.files}}" ]; then
+        header-check "--packages=${{inputs.packages}}" "--configure-opts=${{inputs.configure-opts}}"
+      else
+        header-check "--files=${{inputs.files}}" "--configure-opts=${{inputs.configure-opts}}"
+      fi
