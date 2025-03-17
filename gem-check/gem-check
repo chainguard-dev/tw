@@ -65,7 +65,7 @@ exit 9
 			return 1
 		;;
 	esac
-	error "Unexpected error in ruby require test for '$r' [$rc]: $out"
+	info "Unexpected error in ruby require test for '$r' [$rc]: $out"
 	return 1
 }
 
