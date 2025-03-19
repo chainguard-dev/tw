@@ -8,6 +8,7 @@ endif
 MELANGE ?= $(shell which melange)
 KEY ?= local-melange.rsa
 REPO ?= $(shell pwd)/packages
+OUT_DIR ?= $(shell pwd)/packages
 
 WOLFI_REPO ?= https://packages.wolfi.dev/os
 WOLFI_KEY ?= https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
@@ -21,6 +22,7 @@ MELANGE_OPTS += --source-dir ./
 
 MELANGE_BUILD_OPTS += --signing-key ${KEY}
 MELANGE_BUILD_OPTS += --cache-dir $(HOME)/go/pkg/mod
+MELANGE_BUILD_OPTS += --out-dir ${OUT_DIR}
 
 MELANGE_TEST_OPTS += --test-package-append wolfi-base
 
