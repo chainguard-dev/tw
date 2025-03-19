@@ -19,11 +19,11 @@ environment:
       - go
 
 pipeline:
-  - uses: git-checkout
-    with:
-      repository: https://github.com/chainguard-dev/tw
-      tag: v${{package.version}}
-      expected-commit: 52c18c170c1cdbca5ec6b53aa0bfdb0b8d376746
+  # - uses: git-checkout
+  #   with:
+  #     repository: https://github.com/chainguard-dev/tw
+  #     tag: v${{package.version}}
+  #     expected-commit: 52c18c170c1cdbca5ec6b53aa0bfdb0b8d376746
 
   # Make the tw binary in the main package so we don't end up with `tw-tw`
   - runs: |
@@ -121,6 +121,20 @@ subpackages:
       pipeline:
         - runs: |
             usrmerge-tool --help
+
+  - name: sht
+    options:
+      no-provides: true
+    pipeline:
+      - runs: |
+          make -C sht MELANGE_CONTEXTDIR=${{targets.contextdir}} melange-install
+    test:
+      pipeline:
+        - runs: |
+            [ -f /usr/bin/sht ]
+            [ -x /usr/bin/sht ]
+            [ -f /usr/bin/shtc ]
+            [ -x /usr/bin/shtc ]
 
 # TODO: I'd like to do this, but until we can dynamically generate the dependencies, we need to manually set them
 # data:
