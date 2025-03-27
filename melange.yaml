@@ -1,6 +1,6 @@
 package:
   name: tw
-  version: 0.0.0
+  version: "0.0.0"
   epoch: 0
   description: Testing tools
   options:
@@ -136,8 +136,10 @@ subpackages:
         - runs: |
             [ -f /usr/bin/gosh ]
             [ -x /usr/bin/gosh ]
-            [ -f /usr/bin/goshc ]
-            [ -x /usr/bin/goshc ]
+            [ -x /usr/bin/goshr ]
+            [ -f /usr/bin/goshr ]
+            [ -f /usr/bin/gt ]
+            [ -x /usr/bin/gt ]
         - runs: |
             cat > /tmp/pass.sh <<EOF
             #!/usr/bin/env gosh
@@ -153,6 +155,7 @@ subpackages:
             #!/usr/bin/env gosh
             gt_fail() {
                 echo "this test is going to fail"
+                cat foo
             }
             EOF
 
