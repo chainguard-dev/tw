@@ -44,6 +44,8 @@ gt_fail() {
   echo "this should never be printed"
 }
 
-gt_skipped() {
-  echo "this will be skipped because gt_fail failed"
+gt_still_run() {
+  echo "test execution is serial but independent, failures in the predecessor (gt_fail) will not impact subsequent tests"
+
+  echo "this test will pass"
 }

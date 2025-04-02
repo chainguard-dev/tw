@@ -8,7 +8,7 @@ require (
 	go.opentelemetry.io/otel v1.35.0
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.35.0
 	go.opentelemetry.io/otel/sdk v1.35.0
-	golang.org/x/sys v0.30.0
+	golang.org/x/sys v0.31.0
 	mvdan.cc/sh/v3 v3.11.0
 )
 

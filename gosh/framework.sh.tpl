@@ -2,8 +2,6 @@
 
 set -u
 
-GOSH_FAILED=0
-
 if command -v gt >/dev/null 2>&1; then
 	readonly GT_BIN="gt"
 else
@@ -85,12 +83,7 @@ setup_once
 # Run each test function in order they appear
 {{ range .OrderedTestFns }}
 {{ $tfn := index $.TestFns . }}
-if [ $GOSH_FAILED -eq 0 ]; then
-	_gosh_run_test "{{$tfn.Name}}" "{{$tfn.StdoutPipe.Path}}" "{{$tfn.StderrPipe.Path}}"
-	GOSH_FAILED=$((GOSH_FAILED || $?))
-else
-	_gosh_signal "skip" "{{$tfn.Name}}" 0 "previous test(s) failed"
-fi
+_gosh_run_test "{{$tfn.Name}}" "{{$tfn.StdoutPipe.Path}}" "{{$tfn.StderrPipe.Path}}"
 {{ end }}
 
 # Run the one-time teardown
