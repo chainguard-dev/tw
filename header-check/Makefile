@@ -7,6 +7,8 @@ MELANGE_INSTALL_PATH = $(MELANGE_CONTEXTDIR)/usr/bin
 build:
 	chmod +x header-check
 
+test:
+
 melange-install: build
 	mkdir -p $(MELANGE_INSTALL_PATH)
 	install -Dm755 $(PROJECT) $(MELANGE_INSTALL_PATH)/$(PROJECT)

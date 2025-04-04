@@ -8,6 +8,9 @@ build:
 	@mkdir -p bin
 	go build -o bin/$(PROJECT)
 
+test:
+	go test -v ./...
+
 melange-install: build
 	echo $@
 	mkdir -p $(MELANGE_INSTALL_PATH)

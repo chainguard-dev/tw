@@ -13,6 +13,9 @@ build:
 	go build -o bin/gt
 	install -Dm755 gosh bin/gosh
 
+test:
+	go test -v ./internal/...
+
 melange-install: build
 	echo $@
 	mkdir -p $(MELANGE_INSTALL_PATH)

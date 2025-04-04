@@ -12,6 +12,9 @@ build:
 	done
 	go test -c -o bin/twt
 
+test:
+	go test -v ./pkg/...
+
 melange-install: build
 	echo $@
 	mkdir -p $(MELANGE_INSTALL_PATH)
