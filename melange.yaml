@@ -57,6 +57,21 @@ subpackages:
             [ -f /usr/bin/ldd-check ]
             [ -x /usr/bin/ldd-check ]
 
+  - name: tw-pip-check
+    options:
+      no-provides: true
+    dependencies:
+      runtime:
+        - pip-zipapp
+    pipeline:
+      - runs: |
+          make -C tw-pip-check MELANGE_CONTEXTDIR=${{targets.contextdir}} melange-install
+    test:
+      pipeline:
+        - runs: |
+            [ -f /usr/bin/tw-pip-check ]
+            [ -x /usr/bin/tw-pip-check ]
+
   - name: gem-check
     options:
       no-provides: true
