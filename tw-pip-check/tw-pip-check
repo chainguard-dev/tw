@@ -47,7 +47,6 @@ if [ -z "$py" ]; then
       [ "$n" -eq 0 ] || echo "found:" $glob
       exit 1
     fi
-    echo "using python: $py"
 fi
 
 pipzip=/usr/share/pip-zipapp/pip-zipapp.pyz
