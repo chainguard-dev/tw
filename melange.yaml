@@ -62,6 +62,7 @@ subpackages:
       no-provides: true
     dependencies:
       runtime:
+        - busybox
         - pip-zipapp
     pipeline:
       - runs: |
