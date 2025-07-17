@@ -195,6 +195,22 @@ subpackages:
             [ -f /usr/bin/verify-service ]
             [ -x /usr/bin/verify-service ]
 
+  - name: symlink-check
+    options:
+      no-provides: true
+    dependencies:
+      runtime:
+        - apk-tools
+        - busybox
+    pipeline:
+      - runs: |
+          make -C symlink-check MELANGE_CONTEXTDIR=${{targets.contextdir}} melange-install
+    test:
+      pipeline:
+        - runs: |
+            [ -f /usr/bin/symlink-check ]
+            [ -x /usr/bin/symlink-check ]
+
 # TODO: I'd like to do this, but until we can dynamically generate the dependencies, we need to manually set them
 # data:
 #   - name: bins

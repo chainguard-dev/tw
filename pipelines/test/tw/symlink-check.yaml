@@ -1,0 +1,31 @@
+name: symlink-check
+
+needs:
+  packages:
+    - symlink-check
+
+inputs:
+  paths:
+    description: |
+      The paths to check for broken symlinks.
+    required: false
+    default: "/"
+  packages:
+    description: |
+      Check all symlinks in these installed packages.
+      Use "none" to disable the default package check.
+    required: false
+    default: "${{context.name}}"
+  verbose:
+    description: |
+      Should verbose output be shown
+    required: false
+    default: false
+
+pipeline:
+  - name: "check for broken/dangling symlinks"
+    runs: |
+      symlink-check \
+          --paths="${{inputs.paths}}" \
+          --packages="${{inputs.packages}}" \
+          --verbose="${{inputs.verbose}}"
