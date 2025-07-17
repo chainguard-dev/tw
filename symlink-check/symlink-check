@@ -1,0 +1,205 @@
+#!/bin/sh
+# shellcheck disable=SC2317,SC2166,SC3043,SC2162,SC2086
+set -f
+
+PROG="symlink-check"
+
+info() {
+	echo "INFO[$PROG]:" "$@"
+}
+
+error() {
+	echo "ERROR[$PROG]:" "$@"
+	exit 1
+}
+
+fail() {
+	FAIL_MESSAGES="${FAIL_MESSAGES}FAIL[$PROG]: $*
+"
+	FAILS=$((FAILS+1))
+}
+
+pass() {
+	echo "PASS[$PROG]:" "$@"
+	PASSES=$((PASSES+1))
+}
+
+show_help() {
+	cat << EOF
+Usage: $PROG [OPTIONS]
+
+Tool to check for broken/dangling symlinks in the filesystem.
+
+Options:
+  -h, --help                    Show this help message and exit
+  --paths=PATH, --paths PATH    Specify paths to check (default: /)
+  --packages=PKG, --packages PKG
+                               Specify packages to check
+  --verbose=BOOL, --verbose BOOL
+                               Enable verbose output (true or false)
+
+Examples:
+  $PROG --paths=/usr/bin
+  $PROG --packages=bash
+  $PROG --paths=/usr/bin --verbose=true
+EOF
+	exit 0
+}
+
+paths=""
+packages=""
+VERBOSE=false
+
+while [ $# -ne 0 ]; do
+	case "$1" in
+		-h|--help) show_help;;
+		--paths=*) paths="${paths} ${1#*=}";;
+		--paths) paths="${paths} $2"; shift;;
+		--packages=*)
+			if [ "${1#*=}" = "none" ]; then
+				packages=""
+			else
+				packages="${packages} ${1#*=}"
+			fi
+		;;
+		--packages)
+			if [ "$2" = "none" ]; then
+				packages=""
+			else
+				packages="${packages} $2"
+			fi
+			shift
+		;;
+		--verbose=*) VERBOSE=${1#*=};;
+		--verbose) VERBOSE=$2; shift;;
+		--*) error "Unknown argument '$1'";;
+	esac
+	shift
+done
+
+paths=${paths# }
+packages=${packages# }
+
+case "$VERBOSE" in
+	true|false) :;;
+	*) error "--verbose must be 'true' or 'false'. found '$VERBOSE'";;
+esac
+
+[ -n "${paths}${packages}" ] || paths="/"
+
+export LANG=C
+
+vmsg() {
+	[ "$VERBOSE" = "false" ] || echo "$@"
+}
+
+check_symlink() {
+	local link="$1"
+	local target=""
+	
+	if [ ! -L "$link" ]; then
+		error "Internal error: $link is not a symlink"
+		return 1
+	fi
+	
+	target=$(readlink "$link" 2>/dev/null)
+	if [ $? -ne 0 ]; then
+		fail "$link: Cannot read symlink target"
+		return 1
+	fi
+	
+	if [ ! -e "$link" ]; then
+		if [ -z "$target" ]; then
+			fail "$link: Points to empty target"
+		else
+			fail "$link: Points to non-existent target '$target'"
+		fi
+		return 1
+	fi
+	
+	if [ ! -r "$link" ]; then
+		fail "$link: Target '$target' exists but is not readable"
+		return 1
+	fi
+	
+	pass "$link -> $target"
+	return 0
+}
+
+check_path() {
+	local path="$1"
+	local tmpfile=""
+	
+	if [ ! -d "$path" ]; then
+		fail "$path: Directory does not exist"
+		return 1
+	fi
+	
+	vmsg "Checking symlinks in $path"
+	
+	tmpfile=$(mktemp)
+	find "$path" -type l -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" > "$tmpfile"
+	
+	while IFS= read -r link; do
+		[ -n "$link" ] || continue
+		check_symlink "$link"
+	done < "$tmpfile"
+	
+	rm -f "$tmpfile"
+}
+
+check_package() {
+	local pkg="$1"
+	local tmpfile=""
+	
+	apk info -eq "$pkg" >/dev/null 2>&1 || {
+		fail "Package $pkg is not installed"
+		return 1
+	}
+	
+	vmsg "Checking symlinks in package $pkg"
+	
+	tmpfile=$(mktemp)
+	apk info -Lq "$pkg" > "$tmpfile" 2>/dev/null || {
+		fail "Failed to list files in package $pkg"
+		rm -f "$tmpfile"
+		return 1
+	}
+	
+	while IFS= read -r file; do
+		[ -n "$file" ] || continue
+		fullpath="/$file"
+		[ -L "$fullpath" ] && check_symlink "$fullpath"
+	done < "$tmpfile"
+	
+	rm -f "$tmpfile"
+}
+
+FAILS=0
+PASSES=0
+FAIL_MESSAGES=""
+
+if [ -n "$paths" ]; then
+	set -- $paths
+	for path in "$@"; do
+		check_path "$path"
+	done
+fi
+
+if [ -n "$packages" ]; then
+	set -- $packages
+	for pkg in "$@"; do
+		check_package "$pkg"
+	done
+fi
+
+info "Tested [$((PASSES+FAILS))] symlinks with [$PROG]. [$PASSES/$((PASSES+FAILS))] passed."
+
+if [ "$FAILS" -gt 0 ]; then
+	echo
+	echo "FAILED SYMLINKS:"
+	printf "%s" "$FAIL_MESSAGES"
+	exit 1
+else
+	exit 0
+fi
