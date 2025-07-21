@@ -6,11 +6,6 @@ needs:
     - symlink-check
 
 inputs:
-  paths:
-    description: |
-      The paths to check for broken symlinks.
-    required: false
-    default: "/"
   packages:
     description: |
       Check all symlinks in these installed packages.
@@ -22,5 +17,4 @@ pipeline:
   - name: "check for broken/dangling symlinks"
     runs: |
       symlink-check \
-          --paths="${{inputs.paths}}" \
           --packages="${{inputs.packages}}"
