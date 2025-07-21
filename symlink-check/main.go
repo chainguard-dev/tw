@@ -15,17 +15,22 @@ import (
 
 const progName = "symlink-check"
 
+// Config holds the command-line configuration for symlink checking
 type Config struct {
-	Paths    []string
-	Packages []string
+	Paths        []string // Paths to check for symlinks
+	Packages     []string // APK packages to check for symlinks
+	RelativeOnly bool     // Only check relative symlinks, skip absolute ones
 }
 
+// Result tracks the outcomes of symlink checking operations
 type Result struct {
-	Passes       int64
-	Fails        int64
-	FailMessages []string
-	mu           sync.Mutex
+	Passes       int64      // Number of valid symlinks found
+	Fails        int64      // Number of broken symlinks found
+	FailMessages []string   // Error messages for failed symlinks
+	mu           sync.Mutex // Protects FailMessages for concurrent access
 }
+
+// Result methods for tracking symlink check outcomes
 
 func (r *Result) AddPass(msg string) {
 	atomic.AddInt64(&r.Passes, 1)
@@ -38,6 +43,8 @@ func (r *Result) AddFail(msg string) {
 	r.FailMessages = append(r.FailMessages, fmt.Sprintf("FAIL[%s]: %s", progName, msg))
 	r.mu.Unlock()
 }
+
+// Utility functions
 
 func info(msg string) {
 	fmt.Printf("INFO[%s]: %s\n", progName, msg)
@@ -53,6 +60,7 @@ Options:
   --paths=PATH, --paths PATH    Specify paths to check (default: /)
   --packages=PKG, --packages PKG
                                Specify packages to check
+  --relative-only              Only check relative symlinks, ignore absolute ones
 
 Examples:
   %s --paths=/usr/bin
@@ -70,6 +78,7 @@ func parseArgs() *Config {
 	flag.StringVar(&pathsFlag, "paths", "", "Specify paths to check (comma-separated)")
 	flag.StringVar(&packagesFlag, "packages", "", "Specify packages to check (comma-separated)")
 	flag.BoolVar(&helpFlag, "help", false, "Show help message")
+	flag.BoolVar(&config.RelativeOnly, "relative-only", false, "Only check relative symlinks, ignore absolute ones")
 
 	flag.Usage = showHelp
 	flag.Parse()
@@ -99,6 +108,8 @@ func parseArgs() *Config {
 	return config
 }
 
+// Main application logic
+
 func main() {
 	config := parseArgs()
 	result := &Result{
@@ -107,11 +118,11 @@ func main() {
 
 	if len(config.Packages) > 0 {
 		for _, pkg := range config.Packages {
-			checkPackage(pkg, config.Paths, result)
+			checkPackage(pkg, config.Paths, result, config.RelativeOnly)
 		}
 	} else {
 		for _, path := range config.Paths {
-			checkPath(path, result)
+			checkPath(path, result, config.RelativeOnly)
 		}
 	}
 
@@ -134,6 +145,8 @@ func main() {
 	os.Exit(0)
 }
 
+// Core symlink checking functions
+
 func isInPaths(filePath string, paths []string) bool {
 	for _, path := range paths {
 		cleanPath := filepath.Clean(path)
@@ -144,12 +157,12 @@ func isInPaths(filePath string, paths []string) bool {
 	return false
 }
 
-func checkPath(path string, result *Result) {
+func checkPath(path string, result *Result, relativeOnly bool) {
 	if _, err := os.Stat(path); err != nil {
 		if os.IsNotExist(err) {
-			result.AddFail(fmt.Sprintf("%s: Path does not exist", path))
+			result.AddFail(fmt.Sprintf("path does not exist: %s", path))
 		} else {
-			result.AddFail(fmt.Sprintf("%s: Cannot access path: %v", path, err))
+			result.AddFail(fmt.Sprintf("cannot access path: %s (%v)", path, err))
 		}
 		return
 	}
@@ -163,7 +176,7 @@ func checkPath(path string, result *Result) {
 		go func() {
 			defer wg.Done()
 			for link := range symlinks {
-				checkSymlink(link, result)
+				checkSymlink(link, result, relativeOnly)
 			}
 		}()
 	}
@@ -193,32 +206,48 @@ func checkPath(path string, result *Result) {
 	wg.Wait()
 
 	if err != nil {
-		result.AddFail(fmt.Sprintf("Error walking %s: %v", path, err))
+		result.AddFail(fmt.Sprintf("error walking path: %s (%v)", path, err))
 	}
 }
 
-func checkSymlink(link string, result *Result) {
+func checkSymlink(link string, result *Result, relativeOnly bool) {
 	target, err := os.Readlink(link)
 	if err != nil {
-		result.AddFail(fmt.Sprintf("%s: Cannot read symlink target", link))
+		result.AddFail(fmt.Sprintf("cannot read symlink target: %s", link))
 		return
 	}
 
+	// Handle relative-only mode
+	if relativeOnly {
+		if filepath.IsAbs(target) {
+			// Skip absolute symlinks in relative-only mode
+			return
+		}
+
+		// Check if relative target escapes root filesystem
+		if err := checkEscapeRoot(link, target); err != nil {
+			result.AddFail(fmt.Sprintf("relative symlink escapes root: %s -> %s", link, target))
+			return
+		}
+	}
+
+	// Check if symlink target exists and is accessible
 	if _, err := os.Stat(link); err != nil {
 		if os.IsNotExist(err) {
 			if target == "" {
-				result.AddFail(fmt.Sprintf("%s: Points to empty target", link))
+				result.AddFail(fmt.Sprintf("points to empty target: %s", link))
 			} else {
-				result.AddFail(fmt.Sprintf("%s: Points to non-existent target '%s'", link, target))
+				result.AddFail(fmt.Sprintf("points to non-existent target: %s -> %s", link, target))
 			}
 		} else {
-			result.AddFail(fmt.Sprintf("%s: Cannot access target '%s': %v", link, target, err))
+			result.AddFail(fmt.Sprintf("cannot access target: %s -> %s (%v)", link, target, err))
 		}
 		return
 	}
 
+	// Verify target is readable
 	if file, err := os.Open(link); err != nil {
-		result.AddFail(fmt.Sprintf("%s: Target '%s' exists but is not readable: %v", link, target, err))
+		result.AddFail(fmt.Sprintf("target exists but not readable: %s -> %s (%v)", link, target, err))
 		return
 	} else {
 		file.Close()
@@ -227,20 +256,38 @@ func checkSymlink(link string, result *Result) {
 	result.AddPass(fmt.Sprintf("%s -> %s", link, target))
 }
 
-func checkPackage(pkg string, filterPaths []string, result *Result) {
+// checkEscapeRoot verifies if a relative symlink target would escape the root filesystem
+func checkEscapeRoot(link, target string) error {
+	linkDir := filepath.Dir(link)
+	resolvedPath := filepath.Join(linkDir, target)
+	cleanPath := filepath.Clean(resolvedPath)
+
+	relToRoot, err := filepath.Rel("/", cleanPath)
+	if err != nil {
+		return fmt.Errorf("error computing relative path: %v", err)
+	}
+
+	if strings.HasPrefix(relToRoot, "..") {
+		return fmt.Errorf("path escapes root")
+	}
+
+	return nil
+}
+
+func checkPackage(pkg string, filterPaths []string, result *Result, relativeOnly bool) {
 	cmd := exec.Command("apk", "info", "-eq", pkg)
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 
 	if err := cmd.Run(); err != nil {
-		result.AddFail(fmt.Sprintf("Package '%s' is not installed or apk command failed: %v", pkg, err))
+		result.AddFail(fmt.Sprintf("package not installed or apk failed: %s (%v)", pkg, err))
 		return
 	}
 
 	cmd = exec.Command("apk", "info", "-Lq", pkg)
 	output, err := cmd.Output()
 	if err != nil {
-		result.AddFail(fmt.Sprintf("Failed to list files in package '%s': %v", pkg, err))
+		result.AddFail(fmt.Sprintf("failed to list package files: %s (%v)", pkg, err))
 		return
 	}
 
@@ -253,7 +300,7 @@ func checkPackage(pkg string, filterPaths []string, result *Result) {
 		go func() {
 			defer wg.Done()
 			for link := range symlinks {
-				checkSymlink(link, result)
+				checkSymlink(link, result, relativeOnly)
 			}
 		}()
 	}
@@ -280,6 +327,6 @@ func checkPackage(pkg string, filterPaths []string, result *Result) {
 	wg.Wait()
 
 	if err := scanner.Err(); err != nil {
-		result.AddFail(fmt.Sprintf("Error reading package file list for %s: %v", pkg, err))
+		result.AddFail(fmt.Sprintf("error reading package file list: %s (%v)", pkg, err))
 	}
 }

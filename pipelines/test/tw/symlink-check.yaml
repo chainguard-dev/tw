@@ -2,6 +2,7 @@ name: symlink-check
 
 needs:
   packages:
+    - apk-tools
     - symlink-check
 
 inputs:
@@ -16,16 +17,10 @@ inputs:
       Use "none" to disable the default package check.
     required: false
     default: "${{context.name}}"
-  verbose:
-    description: |
-      Should verbose output be shown
-    required: false
-    default: false
 
 pipeline:
   - name: "check for broken/dangling symlinks"
     runs: |
       symlink-check \
           --paths="${{inputs.paths}}" \
-          --packages="${{inputs.packages}}" \
-          --verbose="${{inputs.verbose}}"
+          --packages="${{inputs.packages}}"
