@@ -45,7 +45,7 @@ subpackages:
       no-provides: true
     dependencies:
       runtime:
-        - apk-tools
+        - apkq
         - busybox
         - posix-libc-utils
     pipeline:
@@ -78,7 +78,6 @@ subpackages:
       no-provides: true
     dependencies:
       runtime:
-        - apk-tools
         - busybox
     pipeline:
       - runs: |
@@ -94,7 +93,7 @@ subpackages:
       no-provides: true
     dependencies:
       runtime:
-        - apk-tools
+        - apkq
         - autoconf
         - build-base
         - busybox
@@ -188,7 +187,7 @@ subpackages:
       no-provides: true
     dependencies:
       runtime:
-        - apk-tools
+        - apkq
         - grep
         - systemd
     pipeline:
@@ -214,6 +213,16 @@ subpackages:
         - runs: |
             [ -f /usr/bin/symlink-check ]
             [ -x /usr/bin/symlink-check ]
+
+  - name: apkq
+    pipeline:
+      - runs: |
+          make -C apkq MELANGE_CONTEXTDIR=${{targets.contextdir}} melange-install
+    test:
+      pipeline:
+        - runs: |
+            [ -f /usr/bin/apkq ]
+            [ -x /usr/bin/apkq ]
 
 # TODO: I'd like to do this, but until we can dynamically generate the dependencies, we need to manually set them
 # data:

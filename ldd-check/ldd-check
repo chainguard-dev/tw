@@ -200,9 +200,9 @@ check_file() {
 test_files_in() {
   local f=""
   echo "[ldd-check] Testing binaries in package $pkg"
-  apk info -eq "$pkg" > /dev/null ||
+  apkq info --installed --quiet "$pkg" > /dev/null ||
     error "Package $pkg is not installed";
-  apk info -Lq "$pkg" > "$tmpd/$pkg.list"
+  apkq info --contents --quiet "$pkg" > "$tmpd/$pkg.list"
   while read f; do
     [ -n "$f" ] || continue
     check_file "/$f" false

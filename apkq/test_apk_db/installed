@@ -1,0 +1,21 @@
+P:busybox
+V:1.37.0-r47
+A:aarch64
+T:Size optimized toolbox of many common UNIX utilities
+F:etc
+R:securetty
+F:etc/busybox-paths.d
+R:busybox
+F:usr/bin
+R:busybox
+F:var/lib/db/sbom
+R:busybox-1.37.0-r47.spdx.json
+
+P:tree
+V:2.2.1-r0
+A:aarch64
+T:A recursive directory listing program
+F:usr/bin
+R:tree
+F:var/lib/db/sbom
+R:tree-2.2.1-r0.spdx.json

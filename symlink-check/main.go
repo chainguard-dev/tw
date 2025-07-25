@@ -60,6 +60,7 @@ func (c *Config) checkPackages(result *Result) {
 	}
 
 	for _, pkgName := range c.Packages {
+		fmt.Printf("checking %s\n", pkgName)
 		pkg, ok := pkgmap[pkgName]
 		if !ok {
 			result.AddFail(fmt.Sprintf("package not installed: %s", pkgName))
@@ -69,6 +70,7 @@ func (c *Config) checkPackages(result *Result) {
 		// Process package files
 		for _, f := range pkg.Files {
 			fullPath := "/" + f.Name
+			fmt.Printf("%s\n", fullPath)
 
 			if info, err := os.Lstat(fullPath); err == nil && info.Mode()&os.ModeSymlink != 0 {
 				symlinks <- fullPath
