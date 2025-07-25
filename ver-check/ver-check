@@ -1,0 +1,173 @@
+#!/bin/sh
+set +x
+set -f
+info() { echo "INFO[ver-check]:" "$@"; }
+error() { echo "ERROR[ver-check]:" "$@"; exit 1; }
+fail() { echo "FAIL[ver-check]:" "$@"; fails=$((fails+1)); }
+pass() { echo "PASS[ver-check]:" "$@"; passes=$((passes+1)); }
+
+show_help() {
+  cat << EOF
+Usage: ver-check [OPTIONS]
+
+Tool to check version information for binaries.
+
+Options:
+  -h, --help                   Show this help message and exit
+  --bins=BINARY, --bins BINARY Space-separated list of binaries to check
+  --version=VER, --version VER Expected version string (required)
+  --version-flag=FLAG, --version-flag FLAG
+                              Version flag to use (default: auto)
+  --match-type=TYPE, --match-type TYPE
+                              Match type: contains, exact, regex (default: contains)
+  --verbose=BOOL, --verbose BOOL
+                              Enable verbose output (true or false, default: false)
+
+Examples:
+  ver-check --bins="nginx" --version="1.24.0"
+  ver-check --bins="gcc g++ cpp" --version="13.2.0" --match-type=contains
+  ver-check --bins="node" --version="v20.0.0" --version-flag="--version"
+EOF
+  exit 0
+}
+
+bins=""
+version=""
+version_flag="auto"
+match_type="contains"
+VERBOSE=false
+
+while [ $# -ne 0 ]; do
+    case "$1" in
+        -h|--help) show_help;;
+        --bins=*) bins="${bins} ${1#*=}";;
+        --bins) bins="${bins} $2"; shift;;
+        --version=*) version="${1#*=}";;
+        --version) version="$2"; shift;;
+        --version-flag=*) version_flag="${1#*=}";;
+        --version-flag) version_flag="$2"; shift;;
+        --match-type=*) match_type="${1#*=}";;
+        --match-type) match_type="$2"; shift;;
+        --verbose=*) VERBOSE=${1#*=};;
+        --verbose) VERBOSE=$2; shift;;
+        --*) error "Unknown argument '$1'";;
+    esac
+    shift
+done
+
+bins=${bins# }
+
+case "$VERBOSE" in
+  true|false) :;;
+  *) error "--verbose must be 'true' or 'false'. found '$VERBOSE'";;
+esac
+
+case "$match_type" in
+  contains|exact|regex) :;;
+  *) error "--match-type must be 'contains', 'exact', or 'regex'. found '$match_type'";;
+esac
+
+[ -n "$bins" ] || error "Must specify --bins"
+[ -n "$version" ] || error "Must specify --version"
+
+export LANG=C
+
+vmsg() {
+  [ "$VERBOSE" = "false" ] || echo "$@"
+}
+
+check_binary() {
+    local binary="$1"
+    local expected_version="$2"
+    local version_flag="$3"
+    local match_type="$4"
+    local output exit_code
+
+    vmsg "Checking version for binary: $binary"
+
+    # Check if binary exists in PATH
+    if ! command -v "$binary" >/dev/null 2>&1; then
+        fail "Binary '$binary' not found in PATH"
+        return 1
+    fi
+    vmsg "Binary '$binary' found in PATH"
+
+    # Auto-detect version flag if not specified
+    local detected_flag="$version_flag"
+    if [ "$version_flag" = "auto" ]; then
+        vmsg "Auto-detecting version flag for $binary..."
+        for flag in --version -version -V -v version; do
+            vmsg "Trying: $binary $flag"
+            if output=$($binary $flag 2>&1) && [ $? -eq 0 ] && [ -n "$output" ]; then
+                detected_flag="$flag"
+                vmsg "Success with: $flag"
+                break
+            fi
+        done
+
+        if [ "$detected_flag" = "auto" ]; then
+            fail "Could not auto-detect version flag for '$binary' (tried: --version, -version, -V, -v, version)"
+            return 1
+        fi
+    else
+        vmsg "Using specified version flag: $version_flag"
+        output=$($binary $detected_flag 2>&1)
+        exit_code=$?
+
+        if [ $exit_code -ne 0 ]; then
+            fail "'$binary $detected_flag' failed with exit code $exit_code"
+            [ "$VERBOSE" = "true" ] && echo "$output" | sed 's/^/  /'
+            return 1
+        fi
+    fi
+
+    if [ "$VERBOSE" = "true" ]; then
+        echo "> $ $binary $detected_flag"
+        echo "$output" | sed 's/^/> /'
+    fi
+
+    # Perform version matching based on match-type
+    local match_success=false
+    case "$match_type" in
+        "exact")
+            if [ "$output" = "$expected_version" ]; then
+                match_success=true
+            fi
+            ;;
+        "regex")
+            if echo "$output" | grep -E "$expected_version" >/dev/null; then
+                match_success=true
+            fi
+            ;;
+        "contains")
+            if echo "$output" | grep -F "$expected_version" >/dev/null; then
+                match_success=true
+            fi
+            ;;
+    esac
+
+    if [ "$match_success" = "false" ]; then
+        fail "Version check failed for '$binary' (expected: '$expected_version', match-type: $match_type)"
+        [ "$VERBOSE" = "true" ] && echo "$output" | sed 's/^/  Got: /'
+        return 1
+    fi
+
+    pass "$binary version check (found: $expected_version)"
+    return 0
+}
+
+fails=0
+passes=0
+
+info "Starting version checks for: $bins"
+info "Expected version: $version"
+info "Match type: $match_type"
+info "Version flag: $version_flag"
+
+for binary in $bins; do
+    check_binary "$binary" "$version" "$version_flag" "$match_type"
+done
+
+info "tested $((passes+fails)) binaries. $passes passes. $fails fails."
+
+[ $fails -eq 0 ] || exit 1

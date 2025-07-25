@@ -131,6 +131,21 @@ subpackages:
             syspeek $(command -v crane) >syscalls.txt
             [ -s syscalls.txt ]
 
+  - name: ver-check
+    options:
+      no-provides: true
+    dependencies:
+      runtime:
+        - busybox
+    pipeline:
+      - runs: |
+          make -C ver-check MELANGE_CONTEXTDIR=${{targets.contextdir}} melange-install
+    test:
+      pipeline:
+        - runs: |
+            [ -f /usr/bin/ver-check ]
+            [ -x /usr/bin/ver-check ]
+
   - name: usrmerge-tool
     options:
       no-provides: true
