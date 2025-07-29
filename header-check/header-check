@@ -178,8 +178,11 @@ for f in "$@"; do
 	fi
 done
 set -- $packages
+contents="$tmpd/contents"
 for pkg in "$@"; do
-	for f in $(apk info -qL "$pkg" | grep "^usr/include/.*\.h[p]*$" | sed -e "s:^usr/include/::"); do
+	apkq info --quiet --contents "$pkg" > "$contents" ||
+		error "failed listing apk contents contents of package '$pkg'"
+	for f in $(grep "^usr/include/.*\.h[p]*$" "$contents" | sed -e "s:^usr/include/::"); do
 		success=false
 		for lang in "c" "cpp"; do
 			if test_header "$lang" "$f" "$configure_opts"; then
