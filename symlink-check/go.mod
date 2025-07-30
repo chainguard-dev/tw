@@ -2,7 +2,7 @@ module symlink-check
 
 go 1.24.5
 
-require chainguard.dev/apko v0.29.10
+require chainguard.dev/apko v0.30.1
 
 require (
 	chainguard.dev/go-grpc-kit v0.17.11 // indirect
