@@ -11,6 +11,8 @@
 
 error() { echo "ERROR[package-type-check]:" "$@"; exit 1; }
 
+## All the show helps ##
+
 show_help() {
     cat << EOF
 Usage: package-type-check <COMMAND> [OPTIONS]
@@ -97,8 +99,11 @@ EOF
   exit 0
 }
 
+#------------------
+
+# Function to check if a package is empty
 is_empty_package() {
-    if [ $(apk info -qL "$1" | grep -v "^$" | wc -l) -le 1 ] && (apk info -qL "$1" | grep -q ".spdx.json$"); then
+    if [ $(apk info -qL "$1" | grep -vc "^$") -le 1 ] && (apk info -qL "$1" | grep -q ".spdx.json$"); then
         echo TRUE
     else
         echo FALSE
@@ -113,18 +118,19 @@ check_docs_package() {
     if [ -z "$path_prefix" ]; then
         path_prefix="usr/share"
     fi
-    
+
+    echo "Checking documentation package [$pkg]"
+
     if [ $(is_empty_package "$pkg") = TRUE ]; then
-        echo "See:"
+        echo "FAIL[1/2]: Documentation package [$pkg] is completely empty (i.e. installs no files)."
         apk info -qL "$pkg"
-        echo "This package [$pkg] is completely empty (i.e. installs no files)."
         echo "Please check the package build for proper docs installation, and either:"
         echo "  (a) fix the docs subpackage build to actually include documentation (check the split/manpages and split/infodir pipelines), or"
-        echo "  (b) remove the test/docs pipeline (if for some reason we want an empty docs package), or"
-        echo "  (c) remove the docs subpackage entirely"
+        echo "  (b) remove the docs subpackage entirely"
         exit 1
     fi
-    
+    echo "PASS[2/2]: Documentation package [$pkg] is not empty (i.e. installs files)."
+
     # Find all doc files installed by this pkg
     cd /
     local doc_files=false
@@ -161,58 +167,84 @@ check_docs_package() {
     done
     
     if [ $doc_files = "false" ]; then
-      echo "See:"
+      echo "FAIL[2/2]: This package [$pkg] installs files, but no usable documentation"
+      echo "  Please check the package build for proper docs installation"
+      echo "  This package installs the following files:"
       apk info -qL "$pkg"
-      echo "This package [$pkg] installs files, but no usable documentation"
-      echo "Please check the package build for proper docs installation, and either:"
-      echo "  (a) fix the docs subpackage build to actually include docs (check the split/manpages and split/infodir pipelines), or"
-      echo "  (b) remove the test/docs pipeline"
       exit 1
     fi
-    
-    echo "PASS: Documentation package [$pkg] contains valid documentation files"
+    echo "PASS[2/2]: Documentation package [$pkg] contains valid documentation files"
 }
 
-# Function to check meta packages
+# Function to check that the package is a meta packages
 check_meta_package() {
     local pkg="$1"
+    echo "Checking meta package [$pkg]"
     
     if [ $(is_empty_package "$pkg") = FALSE ]; then
-        echo "See:"
+        echo "FAIL[1/3]: This package [$pkg] is not empty (i.e. installs files)."
+        echo "  A metapackage is an empty package(i.e. installs no files) that only declares dependencies on other packages"
+        echo "  This package installs the following files:"
         apk info -qL "$pkg"
-        echo "This package [$pkg] is not empty (i.e. installs files)."
-        echo "A metapackage is an empty package(i.e. installs no files) that only declares dependencies on other packages"
         exit 1
     fi
+    echo "PASS[1/3]: This package [$pkg] is empty (i.e. installs no files)"
 
     # the tail trick here skips the title line and leaves only the description
     description=$(apk info --installed --description "$pkg" | tail -n +2)
 
     if ! echo "$description" | grep -qFi "meta"; then
-      echo "FAIL: metapackage [$pkg] description does not contain 'meta' keyword"
+      echo "FAIL[2/3]: metapackage [$pkg] description does not contain 'meta' keyword"
       echo "Description: $description"
       exit 1
     fi
-    echo "PASS: metapackage [$pkg] description contains 'meta' keyword"
-            
+    echo "PASS[2/3]: metapackage [$pkg] description contains 'meta' keyword"
+
     # the tail trick here skips the title line and leaves only the lines for dependencies
     # then we remove empty lines, and count remaining lines
-    depends_count=$(apk info --installed --depends "$pkg" | tail -n +2 | grep -v '^$' | wc -l)
+    depends_count=$(apk info --installed --depends "$pkg" | tail -n +2 | grep -vc '^$')
 
     if [ "${depends_count}" = "0" ]; then
-      echo "FAIL: metapackage [$pkg] has no runtime dependencies"
+      echo "FAIL[3/3]: metapackage [$pkg] has no runtime dependencies"
       exit 1
     fi
-    echo "PASS: metapackage [$pkg] has $depends_count runtime dependencies"
+    echo "PASS[3/3]: metapackage [$pkg] has $depends_count runtime dependencies"
 }
 
 # Function to check static packages
 check_static_package() {
     local pkg="$1"
-    
+    local file_list=""
     echo "Checking static package [$pkg]"
-    # Add your implementation for static package check here
-    echo "PASS: Static package check completed for [$pkg]"
+
+    if [ $(is_empty_package "$pkg") = TRUE ]; then
+        echo "FAIL[1/3]: This package [$pkg] is empty (i.e. installs no files)."
+        echo "  A staticpackage is a package that only contains static libraries. Usually with .a files extensions."
+        exit 1
+    fi
+    echo "PASS[1/3]: This package [$pkg] is not empty (i.e. installs files)"
+
+    # Get file list, excluding empty lines and SBOM files
+    file_list="$(apk info --quiet --contents "$pkg" | grep -v "^$" | grep -v "^var/lib/db/sbom")"
+
+    static_lib_count=$(echo "$file_list" | grep -c "\.a$")
+    if [ "$static_lib_count" -eq 0 ]; then
+        echo "FAIL[2/3]: This package [$pkg] does not contain any static library '.a' files."
+        exit 1
+    fi
+    echo "PASS[2/3]: This package [$pkg] contains $static_lib_count static library files."
+
+    # Check if there are any other file types
+    other_file_count=$(echo "$file_list" | grep -cv "\.a$")
+    if [ "$other_file_count" -gt 0 ]; then
+        echo "FAIL[3/3]: This package [$pkg] contains other file types besides static libraries."
+        echo "  It should only contain static library files. Found $other_file_count other files."
+        echo "  Files found:"
+        echo "$file_list" | grep -v "\.a$"
+        exit 1
+    fi
+    echo "PASS[3/3]: This package [$pkg] contains only valid static library files."
+
 }
 
 # Function to check virtual packages
@@ -259,116 +291,92 @@ shift
 # Process the command
 case "$command" in
     -h|--help)
-        show_help
-        ;;
+        show_help;;
     docs)
         # Process docs command options
         path_prefix="usr/share"
         while [ $# -gt 0 ]; do
             case "$1" in
                 -h|--help)
-                    show_docs_help
-                    ;;
+                    show_docs_help;;
                 --package)
                     pkg="$2"
-                    shift
-                    ;;
+                    shift;;
                 --path-prefix)
                     path_prefix="$2"
-                    shift
-                    ;;
+                    shift;;
                 *)
-                    error "Unknown option for docs command: $1"
-                    ;;
+                    error "Unknown option for docs command: $1";;
             esac
             shift
         done
-        check_docs_package "$pkg" "$path_prefix"
-        ;;
+        check_docs_package "$pkg" "$path_prefix";;
     meta)
         # Process meta command options
         while [ $# -gt 0 ]; do
             case "$1" in
                 -h|--help)
-                    show_meta_help
-                    ;;
+                    show_meta_help;;
                 --package)
                     pkg="$2"
-                    shift
-                    ;;
+                    shift;;
                 *)
-                    error "Unknown option for meta command: $1"
-                    ;;
+                    error "Unknown option for meta command: $1";;
             esac
             shift
         done
-        check_meta_package "$pkg"
-        ;;
+        check_meta_package "$pkg";;
     static)
         # Process static command options
         while [ $# -gt 0 ]; do
             case "$1" in
                 -h|--help)
-                    show_static_help
-                    ;;
+                    show_static_help;;
                 --package)
                     pkg="$2"
-                    shift
-                    ;;
+                    shift;;
                 *)
-                    error "Unknown option for static command: $1"
-                    ;;
+                    error "Unknown option for static command: $1";;
             esac
             shift
         done
-        check_static_package "$pkg"
-        ;;
+        check_static_package "$pkg";;
     virtual)
         # Process virtual command options
         virtual_pkg_name=""
         while [ $# -gt 0 ]; do
             case "$1" in
                 -h|--help)
-                    show_virtual_help
-                    ;;
+                    show_virtual_help;;
                 --package)
                     pkg="$2"
-                    shift
-                    ;;
+                    shift;;
                 --virtual-pkg-name)
                     virtual_pkg_name="$2"
-                    shift
-                    ;;
+                    shift;;
                 *)
-                    error "Unknown option for virtual command: $1"
-                    ;;
+                    error "Unknown option for virtual command: $1";;
             esac
             shift
         done
-        check_virtual_package "$pkg" "$virtual_pkg_name"
-        ;;
+        check_virtual_package "$pkg" "$virtual_pkg_name";;
     biproduct)
         # Process biproduct command options
         while [ $# -gt 0 ]; do
             case "$1" in
                 -h|--help)
-                    show_biproduct_help
-                    ;;
+                    show_biproduct_help;;
                 --package)
                     pkg="$2"
-                    shift
-                    ;;
+                    shift;;
                 *)
-                    error "Unknown option for biproduct command: $1"
-                    ;;
+                    error "Unknown option for biproduct command: $1";;
             esac
             shift
         done
-        check_biproduct_package "$pkg"
-        ;;
+        check_biproduct_package "$pkg";;
     *)
-        error "Unknown command: $command. Use --help to see available commands."
-        ;;
+        error "Unknown command: $command. Use --help to see available commands.";;
 esac
 
 exit 0
