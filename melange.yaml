@@ -144,6 +144,18 @@ subpackages:
             [ -f /usr/bin/ver-check ]
             [ -x /usr/bin/ver-check ]
 
+  - name: package-type-check
+    options:
+      no-provides: true
+    pipeline:
+      - runs: |
+          make -C package-type-check MELANGE_CONTEXTDIR=${{targets.contextdir}} melange-install
+      - uses: strip
+    test:
+      pipeline:
+        - runs: |
+            package-type-check --help
+
   - name: usrmerge-tool
     options:
       no-provides: true
