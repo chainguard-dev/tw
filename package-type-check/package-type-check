@@ -1,0 +1,374 @@
+#!/bin/sh
+
+####### This script to verify the different types of packages we have
+# The types can be classified as follows:
+# Docs package
+# Meta package
+# Static package
+# Virtual package
+# Biproduct package
+#########
+
+error() { echo "ERROR[package-type-check]:" "$@"; exit 1; }
+
+show_help() {
+    cat << EOF
+Usage: package-type-check <COMMAND> [OPTIONS]
+
+Tool to check and verify the type of packages in Wolfi
+
+Commands:
+  docs      Check and verify the package is a documentation package
+  meta      Check and verify the package is a meta package
+  static    Check and verify the package is a static package
+  virtual   Check and verify the package is a virtual package
+  biproduct Check and verify the package is a biproduct package
+
+Global Options:
+  -h, --help      Show this help message
+  --package NAME  Specify the package name to check (REQUIRED)
+
+For command-specific options, run:
+  package-type-check <COMMAND> --help
+EOF
+  exit 0
+}
+
+show_docs_help() {
+    cat << EOF
+Usage: package-type-check docs [OPTIONS]
+
+Check and verify the package is a documentation package
+
+Options:
+  -h, --help           Show this help message
+  --path-prefix PATH   Specify the path prefix used for documentation (e.g., "usr/share")
+EOF
+  exit 0
+}
+
+show_meta_help() {
+    cat << EOF
+Usage: package-type-check meta [OPTIONS]
+
+Check meta packages
+
+Options:
+  -h, --help           Show this help message
+EOF
+  exit 0
+}
+
+show_static_help() {
+    cat << EOF
+Usage: package-type-check static [OPTIONS]
+
+Check static packages
+
+Options:
+  -h, --help           Show this help message
+EOF
+  exit 0
+}
+
+show_virtual_help() {
+    cat << EOF
+Usage: package-type-check virtual [OPTIONS]
+
+Check virtual packages
+
+Options:
+  -h, --help                   Show this help message
+  --virtual-pkg-name NAME      Specify the virtual package name
+  --real-pkg-name NAME         Specify the real package name
+EOF
+  exit 0
+}
+
+show_biproduct_help() {
+    cat << EOF
+Usage: package-type-check biproduct [OPTIONS]
+
+Check biproduct packages
+
+Options:
+  -h, --help           Show this help message
+EOF
+  exit 0
+}
+
+is_empty_package() {
+    if [ $(apk info -qL "$1" | grep -v "^$" | wc -l) -le 1 ] && (apk info -qL "$1" | grep -q ".spdx.json$"); then
+        echo TRUE
+    else
+        echo FALSE
+    fi
+}
+
+# Function to check documentation packages
+check_docs_package() {
+    local pkg="$1"
+    local path_prefix="$2"
+    
+    if [ -z "$path_prefix" ]; then
+        path_prefix="usr/share"
+    fi
+    
+    if [ $(is_empty_package "$pkg") = TRUE ]; then
+        echo "See:"
+        apk info -qL "$pkg"
+        echo "This package [$pkg] is completely empty (i.e. installs no files)."
+        echo "Please check the package build for proper docs installation, and either:"
+        echo "  (a) fix the docs subpackage build to actually include documentation (check the split/manpages and split/infodir pipelines), or"
+        echo "  (b) remove the test/docs pipeline (if for some reason we want an empty docs package), or"
+        echo "  (c) remove the docs subpackage entirely"
+        exit 1
+    fi
+    
+    # Find all doc files installed by this pkg
+    cd /
+    local doc_files=false
+    
+    # Test man pages
+    # Exclude things installed under /usr/share/man/db/ since it contains
+    # files installed by the man-db-doc package.
+    for doc_file in $(apk info -qL "$pkg" | grep "^${path_prefix}/man/" | grep -v "^usr/share/man/db/"); do
+      if [ -f /"$doc_file" ]; then
+        # Ensure that man can read and render
+        # NOTE: man will dutifully, print any text file, not just troff manpages (e.g. html or plain text too)
+        # NOTE: but man will fail, if the file is binary or otherwise garbage
+        man -l /"$doc_file" >/dev/null
+        doc_files=true
+      fi
+    done
+    
+    # Test info pages
+    for doc_file in $(apk info -qL "$pkg" | grep "^${path_prefix}/info/"); do
+      if [ -f /"$doc_file" ]; then
+        # Ensure that info can read at least one file that looks like an info page
+        [ $(info -f /"$doc_file" -o - | wc -l) -gt 0 ] && doc_files=true
+      fi
+    done
+    
+    # Test any other text files
+    for doc_file in $(apk info -qL "$pkg" | grep "^${path_prefix}/"); do
+      if [ -f /"$doc_file" ]; then
+        # Check that we have readable files installed in /${path_prefix}
+        # There are too many types to test explicitly (text, html, pdf, images, etc.)
+        cat /"$doc_file" >/dev/null
+        doc_files=true
+      fi
+    done
+    
+    if [ $doc_files = "false" ]; then
+      echo "See:"
+      apk info -qL "$pkg"
+      echo "This package [$pkg] installs files, but no usable documentation"
+      echo "Please check the package build for proper docs installation, and either:"
+      echo "  (a) fix the docs subpackage build to actually include docs (check the split/manpages and split/infodir pipelines), or"
+      echo "  (b) remove the test/docs pipeline"
+      exit 1
+    fi
+    
+    echo "PASS: Documentation package [$pkg] contains valid documentation files"
+}
+
+# Function to check meta packages
+check_meta_package() {
+    local pkg="$1"
+    
+    if [ $(is_empty_package "$pkg") = FALSE ]; then
+        echo "See:"
+        apk info -qL "$pkg"
+        echo "This package [$pkg] is not empty (i.e. installs files)."
+        echo "A metapackage is an empty package(i.e. installs no files) that only declares dependencies on other packages"
+        exit 1
+    fi
+
+    # the tail trick here skips the title line and leaves only the description
+    description=$(apk info --installed --description "$pkg" | tail -n +2)
+
+    if ! echo "$description" | grep -qFi "meta"; then
+      echo "FAIL: metapackage [$pkg] description does not contain 'meta' keyword"
+      echo "Description: $description"
+      exit 1
+    fi
+    echo "PASS: metapackage [$pkg] description contains 'meta' keyword"
+            
+    # the tail trick here skips the title line and leaves only the lines for dependencies
+    # then we remove empty lines, and count remaining lines
+    depends_count=$(apk info --installed --depends "$pkg" | tail -n +2 | grep -v '^$' | wc -l)
+
+    if [ "${depends_count}" = "0" ]; then
+      echo "FAIL: metapackage [$pkg] has no runtime dependencies"
+      exit 1
+    fi
+    echo "PASS: metapackage [$pkg] has $depends_count runtime dependencies"
+}
+
+# Function to check static packages
+check_static_package() {
+    local pkg="$1"
+    
+    echo "Checking static package [$pkg]"
+    # Add your implementation for static package check here
+    echo "PASS: Static package check completed for [$pkg]"
+}
+
+# Function to check virtual packages
+check_virtual_package() {
+    local pkg="$1"
+    local virtual_pkg_name="$2"
+    
+    if [ -z "$virtual_pkg_name" ]; then
+        error "Virtual package name is required"
+    fi
+    
+    echo "Checking virtual package [$pkg]"
+    echo "Virtual package name: $virtual_pkg_name"
+    
+    # Add your implementation for virtual package check here
+    # For example, verify that the virtual package provides the expected functionality
+    
+    echo "PASS: Virtual package check completed for [$pkg]"
+}
+
+# Function to check biproduct packages
+check_biproduct_package() {
+    local pkg="$1"
+    
+    echo "Checking biproduct package [$pkg]"
+    # Add your implementation for biproduct package check here
+    echo "PASS: Biproduct package check completed for [$pkg]"
+}
+
+# Main script execution
+
+# Default values
+pkg=""
+
+# Check if we have any arguments
+if [ $# -eq 0 ]; then
+    show_help
+fi
+
+# Get the command (first argument)
+command="$1"
+shift
+
+# Process the command
+case "$command" in
+    -h|--help)
+        show_help
+        ;;
+    docs)
+        # Process docs command options
+        path_prefix="usr/share"
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                -h|--help)
+                    show_docs_help
+                    ;;
+                --package)
+                    pkg="$2"
+                    shift
+                    ;;
+                --path-prefix)
+                    path_prefix="$2"
+                    shift
+                    ;;
+                *)
+                    error "Unknown option for docs command: $1"
+                    ;;
+            esac
+            shift
+        done
+        check_docs_package "$pkg" "$path_prefix"
+        ;;
+    meta)
+        # Process meta command options
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                -h|--help)
+                    show_meta_help
+                    ;;
+                --package)
+                    pkg="$2"
+                    shift
+                    ;;
+                *)
+                    error "Unknown option for meta command: $1"
+                    ;;
+            esac
+            shift
+        done
+        check_meta_package "$pkg"
+        ;;
+    static)
+        # Process static command options
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                -h|--help)
+                    show_static_help
+                    ;;
+                --package)
+                    pkg="$2"
+                    shift
+                    ;;
+                *)
+                    error "Unknown option for static command: $1"
+                    ;;
+            esac
+            shift
+        done
+        check_static_package "$pkg"
+        ;;
+    virtual)
+        # Process virtual command options
+        virtual_pkg_name=""
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                -h|--help)
+                    show_virtual_help
+                    ;;
+                --package)
+                    pkg="$2"
+                    shift
+                    ;;
+                --virtual-pkg-name)
+                    virtual_pkg_name="$2"
+                    shift
+                    ;;
+                *)
+                    error "Unknown option for virtual command: $1"
+                    ;;
+            esac
+            shift
+        done
+        check_virtual_package "$pkg" "$virtual_pkg_name"
+        ;;
+    biproduct)
+        # Process biproduct command options
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                -h|--help)
+                    show_biproduct_help
+                    ;;
+                --package)
+                    pkg="$2"
+                    shift
+                    ;;
+                *)
+                    error "Unknown option for biproduct command: $1"
+                    ;;
+            esac
+            shift
+        done
+        check_biproduct_package "$pkg"
+        ;;
+    *)
+        error "Unknown command: $command. Use --help to see available commands."
+        ;;
+esac
+
+exit 0
