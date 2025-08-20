@@ -202,7 +202,7 @@ check_docs_package() {
     for doc_file in $(safe_pkg_files "$pkg" "^${path_prefix}/info/"); do
       if [ -f "/$doc_file" ]; then
         # Ensure that info can read at least one file that looks like an info page
-        [ $(info -f "/$doc_file" -o - | wc -l) -gt 0 ] && doc_files=true
+        [ "$(info -f "/$doc_file" -o - | wc -l)" -gt 0 ] && doc_files=true
       fi
     done
     
@@ -398,7 +398,8 @@ case "$command" in
             
             case "$key" in
                 -h|--help)
-                    show_docs_help;;
+                    show_docs_help
+                    ;;
                 --path-prefix)
                     if [ "$value" = "needs_value" ]; then
                         if [ $# -lt 2 ]; then
@@ -411,9 +412,11 @@ case "$command" in
                     fi
                     ;;
                 positional)
-                    error "Unexpected positional argument: $value";;
+                    error "Unexpected positional argument: $value"
+                    ;;
                 *)
-                    error "Unknown option for docs command: $key";;
+                    error "Unknown option for docs command: $key"
+                    ;;
             esac
             shift
         done
@@ -445,11 +448,14 @@ case "$command" in
             
             case "$key" in
                 -h|--help)
-                    show_meta_help;;
+                    show_meta_help
+                    ;;
                 positional)
-                    error "Unexpected positional argument: $value";;
+                    error "Unexpected positional argument: $value"
+                    ;;
                 *)
-                    error "Unknown option for meta command: $key";;
+                    error "Unknown option for meta command: $key"
+                    ;;
             esac
             shift
         done
@@ -481,11 +487,14 @@ case "$command" in
             
             case "$key" in
                 -h|--help)
-                    show_static_help;;
+                    show_static_help
+                    ;;
                 positional)
-                    error "Unexpected positional argument: $value";;
+                    error "Unexpected positional argument: $value"
+                    ;;
                 *)
-                    error "Unknown option for static command: $key";;
+                    error "Unknown option for static command: $key"
+                    ;;
             esac
             shift
         done
@@ -518,7 +527,8 @@ case "$command" in
             
             case "$key" in
                 -h|--help)
-                    show_virtual_help;;
+                    show_virtual_help
+                    ;;
                 --virtual-pkg-name)
                     if [ "$value" = "needs_value" ]; then
                         if [ $# -lt 2 ]; then
@@ -531,9 +541,11 @@ case "$command" in
                     fi
                     ;;
                 positional)
-                    error "Unexpected positional argument: $value";;
+                    error "Unexpected positional argument: $value"
+                    ;;
                 *)
-                    error "Unknown option for virtual command: $key";;
+                    error "Unknown option for virtual command: $key"
+                    ;;
             esac
             shift
         done
@@ -564,11 +576,14 @@ case "$command" in
             
             case "$key" in
                 -h|--help)
-                    show_biproduct_help;;
+                    show_biproduct_help
+                    ;;
                 positional)
-                    error "Unexpected positional argument: $value";;
+                    error "Unexpected positional argument: $value"
+                    ;;
                 *)
-                    error "Unknown option for biproduct command: $key";;
+                    error "Unknown option for biproduct command: $key"
+                    ;;
             esac
             shift
         done
