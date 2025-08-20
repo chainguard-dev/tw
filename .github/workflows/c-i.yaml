@@ -37,6 +37,9 @@ jobs:
     - name: shellcheck
       run: make shellcheck
 
+    - name: yam-check
+      run: make yam-check
+
     - name: Build
       run: make build
 

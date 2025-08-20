@@ -58,3 +58,8 @@ shellcheck:
 
 test-melange: $(KEY)
 	$(MELANGE) test --runner=docker melange.yaml $(MELANGE_OPTS) $(MELANGE_TEST_OPTS)
+
+.PHONY: yam-check
+yam-check:
+	go install github.com/chainguard-dev/yam@v0.2.27
+	yam $(shell find . -name "*.yaml" -type f -not -path "./.github/*")
