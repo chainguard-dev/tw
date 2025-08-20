@@ -9,13 +9,14 @@
 # Biproduct package
 #########
 
+info() { echo "INFO[package-type-check]:" "$@"; }
 error() { echo "ERROR[package-type-check]:" "$@"; exit 1; }
 
 ## All the show helps ##
 
 show_help() {
     cat << EOF
-Usage: package-type-check <COMMAND> [OPTIONS]
+Usage: package-type-check <COMMAND> <PACKAGE> [OPTIONS]
 
 Tool to check and verify the type of packages in Wolfi
 
@@ -26,9 +27,11 @@ Commands:
   virtual   Check and verify the package is a virtual package
   biproduct Check and verify the package is a biproduct package
 
+Arguments:
+  <PACKAGE>              Package name (required positional argument)
+
 Global Options:
-  -h, --help      Show this help message
-  --package NAME  Specify the package name to check (REQUIRED)
+  -h, --help             Show this help message
 
 For command-specific options, run:
   package-type-check <COMMAND> --help
@@ -38,63 +41,77 @@ EOF
 
 show_docs_help() {
     cat << EOF
-Usage: package-type-check docs [OPTIONS]
+Usage: package-type-check docs <PACKAGE> [OPTIONS]
 
 Check and verify the package is a documentation package
 
+Arguments:
+  <PACKAGE>                    Package name (required)
+
 Options:
-  -h, --help           Show this help message
-  --path-prefix PATH   Specify the path prefix used for documentation (e.g., "usr/share")
+  -h, --help                   Show this help message
+  --path-prefix=PATH           Specify the path prefix used for documentation (e.g., "usr/share")
 EOF
   exit 0
 }
 
 show_meta_help() {
     cat << EOF
-Usage: package-type-check meta [OPTIONS]
+Usage: package-type-check meta <PACKAGE> [OPTIONS]
 
 Check meta packages
 
+Arguments:
+  <PACKAGE>                    Package name (required)
+
 Options:
-  -h, --help           Show this help message
+  -h, --help                   Show this help message
 EOF
   exit 0
 }
 
 show_static_help() {
     cat << EOF
-Usage: package-type-check static [OPTIONS]
+Usage: package-type-check static <PACKAGE> [OPTIONS]
 
 Check static packages
 
+Arguments:
+  <PACKAGE>                    Package name (required)
+
 Options:
-  -h, --help           Show this help message
+  -h, --help                   Show this help message
 EOF
   exit 0
 }
 
 show_virtual_help() {
     cat << EOF
-Usage: package-type-check virtual [OPTIONS]
+Usage: package-type-check virtual <PACKAGE> [OPTIONS]
 
 Check virtual packages
 
+Arguments:
+  <PACKAGE>                    Package name (required)
+
 Options:
   -h, --help                   Show this help message
-  --virtual-pkg-name NAME      Specify the virtual package name
-  --real-pkg-name NAME         Specify the real package name
+  --virtual-pkg-name=NAME      Specify the virtual package name
 EOF
   exit 0
 }
 
 show_biproduct_help() {
     cat << EOF
-Usage: package-type-check biproduct [OPTIONS]
+Usage: package-type-check biproduct <PACKAGE> [OPTIONS]
 
 Check biproduct packages
 
+Arguments:
+  <PACKAGE>                    Package name (required)
+
 Options:
-  -h, --help           Show this help message
+  -h, --help                   Show this help message
 EOF
   exit 0
 }
@@ -103,17 +120,50 @@ EOF
 
 # Function to check if a package is empty
 is_empty_package() {
-    if [ $(apk info -qL "$1" | grep -vc "^$") -le 1 ] && (apk info -qL "$1" | grep -q ".spdx.json$"); then
+    local pkg="$1"
+    local file_count
+    
+    if ! apk info -eq "$pkg" >/dev/null 2>&1; then
+        error "Package $pkg is not installed"
+    fi
+    
+    file_count=$(apk info -qL "$pkg" | grep -vc "^$") || error "Failed to get file list for package $pkg"
+    
+    if [ "$file_count" -le 1 ] && (apk info -qL "$pkg" | grep -q ".spdx.json$"); then
         echo TRUE
     else
         echo FALSE
     fi
 }
 
+# Safely get files from a package with pattern
+# safe_pkg_files package_name pattern
+safe_pkg_files() {
+    local pkg="$1"
+    local pattern="$2"
+    local temp_file
+    
+    if ! apk info -eq "$pkg" >/dev/null 2>&1; then
+        error "Package $pkg is not installed"
+    fi
+    
+    temp_file=$(mktemp) || error "Failed to create temporary file"
+    apk info -qL "$pkg" > "$temp_file" || error "Failed to get file list for package $pkg"
+    
+    if [ -n "$pattern" ]; then
+        grep "$pattern" "$temp_file" || true
+    else
+        cat "$temp_file" || true
+    fi
+    
+    rm -f "$temp_file"
+}
+
 # Function to check documentation packages
 check_docs_package() {
     local pkg="$1"
     local path_prefix="$2"
+    local doc_file
     
     if [ -z "$path_prefix" ]; then
         path_prefix="usr/share"
@@ -121,15 +171,15 @@ check_docs_package() {
 
     echo "Checking documentation package [$pkg]"
 
-    if [ $(is_empty_package "$pkg") = TRUE ]; then
-        echo "FAIL[1/2]: Documentation package [$pkg] is completely empty (i.e. installs no files)."
+    if [ "$(is_empty_package "$pkg")" = TRUE ]; then
+        echo "FAIL [1/2]: Documentation package [$pkg] is completely empty (i.e. installs no files)."
         apk info -qL "$pkg"
         echo "Please check the package build for proper docs installation, and either:"
         echo "  (a) fix the docs subpackage build to actually include documentation (check the split/manpages and split/infodir pipelines), or"
         echo "  (b) remove the docs subpackage entirely"
         exit 1
     fi
-    echo "PASS[2/2]: Documentation package [$pkg] is not empty (i.e. installs files)."
+    echo "PASS [1/2]: Documentation package [$pkg] is not empty (i.e. installs files)."
 
     # Find all doc files installed by this pkg
     cd /
@@ -138,113 +188,121 @@ check_docs_package() {
     # Test man pages
     # Exclude things installed under /usr/share/man/db/ since it contains
     # files installed by the man-db-doc package.
-    for doc_file in $(apk info -qL "$pkg" | grep "^${path_prefix}/man/" | grep -v "^usr/share/man/db/"); do
-      if [ -f /"$doc_file" ]; then
+    for doc_file in $(safe_pkg_files "$pkg" "^${path_prefix}/man/" | grep -v "^usr/share/man/db/"); do
+      if [ -f "/$doc_file" ]; then
         # Ensure that man can read and render
-        # NOTE: man will dutifully, print any text file, not just troff manpages (e.g. html or plain text too)
-        # NOTE: but man will fail, if the file is binary or otherwise garbage
-        man -l /"$doc_file" >/dev/null
+        # NOTE: man will dutifully print any text file, not just troff manpages (e.g. html or plain text too)
+        # NOTE: but man will fail if the file is binary or otherwise garbage
+        man -l "/$doc_file" >/dev/null
         doc_files=true
       fi
     done
     
     # Test info pages
-    for doc_file in $(apk info -qL "$pkg" | grep "^${path_prefix}/info/"); do
-      if [ -f /"$doc_file" ]; then
+    for doc_file in $(safe_pkg_files "$pkg" "^${path_prefix}/info/"); do
+      if [ -f "/$doc_file" ]; then
         # Ensure that info can read at least one file that looks like an info page
-        [ $(info -f /"$doc_file" -o - | wc -l) -gt 0 ] && doc_files=true
+        [ $(info -f "/$doc_file" -o - | wc -l) -gt 0 ] && doc_files=true
       fi
     done
     
     # Test any other text files
-    for doc_file in $(apk info -qL "$pkg" | grep "^${path_prefix}/"); do
-      if [ -f /"$doc_file" ]; then
+    for doc_file in $(safe_pkg_files "$pkg" "^${path_prefix}/"); do
+      if [ -f "/$doc_file" ]; then
         # Check that we have readable files installed in /${path_prefix}
         # There are too many types to test explicitly (text, html, pdf, images, etc.)
-        cat /"$doc_file" >/dev/null
+        cat "/$doc_file" >/dev/null
         doc_files=true
       fi
     done
     
     if [ $doc_files = "false" ]; then
-      echo "FAIL[2/2]: This package [$pkg] installs files, but no usable documentation"
+      echo "FAIL [2/2]: This package [$pkg] installs files, but no usable documentation"
       echo "  Please check the package build for proper docs installation"
       echo "  This package installs the following files:"
       apk info -qL "$pkg"
       exit 1
     fi
-    echo "PASS[2/2]: Documentation package [$pkg] contains valid documentation files"
+    echo "PASS [2/2]: Documentation package [$pkg] contains valid documentation files"
 }
 
 # Function to check that the package is a meta packages
 check_meta_package() {
     local pkg="$1"
-    echo "Checking meta package [$pkg]"
+    local description
+    local depends_count
     
-    if [ $(is_empty_package "$pkg") = FALSE ]; then
-        echo "FAIL[1/3]: This package [$pkg] is not empty (i.e. installs files)."
+    echo "Checking meta package [$pkg]"
+
+    if [ "$(is_empty_package "$pkg")" = FALSE ]; then
+        echo "FAIL [1/3]: This package [$pkg] is not empty (i.e. installs files)."
         echo "  A metapackage is an empty package(i.e. installs no files) that only declares dependencies on other packages"
         echo "  This package installs the following files:"
         apk info -qL "$pkg"
         exit 1
     fi
-    echo "PASS[1/3]: This package [$pkg] is empty (i.e. installs no files)"
+    echo "PASS [1/3]: This package [$pkg] is empty (i.e. installs no files)"
 
     # the tail trick here skips the title line and leaves only the description
-    description=$(apk info --installed --description "$pkg" | tail -n +2)
+    description=$(apk info --installed --description "$pkg" | tail -n +2) || 
+        error "Failed to get description for package $pkg"
 
     if ! echo "$description" | grep -qFi "meta"; then
-      echo "FAIL[2/3]: metapackage [$pkg] description does not contain 'meta' keyword"
+      echo "FAIL [2/3]: metapackage [$pkg] description does not contain 'meta' keyword"
       echo "Description: $description"
       exit 1
     fi
-    echo "PASS[2/3]: metapackage [$pkg] description contains 'meta' keyword"
+    echo "PASS [2/3]: metapackage [$pkg] description contains 'meta' keyword"
 
     # the tail trick here skips the title line and leaves only the lines for dependencies
     # then we remove empty lines, and count remaining lines
-    depends_count=$(apk info --installed --depends "$pkg" | tail -n +2 | grep -vc '^$')
+    depends_count=$(apk info --installed --depends "$pkg" | tail -n +2 | grep -vc '^$') ||
+        error "Failed to get dependencies for package $pkg"
 
     if [ "${depends_count}" = "0" ]; then
-      echo "FAIL[3/3]: metapackage [$pkg] has no runtime dependencies"
+      echo "FAIL [3/3]: metapackage [$pkg] has no runtime dependencies"
       exit 1
     fi
-    echo "PASS[3/3]: metapackage [$pkg] has $depends_count runtime dependencies"
+    echo "PASS [3/3]: metapackage [$pkg] has $depends_count runtime dependencies"
 }
 
 # Function to check static packages
 check_static_package() {
     local pkg="$1"
     local file_list=""
+    local static_lib_count
+    local other_file_count
+    
     echo "Checking static package [$pkg]"
 
-    if [ $(is_empty_package "$pkg") = TRUE ]; then
-        echo "FAIL[1/3]: This package [$pkg] is empty (i.e. installs no files)."
+    if [ "$(is_empty_package "$pkg")" = TRUE ]; then
+        echo "FAIL [1/3]: This package [$pkg] is empty (i.e. installs no files)."
         echo "  A staticpackage is a package that only contains static libraries. Usually with .a files extensions."
         exit 1
     fi
-    echo "PASS[1/3]: This package [$pkg] is not empty (i.e. installs files)"
+    echo "PASS [1/3]: This package [$pkg] is not empty (i.e. installs files)"
 
     # Get file list, excluding empty lines and SBOM files
-    file_list="$(apk info --quiet --contents "$pkg" | grep -v "^$" | grep -v "^var/lib/db/sbom")"
+    file_list=$(apk info --quiet --contents "$pkg" | grep -v "^$" | grep -v "^var/lib/db/sbom") ||
+        error "Failed to get contents for package $pkg"
 
     static_lib_count=$(echo "$file_list" | grep -c "\.a$")
     if [ "$static_lib_count" -eq 0 ]; then
-        echo "FAIL[2/3]: This package [$pkg] does not contain any static library '.a' files."
+        echo "FAIL [2/3]: This package [$pkg] does not contain any static library '.a' files."
         exit 1
     fi
-    echo "PASS[2/3]: This package [$pkg] contains $static_lib_count static library files."
+    echo "PASS [2/3]: This package [$pkg] contains $static_lib_count static library files."
 
     # Check if there are any other file types
     other_file_count=$(echo "$file_list" | grep -cv "\.a$")
     if [ "$other_file_count" -gt 0 ]; then
-        echo "FAIL[3/3]: This package [$pkg] contains other file types besides static libraries."
+        echo "FAIL [3/3]: This package [$pkg] contains other file types besides static libraries."
         echo "  It should only contain static library files. Found $other_file_count other files."
         echo "  Files found:"
         echo "$file_list" | grep -v "\.a$"
         exit 1
     fi
-    echo "PASS[3/3]: This package [$pkg] contains only valid static library files."
-
+    echo "PASS [3/3]: This package [$pkg] contains only valid static library files."
 }
 
 # Function to check virtual packages
@@ -252,17 +310,18 @@ check_virtual_package() {
     local pkg="$1"
     local virtual_pkg_name="$2"
     
+    echo "Checking virtual package [$pkg]"
+    
     if [ -z "$virtual_pkg_name" ]; then
-        error "Virtual package name is required"
+        error "Virtual package name is required (--virtual-pkg-name=NAME)"
     fi
     
-    echo "Checking virtual package [$pkg]"
     echo "Virtual package name: $virtual_pkg_name"
     
     # Add your implementation for virtual package check here
     # For example, verify that the virtual package provides the expected functionality
     
-    echo "PASS: Virtual package check completed for [$pkg]"
+    echo "PASS: All virtual package checks passed for [$pkg]"
 }
 
 # Function to check biproduct packages
@@ -271,7 +330,31 @@ check_biproduct_package() {
     
     echo "Checking biproduct package [$pkg]"
     # Add your implementation for biproduct package check here
-    echo "PASS: Biproduct package check completed for [$pkg]"
+    echo "PASS: All biproduct package checks passed for [$pkg]"
+}
+
+# Parse an argument of the form --key=value or --key value
+parse_arg() {
+    local arg="$1"
+    local key value
+    
+    case "$arg" in
+        --*=*)
+            key="${arg%%=*}"
+            value="${arg#*=}"
+            echo "$key" "$value"
+            return 0
+            ;;
+        --*)
+            echo "$arg" "needs_value"
+            return 0
+            ;;
+        *)
+            # Not a --key style argument
+            echo "positional" "$arg"
+            return 0
+            ;;
+    esac
 }
 
 # Main script execution
@@ -291,92 +374,214 @@ shift
 # Process the command
 case "$command" in
     -h|--help)
-        show_help;;
+        show_help
+        ;;
     docs)
         # Process docs command options
         path_prefix="usr/share"
+        
+        # Require package as the first positional argument
+        if [ $# -eq 0 ]; then
+            error "Package name is required as a positional argument after 'docs'"
+        fi
+        
+        # Get the package name (first positional argument)
+        if ! echo "$1" | grep -q "^--"; then
+            pkg="$1"
+            shift
+        fi
+        
         while [ $# -gt 0 ]; do
-            case "$1" in
+            result=$(parse_arg "$1")
+            key=$(echo "$result" | cut -d' ' -f1)
+            value=$(echo "$result" | cut -d' ' -f2-)
+            
+            case "$key" in
                 -h|--help)
                     show_docs_help;;
-                --package)
-                    pkg="$2"
-                    shift;;
                 --path-prefix)
-                    path_prefix="$2"
-                    shift;;
+                    if [ "$value" = "needs_value" ]; then
+                        if [ $# -lt 2 ]; then
+                            error "Missing value for --path-prefix"
+                        fi
+                        path_prefix="$2"
+                        shift
+                    else
+                        path_prefix="$value"
+                    fi
+                    ;;
+                positional)
+                    error "Unexpected positional argument: $value";;
                 *)
-                    error "Unknown option for docs command: $1";;
+                    error "Unknown option for docs command: $key";;
             esac
             shift
         done
-        check_docs_package "$pkg" "$path_prefix";;
+        
+        if [ -z "$pkg" ]; then
+            error "Package name is required as a positional argument after 'docs'"
+        fi
+        
+        check_docs_package "$pkg" "$path_prefix"
+        ;;
     meta)
         # Process meta command options
+        
+        # Require package as the first positional argument
+        if [ $# -eq 0 ]; then
+            error "Package name is required as a positional argument after 'meta'"
+        fi
+        
+        # Get the package name (first positional argument)
+        if ! echo "$1" | grep -q "^--"; then
+            pkg="$1"
+            shift
+        fi
+        
         while [ $# -gt 0 ]; do
-            case "$1" in
+            result=$(parse_arg "$1")
+            key=$(echo "$result" | cut -d' ' -f1)
+            value=$(echo "$result" | cut -d' ' -f2-)
+            
+            case "$key" in
                 -h|--help)
                     show_meta_help;;
-                --package)
-                    pkg="$2"
-                    shift;;
+                positional)
+                    error "Unexpected positional argument: $value";;
                 *)
-                    error "Unknown option for meta command: $1";;
+                    error "Unknown option for meta command: $key";;
             esac
             shift
         done
-        check_meta_package "$pkg";;
+        
+        if [ -z "$pkg" ]; then
+            error "Package name is required as a positional argument after 'meta'"
+        fi
+        
+        check_meta_package "$pkg"
+        ;;
     static)
         # Process static command options
+        
+        # Require package as the first positional argument
+        if [ $# -eq 0 ]; then
+            error "Package name is required as a positional argument after 'static'"
+        fi
+        
+        # Get the package name (first positional argument)
+        if ! echo "$1" | grep -q "^--"; then
+            pkg="$1"
+            shift
+        fi
+        
         while [ $# -gt 0 ]; do
-            case "$1" in
+            result=$(parse_arg "$1")
+            key=$(echo "$result" | cut -d' ' -f1)
+            value=$(echo "$result" | cut -d' ' -f2-)
+            
+            case "$key" in
                 -h|--help)
                     show_static_help;;
-                --package)
-                    pkg="$2"
-                    shift;;
+                positional)
+                    error "Unexpected positional argument: $value";;
                 *)
-                    error "Unknown option for static command: $1";;
+                    error "Unknown option for static command: $key";;
             esac
             shift
         done
-        check_static_package "$pkg";;
+        
+        if [ -z "$pkg" ]; then
+            error "Package name is required as a positional argument after 'static'"
+        fi
+        
+        check_static_package "$pkg"
+        ;;
     virtual)
         # Process virtual command options
         virtual_pkg_name=""
+        
+        # Require package as the first positional argument
+        if [ $# -eq 0 ]; then
+            error "Package name is required as a positional argument after 'virtual'"
+        fi
+        
+        # Get the package name (first positional argument)
+        if ! echo "$1" | grep -q "^--"; then
+            pkg="$1"
+            shift
+        fi
+        
         while [ $# -gt 0 ]; do
-            case "$1" in
+            result=$(parse_arg "$1")
+            key=$(echo "$result" | cut -d' ' -f1)
+            value=$(echo "$result" | cut -d' ' -f2-)
+            
+            case "$key" in
                 -h|--help)
                     show_virtual_help;;
-                --package)
-                    pkg="$2"
-                    shift;;
                 --virtual-pkg-name)
-                    virtual_pkg_name="$2"
-                    shift;;
+                    if [ "$value" = "needs_value" ]; then
+                        if [ $# -lt 2 ]; then
+                            error "Missing value for --virtual-pkg-name"
+                        fi
+                        virtual_pkg_name="$2"
+                        shift
+                    else
+                        virtual_pkg_name="$value"
+                    fi
+                    ;;
+                positional)
+                    error "Unexpected positional argument: $value";;
                 *)
-                    error "Unknown option for virtual command: $1";;
+                    error "Unknown option for virtual command: $key";;
             esac
             shift
         done
+        
+        if [ -z "$pkg" ]; then
+            error "Package name is required as a positional argument after 'virtual'"
+        fi
+        
         check_virtual_package "$pkg" "$virtual_pkg_name";;
     biproduct)
         # Process biproduct command options
+        
+        # Require package as the first positional argument
+        if [ $# -eq 0 ]; then
+            error "Package name is required as a positional argument after 'biproduct'"
+        fi
+        
+        # Get the package name (first positional argument)
+        if ! echo "$1" | grep -q "^--"; then
+            pkg="$1"
+            shift
+        fi
+        
         while [ $# -gt 0 ]; do
-            case "$1" in
+            result=$(parse_arg "$1")
+            key=$(echo "$result" | cut -d' ' -f1)
+            value=$(echo "$result" | cut -d' ' -f2-)
+            
+            case "$key" in
                 -h|--help)
                     show_biproduct_help;;
-                --package)
-                    pkg="$2"
-                    shift;;
+                positional)
+                    error "Unexpected positional argument: $value";;
                 *)
-                    error "Unknown option for biproduct command: $1";;
+                    error "Unknown option for biproduct command: $key";;
             esac
             shift
         done
-        check_biproduct_package "$pkg";;
+        
+        if [ -z "$pkg" ]; then
+            error "Package name is required as a positional argument after 'biproduct'"
+        fi
+        
+        check_biproduct_package "$pkg"
+        ;;
     *)
-        error "Unknown command: $command. Use --help to see available commands.";;
+        error "Unknown command: $command. Use --help to see available commands."
+        ;;
 esac
 
 exit 0
