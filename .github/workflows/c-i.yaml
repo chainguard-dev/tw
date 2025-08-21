@@ -8,13 +8,20 @@ on:
     branches:
       - main
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   test:
     name: Test Projects
-    runs-on: ubuntu-latest
+    # strategy:
+    #   fail-fast: false
+    #   matrix:
+    #     arch:
+    #       - aarch64
+    #       - x86_64
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04-aarch64
     steps:
       - uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
@@ -33,11 +40,11 @@ jobs:
           version: v0.10.0
       - name: lint
         run: make lint
-      - name: Build
-        run: make build
       - name: Test all projects
         run: |
           make test
+      - name: Build
+        run: make build
       - name: Test in melange
         run: |
           make test-melange
