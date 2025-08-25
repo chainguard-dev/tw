@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/debasishbsws/cg-tw/package-type-check/pkg/utils"
+	"github.com/chainguard-dev/cg-tw/package-type-check/pkg/utils"
 )
 
 func CheckDocsPackage(pkg string, pathPrefix string) error {

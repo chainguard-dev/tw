@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/debasishbsws/cg-tw/package-type-check/pkg/utils"
+	"github.com/chainguard-dev/cg-tw/package-type-check/pkg/utils"
 )
 
 // Check performs the virtual package checks

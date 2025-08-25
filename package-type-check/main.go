@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/debasishbsws/cg-tw/package-type-check/pkg/checkers"
+	"github.com/chainguard-dev/cg-tw/package-type-check/pkg/checkers"
 	"github.com/spf13/cobra"
 )
 
@@ -24,6 +24,8 @@ func main() {
 	rootCmd.AddCommand(CheckDocsCommand())
 	rootCmd.AddCommand(CheckMetaCommand())
 	rootCmd.AddCommand(CheckVirtualCommand())
+	rootCmd.AddCommand(CheckStaticCommand())
+	rootCmd.AddCommand(CheckBiProductCommand())
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -63,8 +65,8 @@ func CheckStaticCommand() *cobra.Command {
 		Use:   "static <PACKAGE>",
 		Short: "Check and verify the package is a static package",
 		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("Static package check for %s is not implemented yet\n", args[0])
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return checkers.CheckStaticPackage(args[0])
 		},
 	}
 }

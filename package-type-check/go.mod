@@ -1,6 +1,6 @@
-module github.com/debasishbsws/cg-tw/package-type-check
+module github.com/chainguard-dev/cg-tw/package-type-check
 
-go 1.24
+go 1.25
 
 require github.com/spf13/cobra v1.9.1
 
