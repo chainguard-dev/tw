@@ -1,0 +1,13 @@
+name: Bi-Product Package Check
+
+needs:
+  packages:
+    - package-type-check
+
+pipeline:
+  - name: Check if the package is a Bi-Product Package
+    runs: |
+      pkg="${{context.name}}"
+
+      package-type-check biproduct "$pkg"
+

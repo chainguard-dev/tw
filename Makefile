@@ -56,3 +56,6 @@ shellcheck:
 
 test: $(KEY) $(DIR_TESTS)
 	$(MELANGE) test --runner docker melange.yaml $(MELANGE_OPTS) $(MELANGE_TEST_OPTS)
+
+clean:
+	rm -rf $(OUT_DIR)
