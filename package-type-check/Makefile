@@ -2,14 +2,17 @@ PROJECT = package-type-check
 MELANGE_CONTEXTDIR ?= /tmp/melange-context/$(PROJECT)
 MELANGE_INSTALL_PATH = $(MELANGE_CONTEXTDIR)/usr/bin
 
-.PHONY: build melange-install
+.PHONY: build test clean melange-install
 
 build:
-	chmod +x package-type-check
+	go build -o package-type-check
 
 test:
+	go test -v ./...
+
+clean:
+	rm -f package-type-check
 
 melange-install: build
-	echo $@
 	mkdir -p $(MELANGE_INSTALL_PATH)
-	install -Dm755 $(PROJECT) $(MELANGE_INSTALL_PATH)/$(PROJECT)
+	install -Dm755 package-type-check $(MELANGE_INSTALL_PATH)/package-type-check

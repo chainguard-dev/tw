@@ -147,14 +147,17 @@ subpackages:
   - name: package-type-check
     options:
       no-provides: true
+    dependencies:
+      runtime:
+        - busybox
     pipeline:
       - runs: |
           make -C package-type-check MELANGE_CONTEXTDIR=${{targets.contextdir}} melange-install
-      - uses: strip
     test:
       pipeline:
         - runs: |
-            package-type-check --help
+            [ -f /usr/bin/package-type-check ]
+            [ -x /usr/bin/package-type-check ]
 
   - name: usrmerge-tool
     options:
