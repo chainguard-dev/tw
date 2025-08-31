@@ -2,3 +2,10 @@ dgrep nginx -e 'error' -i
 dgrep my-app -e 'failed' -e 'error'
 dgrep webapp -e 'request.*timeout' -t 10s -r 2
 dgrep service -e 'warning' -v
+dgrep redis -e 'ready' -e 'started'
+dgrep postgres --default
+dgrep mysql --default --ne-exclude 'INFO'
+dgrep app-container --ne 'fatal' --ne 'panic'
+dgrep worker -e 'processing' -i -r 1
+dgrep api-server -e 'health.*check' -v
+dgrep cache-server --ne 'connection.*refused'
