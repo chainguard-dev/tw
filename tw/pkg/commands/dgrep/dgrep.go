@@ -24,16 +24,37 @@ const (
 	DefaultTimeout = 15 * time.Second
 )
 
-type cfg struct {
-	Container   string
-	Timeout     time.Duration
-	IgnoreCase  bool
-	Retry       int
-	Patterns    []string
-	InvertMatch bool
+// Common error patterns for --all flag
+var commonErrorPatterns = []string{
+	"ERROR",
+	"Error", 
+	"error",
+	"Fatal",
+	"FATAL",
+	"fatal",
+	"Fail",
+	"FAIL", 
+	"fail",
+	"Exception",
+	"exception",
+	"panic",
+	"PANIC",
+}
 
-	compiled    []*regexp.Regexp
-	highlighter func(string) string
+type cfg struct {
+	Container      string
+	Timeout        time.Duration
+	IgnoreCase     bool
+	Retry          int
+	Patterns       []string
+	NotExpected    []string
+	NotExpectedExclude []string
+	InvertMatch    bool
+	DefaultErrors  bool
+
+	compiled           []*regexp.Regexp
+	notExpectedCompiled []*regexp.Regexp
+	highlighter        func(string) string
 }
 
 func Command() *cobra.Command {
@@ -55,7 +76,10 @@ func Command() *cobra.Command {
 	cmd.Flags().DurationVarP(&cfg.Timeout, "timeout", "t", DefaultTimeout, "time to wait for logs to appear")
 	cmd.Flags().IntVarP(&cfg.Retry, "retry", "r", 3, "number of times to retry a failed request")
 	cmd.Flags().BoolVarP(&cfg.IgnoreCase, "ignore-case", "i", true, "toggle to ignore case for the match")
-	cmd.Flags().StringArrayVarP(&cfg.Patterns, "regexp", "e", nil, "regular expression to match")
+	cmd.Flags().StringArrayVarP(&cfg.Patterns, "regexp", "e", nil, "regular expression to match (must be present)")
+	cmd.Flags().StringArrayVar(&cfg.NotExpected, "ne", nil, "regular expression that must NOT be present")
+	cmd.Flags().StringArrayVar(&cfg.NotExpectedExclude, "ne-exclude", nil, "exclude specific patterns from --default (only works with --default)")
+	cmd.Flags().BoolVar(&cfg.DefaultErrors, "default", false, "add default error patterns (adds 22 common error patterns)")
 	cmd.Flags().BoolVarP(&cfg.InvertMatch, "invert-match", "v", false, "toggle to invert the match")
 
 	return cmd
@@ -116,9 +140,9 @@ func (c *cfg) retryableRun(ctx context.Context) error {
 
 	matches := []match{}
 	matchedPatterns := make(map[int]bool)
+	notExpectedMatches := []match{}
 
 	// Use stdcopy to properly handle Docker's multiplexed stream format
-
 	var stdoutBuf, stderrBuf bytes.Buffer
 	if _, err := stdcopy.StdCopy(&stdoutBuf, &stderrBuf, reader); err != nil && err != io.EOF {
 		return fmt.Errorf("error reading container logs: %v", err)
@@ -128,6 +152,8 @@ func (c *cfg) retryableRun(ctx context.Context) error {
 	scanner := bufio.NewScanner(strings.NewReader(stdoutBuf.String()))
 	for scanner.Scan() {
 		line := scanner.Text()
+		
+		// Check expected patterns
 		for i, re := range c.compiled {
 			if re.MatchString(line) {
 				matches = append(matches, match{
@@ -138,12 +164,24 @@ func (c *cfg) retryableRun(ctx context.Context) error {
 				break
 			}
 		}
+		
+		// Check not-expected patterns
+		for _, re := range c.notExpectedCompiled {
+			if re.MatchString(line) {
+				notExpectedMatches = append(notExpectedMatches, match{
+					Container: c.Container,
+					Text:      re.ReplaceAllStringFunc(line, c.highlighter),
+				})
+			}
+		}
 	}
 
 	// Process stderr
 	scanner = bufio.NewScanner(strings.NewReader(stderrBuf.String()))
 	for scanner.Scan() {
 		line := scanner.Text()
+		
+		// Check expected patterns
 		for i, re := range c.compiled {
 			if re.MatchString(line) {
 				matches = append(matches, match{
@@ -153,21 +191,45 @@ func (c *cfg) retryableRun(ctx context.Context) error {
 				matchedPatterns[i] = true
 			}
 		}
+		
+		// Check not-expected patterns
+		for _, re := range c.notExpectedCompiled {
+			if re.MatchString(line) {
+				notExpectedMatches = append(notExpectedMatches, match{
+					Container: c.Container,
+					Text:      re.ReplaceAllStringFunc(line, c.highlighter),
+				})
+			}
+		}
 	}
 
 	// Print all matches at the end
 	nmatches := len(matches)
-	clog.InfoContextf(ctx, "found %d matches in container %s", nmatches, c.Container)
+	nNotExpected := len(notExpectedMatches)
+	
+	clog.InfoContextf(ctx, "found %d expected matches in container %s", nmatches, c.Container)
 	for i, m := range matches {
-		clog.InfoContextf(ctx, "-- [%d/%d] in %s: %s", i+1, nmatches, m.Container, m.Text)
+		clog.InfoContextf(ctx, "-- [%d/%d] expected in %s: %s", i+1, nmatches, m.Container, m.Text)
+	}
+
+	if nNotExpected > 0 {
+		clog.InfoContextf(ctx, "found %d not-expected matches in container %s", nNotExpected, c.Container)
+		for i, m := range notExpectedMatches {
+			clog.InfoContextf(ctx, "-- [%d/%d] not-expected in %s: %s", i+1, nNotExpected, m.Container, m.Text)
+		}
 	}
 
 	if c.InvertMatch && nmatches > 0 {
 		return fmt.Errorf("found %d unwanted matches in container %s", nmatches, c.Container)
 	}
 
-	if !c.InvertMatch {
-		// Check if all patterns were matched
+	// Fail if any not-expected patterns were found
+	if nNotExpected > 0 {
+		return fmt.Errorf("found %d not-expected matches in container %s", nNotExpected, c.Container)
+	}
+
+	// Check if all expected patterns were matched (only if not using invert match)
+	if !c.InvertMatch && len(c.Patterns) > 0 {
 		if len(matchedPatterns) < len(c.compiled) {
 			// Find which patterns were not matched
 			var missingPatterns []string
@@ -176,7 +238,7 @@ func (c *cfg) retryableRun(ctx context.Context) error {
 					missingPatterns = append(missingPatterns, pattern)
 				}
 			}
-			return fmt.Errorf("no match found for pattern(s): %v", missingPatterns)
+			return fmt.Errorf("no match found for expected pattern(s): %v", missingPatterns)
 		}
 	}
 
@@ -186,16 +248,57 @@ func (c *cfg) retryableRun(ctx context.Context) error {
 func (c *cfg) prerun(_ context.Context, args []string) error {
 	c.Container = args[0]
 
-	if len(c.Patterns) == 0 {
-		return fmt.Errorf("expected at least one pattern via -e/--regexp")
+	// Validate --ne-exclude requires --default
+	if len(c.NotExpectedExclude) > 0 && !c.DefaultErrors {
+		return fmt.Errorf("--ne-exclude can only be used with --default")
 	}
 
-	// Compile all the patterns
+	// Add default error patterns if --default is specified
+	if c.DefaultErrors {
+		// Start with all default patterns
+		patterns := make([]string, len(commonErrorPatterns))
+		copy(patterns, commonErrorPatterns)
+		
+		// Remove excluded patterns
+		for _, exclude := range c.NotExpectedExclude {
+			filtered := []string{}
+			for _, pattern := range patterns {
+				if pattern != exclude {
+					filtered = append(filtered, pattern)
+				}
+			}
+			patterns = filtered
+		}
+		
+		// Add defaults (after exclusions) to not-expected patterns
+		c.NotExpected = append(c.NotExpected, patterns...)
+	}
+
+	if len(c.Patterns) == 0 && len(c.NotExpected) == 0 {
+		return fmt.Errorf("expected at least one pattern via -e/--regexp or --ne")
+	}
+
+	// Check for conflicting patterns (same pattern in both -e and --ne)
+	for _, expected := range c.Patterns {
+		for _, notExpected := range c.NotExpected {
+			if expected == notExpected {
+				return fmt.Errorf("conflicting pattern '%s' found in both -e and --ne flags", expected)
+			}
+		}
+	}
+
 	for _, p := range c.Patterns {
 		if c.IgnoreCase {
 			p = "(?i)" + p
 		}
 		c.compiled = append(c.compiled, regexp.MustCompile(p))
+	}
+
+	for _, p := range c.NotExpected {
+		if c.IgnoreCase {
+			p = "(?i)" + p
+		}
+		c.notExpectedCompiled = append(c.notExpectedCompiled, regexp.MustCompile(p))
 	}
 
 	c.highlighter = func(s string) string {
