@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -24,21 +25,21 @@ const (
 	DefaultTimeout = 15 * time.Second
 )
 
-// Common error patterns for --all flag
+// Common error patterns for --default flag
 var commonErrorPatterns = []string{
 	"ERROR",
-	"Error", 
-	"error",
-	"Fatal",
 	"FATAL",
-	"fatal",
-	"Fail",
-	"FAIL", 
-	"fail",
+	"FAIL",
 	"Exception",
-	"exception",
 	"panic",
-	"PANIC",
+	"Traceback",
+	"command not found",
+	"NullPointerException",
+	"RuntimeException",
+	"TimeoutException",
+	"OutOfMemoryError",
+	"StackOverflow",
+	"segmentation fault",
 }
 
 type cfg struct {
@@ -79,7 +80,7 @@ func Command() *cobra.Command {
 	cmd.Flags().StringArrayVarP(&cfg.Patterns, "regexp", "e", nil, "regular expression to match (must be present)")
 	cmd.Flags().StringArrayVar(&cfg.NotExpected, "ne", nil, "regular expression that must NOT be present")
 	cmd.Flags().StringArrayVar(&cfg.NotExpectedExclude, "ne-exclude", nil, "exclude specific patterns from --default (only works with --default)")
-	cmd.Flags().BoolVar(&cfg.DefaultErrors, "default", false, "add default error patterns (adds 22 common error patterns)")
+	cmd.Flags().BoolVar(&cfg.DefaultErrors, "default", false, fmt.Sprintf("add default %d common error patterns", len(commonErrorPatterns)))
 	cmd.Flags().BoolVarP(&cfg.InvertMatch, "invert-match", "v", false, "toggle to invert the match")
 
 	return cmd
@@ -280,10 +281,8 @@ func (c *cfg) prerun(_ context.Context, args []string) error {
 
 	// Check for conflicting patterns (same pattern in both -e and --ne)
 	for _, expected := range c.Patterns {
-		for _, notExpected := range c.NotExpected {
-			if expected == notExpected {
-				return fmt.Errorf("conflicting pattern '%s' found in both -e and --ne flags", expected)
-			}
+		if slices.Contains(c.NotExpected, expected) {
+			return fmt.Errorf("conflicting pattern '%s' found in both -e and --ne flags", expected)
 		}
 	}
 
