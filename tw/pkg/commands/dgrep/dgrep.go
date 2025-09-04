@@ -32,14 +32,13 @@ var commonErrorPatterns = []string{
 	"FAIL",
 	"Exception",
 	"panic",
-	"Traceback",
+	"Traceback.*most.recent.call",
 	"command not found",
-	"NullPointerException",
-	"RuntimeException",
-	"TimeoutException",
-	"OutOfMemoryError",
-	"StackOverflow",
+	"java.lang.*Exception",
 	"segmentation fault",
+	"org.jruby.exceptions",
+	"Gem::MissingSpecError",
+	"Permission denied"
 }
 
 type cfg struct {
