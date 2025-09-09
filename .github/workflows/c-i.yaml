@@ -27,8 +27,8 @@ jobs:
         with:
           egress-policy: audit
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-      - uses: chainguard-dev/actions/apt-faster@b1933e3d1f574c772dc7efd68c2060dafbc25e8c # v1.4.9
-      - uses: chainguard-dev/actions/setup-melange@b1933e3d1f574c772dc7efd68c2060dafbc25e8c # v1.4.9
+      - uses: chainguard-dev/actions/apt-faster@f632aec66edeebe245ad686a33a0c0a2160cac31 # v1.4.14
+      - uses: chainguard-dev/actions/setup-melange@f632aec66edeebe245ad686a33a0c0a2160cac31 # v1.4.14
       - name: Set up Go
         uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
