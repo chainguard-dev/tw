@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/chainguard-dev/cg-tw/package-type-check/pkg/checkers"
 	"github.com/spf13/cobra"
@@ -72,18 +73,23 @@ func CheckStaticCommand() *cobra.Command {
 }
 
 func CheckVirtualCommand() *cobra.Command {
-	var virtualPkg []string
+	var virtualPkgStr string
 
 	cmd := &cobra.Command{
 		Use:   "virtual <PACKAGE>",
 		Short: "Check and verify the package is a virtual package",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return checkers.CheckVirtualPackage(args[0], virtualPkg)
+			// Split the space-separated string into a slice
+			var virtualPkgs []string
+			if virtualPkgStr != "" {
+				virtualPkgs = strings.Fields(virtualPkgStr)
+			}
+			return checkers.CheckVirtualPackage(args[0], virtualPkgs)
 		},
 	}
 
-	cmd.Flags().StringArrayVar(&virtualPkg, "virtual-pkg", []string{}, "The names of the virtual packages")
+	cmd.Flags().StringVar(&virtualPkgStr, "virtual-pkg", "", "Space-separated list of virtual package names")
 	cmd.MarkFlagRequired("virtual-pkg")
 	return cmd
 }

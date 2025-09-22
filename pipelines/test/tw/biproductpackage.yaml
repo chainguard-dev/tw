@@ -7,7 +7,5 @@ needs:
 pipeline:
   - name: Check if the package is a Bi-Product Package
     runs: |
-      pkg="${{context.name}}"
-
-      package-type-check biproduct "$pkg"
+      package-type-check biproduct "${{context.name}}"
 

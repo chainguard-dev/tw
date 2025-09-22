@@ -13,16 +13,4 @@ inputs:
 pipeline:
   - name: Check if the package is a Virtual Package
     runs: |
-      pkg="${{context.name}}"
-      
-      # Split the space-separated list into an array
-      IFS=' ' read -r -a virtual_pkgs <<< "${{inputs.virtual-pkg-name}}"
-      
-      # Build the --virtual-pkg flags
-      virtual_pkg_flags=""
-      for vpkg in "${virtual_pkgs[@]}"; do
-        virtual_pkg_flags="$virtual_pkg_flags --virtual-pkg $vpkg"
-      done
-      
-      # Run the virtual package check
-      package-type-check virtual "$pkg" $virtual_pkg_flags
+      package-type-check virtual "${{context.name}}" --virtual-pkg "${{inputs.virtual-pkg-name}}"
