@@ -49,8 +49,8 @@ while [ $# -ne 0 ]; do
         --version-flag) version_flag="$2"; shift;;
         --match-type=*) match_type="${1#*=}";;
         --match-type) match_type="$2"; shift;;
-        --verbose=*) VERBOSE=${1#*=};;
-        --verbose) VERBOSE=$2; shift;;
+        --verbose=*) VERBOSE="${1#*=}";;
+        --verbose) VERBOSE="$2"; shift;;
         --*) error "Unknown argument '$1'";;
     esac
     shift
