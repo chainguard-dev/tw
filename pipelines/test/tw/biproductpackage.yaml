@@ -8,4 +8,3 @@ pipeline:
   - name: Check if the package is a Bi-Product Package
     runs: |
       package-type-check biproduct "${{context.name}}"
-

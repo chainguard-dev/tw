@@ -12,8 +12,5 @@ inputs:
 pipeline:
   - name: Check if the package is a Documentation Package
     runs: |
-      pkg="${{context.name}}"
-
-      package-type-check docs "$pkg" \
+      package-type-check docs "${{context.name}}" \
           --path-prefix "${{inputs.path-prefix}}"
-
