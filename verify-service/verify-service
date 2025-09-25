@@ -12,7 +12,8 @@ Tool to check service files
 
 Options:
   -h, --help                    Show this help message and exit
-  --dir                         Dir to root of package check service files (required)
+  --dir                         Dir to root of package check service files [deprecated]
+  --package                     Package to search
   --skip-files                  Files to skip
   --man                         Wether or not to run the checks with man pages
 
@@ -26,6 +27,7 @@ EOF
 dir=""
 man=""
 skip_files=""
+package_name=""
 
 while [ $# -ne 0 ]; do
     case "$1" in
@@ -36,14 +38,20 @@ while [ $# -ne 0 ]; do
             shift;;
         --dir) dir="$2"
             shift;;
+        --package) package_name="$2"
+            shift;;
         --*) error "Unkown argument '$1'";;
     esac
     shift
 done
 
-if [ -z "$dir" ]; then
-    error "Required argument --dir missing"
+if [ -n "${package_name}" ] && [ -n "$dir" ]; then
+    error "Cannot provide --package and --dir"
+elif [ -n "$dir" ]; then
+    package_name=${dir##*/}
 fi
+
+[ -n "$package_name" ] || error "Must provide --package"
 
 set -x
 
@@ -64,10 +72,6 @@ Before=local-fs.target umount.target
 What=/dev/null
 Where=/test_instance
 EOF
-
-# ${{package.name}} when run inside of a test pipeline is always the name of the top-level
-# package. This seems like a bug to me.
-package_name=$(basename "$dir")
 
 skip_expr=""
 for skip in $skip_files; do
