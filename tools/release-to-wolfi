@@ -1,6 +1,6 @@
 #!/bin/sh
 # shellcheck disable=SC2015,SC2039,SC2166,SC3043
-VERBOSITY=0
+VERBOSITY=1
 # run with 'TWGIT=$PWD' to test locally
 TWGIT=${TWGIT:-https://github.com/chainguard-dev/tw}
 
@@ -9,10 +9,16 @@ fail() { [ $# -eq 0 ] || stderr "$@"; exit 1; }
 
 Usage() {
 	cat <<EOF
-Usage: ${0##*/} tag wolfi-os/
+Usage: ${0##*/} tag packages-git-dir/ [ packages-git-dir ...]]
 
    Release 'tag' to wolfi, where 'wolfi-os' is a wolfi-dev/os
    git checkout.
+
+   packages-git-dir is a local git checkout.  A commit will be
+   added to it that has the pipelines/ sync'd.
+
+   If the packages-git-dir is wolfi, then melange.yaml will be
+   copied to tw.yaml.
 EOF
 }
 
@@ -24,9 +30,39 @@ cleanup() {
 debug() {
 	local level="$1"
     shift
-	[ "${level}" -gt "${VERBOSITY}" ] && return
+	[ "$VERBOSITY" -lt "$level" ] && return
 	stderr "${@}"
 }
+
+sync_to_dir() {
+	local gdir="$1"
+	# we assume presence of busybox.yaml indicates wolfi, and that tw should be updated.
+	if [ -f "$gdir/busybox.yaml" ]; then
+		debug 1 "updating melange.yaml -> tw.yaml in $gdir"
+	    # search only in lines 1 to 10 for version and epoch
+	    sed -e "1,10s/^\([ ]\+version\): .*/\1: \"${tag#v}\"/" \
+	        -e "1,10s,^\([ ]\+epoch\): .*,\1: 0," \
+	        -e "s,#wolfi#,," \
+	        -e "s,^\([ ]\+expected-commit\): .*$,\1: $cksum," \
+		    "melange.yaml" > "$gdir/tw.yaml"
+	    ( cd "$gdir" && git add tw.yaml )
+	fi
+
+	debug 1 "syncing pipelines to $gdir"
+	for d in pipelines/*/tw; do
+		[ -d "$gdir/$d" ] || mkdir -p "$gdir/$d" ||
+			fail "failed to mkdir in $gdir"
+		cp "$d"/* "$gdir/$d" ||
+			fail "failed cp tw/$d/* -> $gdir/$d"
+		( cd "$gdir" && git add "$d" ) ||
+			fail "failed to git add $d"
+	done
+
+	( cd "$gdir" && git commit -m "tw - bump to $tag" ) ||
+		fail "failed to commit to $gdir"
+	return 0
+}
+
 
 main() {
 	[ "$1" = "--help" ] && { Usage; exit 0; }
@@ -43,15 +79,17 @@ main() {
 
 	shift $((OPTIND -1))
 
-	[ $# -eq 2 ] || { bad_Usage "got $# args expected 2"; return 1; }
+	[ $# -ge 2 ] || { bad_Usage "got $# args expected 2+"; return 1; }
 
-	local tag="$1" gdir="$2"
+	local tag="$1"
 	tag=v${tag#v} # chop of 'v' in v0.0.1
+	shift
 
-	if [ ! -d "$gdir" ]; then
-		fail "$gdir: not a directory"
-	fi
-	gdir=$( cd "$gdir" && pwd ) || fail "failed to cd $gdir"
+	local gdir=""
+	for gdir in "$@"; do
+		[ -d "$gdir" ] || fail "$gdir: not a directory"
+		( cd "$gdir" ) || fail "failed to cd $gdir"
+	done
 
 	TEMP_D=$(mktemp -d "${TMPDIR:-/tmp}/${0##*/}.XXXXXX") ||
 		fail "failed to make tempdir"
@@ -62,26 +100,9 @@ main() {
 	cd tw || fail "failed cd into git cloned $TWGIT"
 	cksum=$(git rev-parse "$tag") || fail "$tag did not exist"
 
-	# search only in lines 1 to 10 for version and epoch
-	sed -e "1,10s/^\([ ]\+version\): .*/\1: \"${tag#v}\"/" \
-	    -e "1,10s,^\([ ]\+epoch\): .*,\1: 0," \
-	    -e "s,#wolfi#,," \
-	    -e "s,^\([ ]\+expected-commit\): .*$,\1: $cksum," \
-		"melange.yaml" > "$gdir/tw.yaml"
-	( cd "$gdir" && git add tw.yaml )
-
-	for d in pipelines/*/tw; do
-		[ -d "$gdir/$d" ] || mkdir -p "$gdir/$d" ||
-			fail "failed to mkdir in $gdir"
-		cp "$d"/* "$gdir/$d" ||
-			fail "failed cp tw/$d/* -> $gdir/$d"
-		( cd "$gdir" && git add "$d" ) ||
-			fail "failed to git add $d"
+	for gdir in "$@"; do
+		sync_to_dir "$gdir" || exit 1
 	done
-
-	cd "$gdir" || fail "failed cd. strange"
-	git commit -m "tw - bump to $tag"
-
 	return 0
 }
 
