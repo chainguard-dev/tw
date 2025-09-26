@@ -10,9 +10,6 @@ inputs:
   only-replace:
     description: Only update packages already in the constraints file (set to false to allow adding new packages)
     default: "true"
-  show-diff:
-    description: Show diff of changes made
-    default: "false"
 
 needs:
   packages:
@@ -23,36 +20,19 @@ pipeline:
     runs: |
       set -euo pipefail
 
-      constraints_file="${{inputs.constraints-file}}"
-      packages="${{inputs.packages}}"
-      only_replace="${{inputs.only-replace}}"
-      show_diff="${{inputs.show-diff}}"
-
-      # Check if constraints file exists
-      if [ ! -f "$constraints_file" ]; then
-        echo "ERROR: Constraints file '$constraints_file' not found" 1>&2
-        exit 1
-      fi
-
       # Create a temporary file with the package updates
       updates_file=$(mktemp /tmp/bump-constraints.XXXXXX)
       trap "rm -f $updates_file" EXIT
 
       # Write packages to the temporary file
-      echo "$packages" > "$updates_file"
-
-      # Prepare the only-replace flag
-      only_replace_flag=""
-      if [ "$only_replace" = "false" ]; then
-        only_replace_flag="--only-replace=false"
-      fi
+      echo "${{inputs.packages}}" > "$updates_file"
 
       # Execute tw bumpconstraints command using the updates file
-      tw bumpconstraints -c "$constraints_file" -u "$updates_file" $only_replace_flag
+      tw bumpconstraints \
+        --constraints-file="${{inputs.constraints-file}}" \
+        --updates-file="$updates_file" \
+        --only-replace=${{inputs.only-replace}}
 
-      # Show diff if requested
-      if [ "$show_diff" = "true" ] && command -v diff >/dev/null 2>&1; then
-        echo ""
-        echo "Changes made:"
-        diff -u "${constraints_file}.bak" "$constraints_file" || true
-      fi
+      echo ""
+      echo "Changes made:"
+      diff -u "${{inputs.constraints-file}}.bak" "${{inputs.constraints-file}}" || true
