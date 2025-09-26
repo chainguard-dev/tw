@@ -38,7 +38,7 @@ var commonErrorPatterns = []string{
 	"segmentation fault",
 	"org.jruby.exceptions",
 	"Gem::MissingSpecError",
-	"Permission denied"
+	"Permission denied",
 }
 
 type cfg struct {
