@@ -1,0 +1,57 @@
+name: Bump Python constraint pins
+
+inputs:
+  constraints-file:
+    description: Path to the constraints file to update
+    default: constraints.txt
+  packages:
+    description: List of package==version pairs to update (newline separated, with optional comments)
+    required: true
+  only-replace:
+    description: Only update packages already in the constraints file (set to false to allow adding new packages)
+    default: "true"
+  show-diff:
+    description: Show diff of changes made
+    default: "false"
+
+needs:
+  packages:
+    - tw
+
+pipeline:
+  - name: "bump constraint pins"
+    runs: |
+      set -euo pipefail
+
+      constraints_file="${{inputs.constraints-file}}"
+      packages="${{inputs.packages}}"
+      only_replace="${{inputs.only-replace}}"
+      show_diff="${{inputs.show-diff}}"
+
+      # Check if constraints file exists
+      if [ ! -f "$constraints_file" ]; then
+        echo "ERROR: Constraints file '$constraints_file' not found" 1>&2
+        exit 1
+      fi
+
+      # Create a temporary file with the package updates
+      updates_file=$(mktemp /tmp/bump-constraints.XXXXXX)
+      trap "rm -f $updates_file" EXIT
+
+      # Write packages to the temporary file
+      echo "$packages" > "$updates_file"
+
+      # Prepare the only-replace flag
+      only_replace_flag=""
+      if [ "$only_replace" = "false" ]; then
+        only_replace_flag="--only-replace=false"
+      fi
+
+      # Prepare the show-diff flag
+      show_diff_flag=""
+      if [ "$show_diff" = "true" ]; then
+        show_diff_flag="--show-diff"
+      fi
+
+      # Execute tw bumpconstraints command using the updates file
+      tw bumpconstraints -c "$constraints_file" -u "$updates_file" $only_replace_flag $show_diff_flag
