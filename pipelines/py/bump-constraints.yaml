@@ -35,4 +35,7 @@ pipeline:
 
       echo ""
       echo "Changes made:"
-      diff -u "${{inputs.constraints-file}}.bak" "${{inputs.constraints-file}}" || true
+      if diff -u "${{inputs.constraints-file}}.bak" "${{inputs.constraints-file}}"; then
+        echo "ERROR: No changes were made to ${{inputs.constraints-file}}" 1>&2
+        exit 1
+      fi
