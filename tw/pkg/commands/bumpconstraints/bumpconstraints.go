@@ -355,10 +355,9 @@ func (c *cfg) parseConstraintsFile() ([]Constraint, []string, error) {
 		constraint := c.parseLine(trimmed)
 		if constraint != nil {
 			constraints = append(constraints, *constraint)
-		} else if trimmed != "" {
-			// Log lines that look like constraints but couldn't be parsed
-			clog.FromContext(nil).WarnContextf(nil, "Could not parse constraint on line %d: %s", lineNum, trimmed)
 		}
+		// Note: Lines that look like constraints but couldn't be parsed are silently skipped
+		// This allows for flexibility in the constraints file format
 	}
 
 	if err := scanner.Err(); err != nil {
