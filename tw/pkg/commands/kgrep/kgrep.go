@@ -25,7 +25,7 @@ const (
 	DefaultTimeout = 5 * time.Second
 )
 
-// Common error patterns for --default flag
+// Common error patterns for --std-errors flag
 var commonErrorPatterns = []string{
 	"ERROR",
 	"FATAL",
@@ -84,8 +84,8 @@ func Command() *cobra.Command {
 	cmd.Flags().StringVarP(&cfg.Container, "container", "c", "", "container to grep logs from (if not specified, will search in all)")
 	cmd.Flags().StringArrayVarP(&cfg.Patterns, "regexp", "e", nil, "regular expression to match that must be present")
 	cmd.Flags().StringArrayVar(&cfg.NotExpected, "ne", nil, "regular expression that must NOT be present")
-	cmd.Flags().StringArrayVar(&cfg.NotExpectedExclude, "ne-exclude", nil, "exclude specific patterns from --default (only works with --default)")
-	cmd.Flags().BoolVar(&cfg.DefaultErrors, "default", false, fmt.Sprintf("add default %d common error patterns", len(commonErrorPatterns)))
+	cmd.Flags().StringArrayVar(&cfg.NotExpectedExclude, "ne-exclude", nil, "exclude specific patterns from --std-errors (only works with --std-errors)")
+	cmd.Flags().BoolVar(&cfg.DefaultErrors, "std-errors", false, fmt.Sprintf("check for %d standard error patterns", len(commonErrorPatterns)))
 	cmd.Flags().BoolVarP(&cfg.InvertMatch, "invert-match", "v", false, "toggle to invert the match")
 
 	return cmd
@@ -233,12 +233,12 @@ func (c *cfg) retryableRun(ctx context.Context) error {
 func (c *cfg) prerun(_ context.Context, args []string) error {
 	c.names = strings.Split(args[0], "/")
 
-	// Validate --ne-exclude requires --default
+	// Validate --ne-exclude requires --std-errors
 	if len(c.NotExpectedExclude) > 0 && !c.DefaultErrors {
-		return fmt.Errorf("--ne-exclude can only be used with --default")
+		return fmt.Errorf("--ne-exclude can only be used with --std-errors")
 	}
 
-	// Add default error patterns if --default is specified
+	// Add default error patterns if --std-errors is specified
 	if c.DefaultErrors {
 		// Start with all default patterns
 		patterns := make([]string, len(commonErrorPatterns))

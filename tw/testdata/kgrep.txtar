@@ -2,8 +2,8 @@ kgrep deploy/metrics-server -n kube-system -e 'ready'
 kgrep pod/my-app -e 'started' -e 'healthy'
 kgrep svc/api-service -n default -e 'listening' -i
 kgrep deploy/webapp -e 'rolling.*update' -t 30s -r 2
-kgrep pod/worker --default
-kgrep deploy/backend --default --ne-exclude 'Exception' --ne-exclude 'panic'
+kgrep pod/worker --std-errors
+kgrep deploy/backend --std-errors --ne-exclude 'Exception' --ne-exclude 'panic'
 kgrep svc/database --ne 'connection.*failed'
 kgrep pod/nginx -c nginx -e 'GET.*200'
 kgrep deploy/app -n production -e 'ready' -v
