@@ -47,11 +47,12 @@ pipeline:
         only_replace_flag="--only-replace=false"
       fi
 
-      # Prepare the show-diff flag
-      show_diff_flag=""
-      if [ "$show_diff" = "true" ]; then
-        show_diff_flag="--show-diff"
-      fi
-
       # Execute tw bumpconstraints command using the updates file
-      tw bumpconstraints -c "$constraints_file" -u "$updates_file" $only_replace_flag $show_diff_flag
+      tw bumpconstraints -c "$constraints_file" -u "$updates_file" $only_replace_flag
+
+      # Show diff if requested
+      if [ "$show_diff" = "true" ] && command -v diff >/dev/null 2>&1; then
+        echo ""
+        echo "Changes made:"
+        diff -u "${constraints_file}.bak" "$constraints_file" || true
+      fi

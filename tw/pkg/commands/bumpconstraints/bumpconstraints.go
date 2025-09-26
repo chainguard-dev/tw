@@ -4,13 +4,11 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
 	pep440 "github.com/aquasecurity/go-pep440-version"
 	"github.com/chainguard-dev/clog"
-	"github.com/pmezard/go-difflib/difflib"
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +17,6 @@ type cfg struct {
 	OnlyReplace     bool
 	Packages        []string
 	UpdatesFile     string
-	ShowDiff        bool
 }
 
 type Constraint struct {
@@ -88,7 +85,6 @@ Examples:
 	cmd.Flags().StringVarP(&cfg.ConstraintsFile, "constraints-file", "c", "constraints.txt", "Path to the constraints file to update")
 	cmd.Flags().StringVarP(&cfg.UpdatesFile, "updates-file", "u", "", "Path to file containing package updates (one per line)")
 	cmd.Flags().BoolVar(&cfg.OnlyReplace, "only-replace", true, "Only update packages already in the constraints file")
-	cmd.Flags().BoolVar(&cfg.ShowDiff, "show-diff", false, "Show diff of changes made")
 
 	return cmd
 }
@@ -263,13 +259,6 @@ func (c *cfg) Run(cmd *cobra.Command) error {
 
 	success = true
 	log.InfoContextf(ctx, "Successfully updated %s", c.ConstraintsFile)
-
-	// Show diff if requested
-	if c.ShowDiff {
-		if err := c.showDiff(backupFile); err != nil {
-			log.WarnContextf(ctx, "Could not show diff: %v", err)
-		}
-	}
 
 	return nil
 }
@@ -470,49 +459,4 @@ func (c *cfg) loadUpdatesFromFile() ([]string, error) {
 	}
 
 	return updates, nil
-}
-
-func (c *cfg) showDiff(backupFile string) error {
-	// Get the absolute paths for better output
-	absBackup, _ := filepath.Abs(backupFile)
-	absConstraints, _ := filepath.Abs(c.ConstraintsFile)
-
-	fmt.Println("\nChanges made:")
-
-	// Read both files
-	oldContent, err := os.ReadFile(backupFile)
-	if err != nil {
-		return err
-	}
-
-	newContent, err := os.ReadFile(c.ConstraintsFile)
-	if err != nil {
-		return err
-	}
-
-	// Split content into lines for difflib
-	oldLines := strings.Split(string(oldContent), "\n")
-	newLines := strings.Split(string(newContent), "\n")
-
-	// Generate unified diff using go-difflib
-	unifiedDiff := difflib.UnifiedDiff{
-		A:        oldLines,
-		B:        newLines,
-		FromFile: absBackup,
-		ToFile:   absConstraints,
-		Context:  3, // Show 3 lines of context around changes
-	}
-
-	diffText, err := difflib.GetUnifiedDiffString(unifiedDiff)
-	if err != nil {
-		return fmt.Errorf("failed to generate diff: %w", err)
-	}
-
-	if diffText != "" {
-		fmt.Print(diffText)
-	} else {
-		fmt.Println("No changes detected")
-	}
-
-	return nil
 }
