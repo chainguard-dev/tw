@@ -1,1 +1,11 @@
-kgrep deploy/metrics-server -n kube-system -i 'failed'
+kgrep deploy/metrics-server -n kube-system -e 'ready'
+kgrep pod/my-app -e 'started' -e 'healthy'
+kgrep svc/api-service -n default -e 'listening' -i
+kgrep deploy/webapp -e 'rolling.*update' -t 30s -r 2
+kgrep pod/worker --std-errors
+kgrep deploy/backend --std-errors --ne-exclude 'Exception' --ne-exclude 'panic'
+kgrep svc/database --ne 'connection.*failed'
+kgrep pod/nginx -c nginx -e 'GET.*200'
+kgrep deploy/app -n production -e 'ready' -v
+kgrep pod/redis -e 'connected.*clients' -i -r 1
+kgrep svc/frontend --ne 'TimeoutException' --ne 'ERROR'
