@@ -70,8 +70,8 @@ while [ $# -ne 0 ]; do
                 packages="${packages} $2"
             fi
             shift;;
-        --verbose=*) VERBOSE=${1#*=};;
-        --verbose) VERBOSE=$2; shift;;
+        --verbose=*) VERBOSE="${1#*=}";;
+        --verbose) VERBOSE="$2"; shift;;
         --*) error "Unknown argument '$1'";;
     esac
     shift

@@ -1,5 +1,6 @@
 .PHONY: build test
 
+TOP_D := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 HASH := \#
 ARCH ?= $(shell uname -m)
 ifeq (${ARCH}, arm64)
@@ -12,24 +13,28 @@ DIR_TESTS := $(addprefix test-, $(PROJECT_DIRS))
 
 MELANGE ?= $(shell which melange)
 KEY ?= local-melange.rsa
-REPO ?= $(shell pwd)/packages
-OUT_DIR ?= $(shell pwd)/packages
+REPO ?= $(TOP_D)/packages
+OUT_DIR ?= $(TOP_D)/packages
+
+BIN_TOOLS_D = $(TOP_D)/tools/bin
+
+YAM_FILES := $(shell find * .github -name "*.yaml" -type f)
 
 WOLFI_REPO ?= https://packages.wolfi.dev/os
 WOLFI_KEY ?= https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
 
-MELANGE_OPTS += --arch ${ARCH}
-MELANGE_OPTS += --keyring-append ${KEY}.pub
-MELANGE_OPTS += --repository-append ${REPO}
-MELANGE_OPTS += -k ${WOLFI_KEY}
-MELANGE_OPTS += -r ${WOLFI_REPO}
-MELANGE_OPTS += --source-dir ./
+MELANGE_OPTS += --debug
+MELANGE_OPTS += --arch=${ARCH}
+MELANGE_OPTS += --keyring-append=${KEY}.pub
+MELANGE_OPTS += --repository-append=${REPO}
+MELANGE_OPTS += --keyring-append=${WOLFI_KEY}
+MELANGE_OPTS += --repository-append=${WOLFI_REPO}
+MELANGE_OPTS += --source-dir=./
 
-MELANGE_BUILD_OPTS += --signing-key ${KEY}
-MELANGE_BUILD_OPTS += --cache-dir $(HOME)/go/pkg/mod
-MELANGE_BUILD_OPTS += --out-dir ${OUT_DIR}
+MELANGE_BUILD_OPTS += --signing-key=${KEY}
+MELANGE_BUILD_OPTS += --out-dir=${OUT_DIR}
 
-MELANGE_TEST_OPTS += --test-package-append wolfi-base
+MELANGE_TEST_OPTS += --test-package-append=wolfi-base
 
 ${KEY}:
 	${MELANGE} keygen ${KEY}
@@ -37,7 +42,9 @@ ${KEY}:
 build: $(KEY)
 	$(MELANGE) build --runner docker melange.yaml $(MELANGE_OPTS) $(MELANGE_BUILD_OPTS)
 
-test-%:
+test: $(DIR_TESTS)
+.PHONY: $(DIR_TESTS)
+$(DIR_TESTS): test-%:
 	@echo "Running test in $*"
 	@$(MAKE) -C $* test
 
@@ -54,8 +61,24 @@ shellcheck:
 	    shellcheck "$$s" || rc=$$?; \
 	done; exit $$rc
 
-test: $(KEY) $(DIR_TESTS)
-	$(MELANGE) test --runner docker melange.yaml $(MELANGE_OPTS) $(MELANGE_TEST_OPTS)
-
 clean:
 	rm -rf $(OUT_DIR)
+
+test-melange: $(KEY)
+	$(MELANGE) test --runner=docker melange.yaml $(MELANGE_OPTS) $(MELANGE_TEST_OPTS)
+
+.PHONY: lint
+lint: yam-check shellcheck
+
+.PHONY: yam-check yam
+# yam-check shows changes it would make and exits 0 on no changes.
+yam-check: $(BIN_TOOLS_D)/yam
+	$(BIN_TOOLS_D)/yam --lint $(YAM_FILES)
+
+# yam applies changes to the files you cannot trust its exit code
+yam: $(BIN_TOOLS_D)/yam
+	$(BIN_TOOLS_D)/yam $(YAM_FILES)
+
+$(BIN_TOOLS_D)/yam:
+	@mkdir -p $(BIN_TOOLS_D)
+	GOBIN=$(BIN_TOOLS_D) go install github.com/chainguard-dev/yam@v0.2.29

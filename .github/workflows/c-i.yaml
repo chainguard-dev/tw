@@ -1,0 +1,50 @@
+name: c-i
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions: {}
+
+jobs:
+  test:
+    name: Test Projects
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - aarch64
+          - x86_64
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04-${{matrix.arch}}
+    steps:
+      - uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: chainguard-dev/actions/apt-faster@cd899cc96227b82170571cad1c3d6378d8cba678 # v1.4.15
+      - uses: chainguard-dev/actions/setup-melange@cd899cc96227b82170571cad1c3d6378d8cba678 # v1.4.15
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: './go.work'
+          cache-dependency-path: '**/*.sum'
+      - name: Setup shellcheck
+        uses: ./.github/actions/shellcheck
+        with:
+          version: v0.10.0
+      - name: lint
+        run: make lint
+      - name: Build
+        run: make build
+      - name: Test all projects
+        run: |
+          make test
+      - name: Test in melange
+        run: |
+          make test-melange

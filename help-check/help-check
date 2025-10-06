@@ -1,0 +1,176 @@
+#!/bin/sh
+# shellcheck disable=SC2317,SC2166,SC3043,SC2162,SC2086
+set +x
+set -f
+info() { echo "INFO[help-check]:" "$@"; }
+error() { echo "ERROR[help-check]:" "$@"; exit 1; }
+fail() { echo "FAIL[help-check]:" "$@"; fails=$((fails+1)); }
+pass() { echo "PASS[help-check]:" "$@"; passes=$((passes+1)); }
+
+show_help() {
+  cat << EOF
+Usage: help-check [OPTIONS]
+
+Tool to check help information for binaries.
+
+Options:
+  -h, --help                   Show this help message and exit
+  --bins=BINARY, --bins BINARY Space-separated list of binaries to check
+  --help-flag=FLAG, --help-flag FLAG
+                              Help flag to use (default: auto)
+  --expect-contains=STR, --expect-contains STR
+                              Optional strings to verify in help output (space-separated)
+  --verbose=BOOL, --verbose BOOL
+                              Enable verbose output (true or false, default: false)
+
+Examples:
+  help-check --bins="nginx"
+  help-check --bins="gcc g++ cpp"
+  help-check --bins="node" --help-flag="--help"
+  help-check --bins="nginx" --expect-contains="Usage Options"
+EOF
+  exit 0
+}
+
+bins=""
+help_flag="auto"
+expect_contains=""
+VERBOSE=false
+
+while [ $# -ne 0 ]; do
+    case "$1" in
+        -h|--help) show_help;;
+        --bins=*) bins="${bins} ${1#*=}";;
+        --bins) bins="${bins} $2"; shift;;
+        --help-flag=*) help_flag="${1#*=}";;
+        --help-flag) help_flag="$2"; shift;;
+        --expect-contains=*) expect_contains="${1#*=}";;
+        --expect-contains) expect_contains="$2"; shift;;
+        --verbose=*) VERBOSE="${1#*=}";;
+        --verbose) VERBOSE="$2"; shift;;
+        --*) error "Unknown argument '$1'";;
+    esac
+    shift
+done
+
+bins=${bins# }
+
+case "$VERBOSE" in
+  true|false) :;;
+  *) error "--verbose must be 'true' or 'false'. found '$VERBOSE'";;
+esac
+
+[ -n "$bins" ] || error "Must specify --bins"
+
+export LANG=C
+
+vmsg() {
+  [ "$VERBOSE" = "false" ] || echo "$@"
+}
+
+check_binary() {
+    local binary="$1"
+    local help_flag="$2"
+    local expect_contains="$3"
+    local output exit_code
+    local help_candidates="--help -h -help help"
+
+    vmsg "Checking help for binary: $binary"
+
+    # Check if binary exists in PATH
+    local fbinary=""
+    if ! fbinary=$(command -v "$binary" 2>/dev/null); then
+      fail "Binary $binary not found in PATH ($PATH)"
+      return 1
+    fi
+    vmsg "Binary '$fbinary' found in PATH"
+
+    local binarymsg="'$binary'"
+    if [ "$binary" != "$fbinary" ]; then
+        binarymsg="'$binary [$fbinary]'"
+    fi
+
+    # Auto-detect help flag if not specified
+    local detected_flag="$help_flag"
+    if [ "$help_flag" = "auto" ]; then
+        vmsg "Auto-detecting help flag for $fbinary..."
+        for flag in $help_candidates; do
+            vmsg "Trying: $fbinary $flag"
+            # Help flags may exit with 0 or 1, both are acceptable
+            if output=$($binary $flag 2>&1); then
+                exit_code=$?
+            else
+                exit_code=$?
+            fi
+
+            # Accept exit code 0 or 1 for help output
+            if [ $exit_code -eq 0 ] || [ $exit_code -eq 1 ]; then
+                if [ -n "$output" ]; then
+                    detected_flag="$flag"
+                    vmsg "Success with: $flag (exit code: $exit_code)"
+                    break
+                fi
+            fi
+        done
+
+        if [ "$detected_flag" = "auto" ]; then
+            fail "Could not auto-detect help flag for '$binarymsg' (tried: $help_candidates)"
+            return 1
+        fi
+    else
+        vmsg "Using specified help flag: $help_flag"
+        output=$($binary $detected_flag 2>&1) || true
+        exit_code=$?
+
+        # Help flags commonly exit with 0 or 1
+        if [ $exit_code -ne 0 ] && [ $exit_code -ne 1 ]; then
+            fail "'$binarymsg $detected_flag' failed with unexpected exit code $exit_code"
+            [ "$VERBOSE" = "true" ] && echo "$output" | sed 's/^/  /'
+            return 1
+        fi
+    fi
+
+    if [ -z "$output" ]; then
+        fail "'$binarymsg $detected_flag' produced no output"
+        return 1
+    fi
+
+    if [ "$VERBOSE" = "true" ]; then
+        echo "> $ $binary $detected_flag"
+        echo "$output" | sed 's/^/> /'
+    fi
+
+    # Check for expected content if specified
+    if [ -n "$expect_contains" ]; then
+        local all_found=true
+        for expected_str in $expect_contains; do
+            if ! echo "$output" | grep -F "$expected_str" >/dev/null; then
+                fail "Help output for $binarymsg missing expected string: '$expected_str'"
+                [ "$VERBOSE" = "true" ] && echo "$output" | sed 's/^/  /'
+                all_found=false
+            fi
+        done
+
+        if [ "$all_found" = "false" ]; then
+            return 1
+        fi
+    fi
+
+    pass "$binarymsg help check"
+    return 0
+}
+
+fails=0
+passes=0
+
+info "Starting help checks for: $bins"
+info "Help flag: $help_flag"
+[ -n "$expect_contains" ] && info "Expecting output to contain: $expect_contains"
+
+for binary in $bins; do
+    check_binary "$binary" "$help_flag" "$expect_contains"
+done
+
+info "tested $((passes+fails)) binaries. $passes passes. $fails fails."
+
+[ $fails -eq 0 ] || exit 1

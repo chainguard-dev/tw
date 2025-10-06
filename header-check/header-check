@@ -78,10 +78,10 @@ while [ $# -ne 0 ]; do
 			shift
 		;;
 		--verbose=*)
-			VERBOSE=${1#*=}
+			VERBOSE="${1#*=}"
 		;;
 		--verbose)
-			VERBOSE=$2
+			VERBOSE="$2"
 			shift
 		;;
 		--*)
