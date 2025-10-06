@@ -150,6 +150,21 @@ subpackages:
             [ -f /usr/bin/help-check ]
             [ -x /usr/bin/help-check ]
 
+  - name: package-type-check
+    options:
+      no-provides: true
+    dependencies:
+      runtime:
+        - busybox
+    pipeline:
+      - runs: |
+          make -C package-type-check MELANGE_CONTEXTDIR=${{targets.contextdir}} melange-install
+    test:
+      pipeline:
+        - runs: |
+            [ -f /usr/bin/package-type-check ]
+            [ -x /usr/bin/package-type-check ]
+
   - name: usrmerge-tool
     options:
       no-provides: true
