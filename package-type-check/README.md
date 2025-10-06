@@ -6,4 +6,4 @@ This tool is designed to check and verify the type of packages in Wolfi. It supp
 - Meta packages
 - Static packages
 - Virtual packages
-- Biproduct packages
+- Byproduct packages

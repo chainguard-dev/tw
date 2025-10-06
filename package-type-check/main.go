@@ -13,7 +13,7 @@ func main() {
 	var rootCmd = &cobra.Command{
 		Use:   "package-type-check",
 		Short: "A tool to check and verify the type of package in Wolfi",
-		Long:  `This tool is used in wolfi melange test configuration to verify the kind of packages: : docs, meta, static, virtual, and biproduct packages.`,
+		Long:  `This tool is used in wolfi melange test configuration to verify the kind of packages: : docs, meta, static, virtual, and by-product packages.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			// Default help message if no command is provided
 			cmd.Help()
@@ -21,12 +21,12 @@ func main() {
 	}
 
 	// Add all subcommands
-	// TODO: Add other commands for static, biproduct
+	// TODO: Add other commands for static, byproduct
 	rootCmd.AddCommand(CheckDocsCommand())
 	rootCmd.AddCommand(CheckMetaCommand())
 	rootCmd.AddCommand(CheckVirtualCommand())
 	rootCmd.AddCommand(CheckStaticCommand())
-	rootCmd.AddCommand(CheckBiProductCommand())
+	rootCmd.AddCommand(CheckByProductCommand())
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -94,13 +94,13 @@ func CheckVirtualCommand() *cobra.Command {
 	return cmd
 }
 
-func CheckBiProductCommand() *cobra.Command {
+func CheckByProductCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "biproduct <PACKAGE>",
-		Short: "Check and verify the package is a bi-product (can't be installed by the package manager) package",
+		Use:   "byproduct <PACKAGE>",
+		Short: "Check and verify the package is a by-product (can't be installed by the package manager) package",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return checkers.CheckBiProductPackage(args[0])
+			return checkers.CheckByProductPackage(args[0])
 		},
 	}
 }
