@@ -1,0 +1,35 @@
+# Test compilereqs command is registered and help works
+! compilereqs
+stderr 'required flag\(s\) "package", "version" not set'
+
+# Test help flag displays proper usage
+compilereqs --help
+stdout 'Compile a locked requirements file for Python packages and bundles'
+stdout 'uv to compile a locked requirements file'
+stdout 'Examples:'
+stdout 'tw compilereqs -p requests -v 2.31.0'
+stdout 'Flags:'
+stdout '\-p, \-\-package'
+stdout '\-v, \-\-version'
+
+# Test short help flag
+compilereqs -h
+stdout 'Compile a locked requirements file'
+stdout 'Usage:'
+stdout 'compilereqs \[flags\]'
+
+# Test invalid flag
+! compilereqs --invalid-flag test
+stderr 'unknown flag: --invalid-flag'
+
+# Test all flags are documented in help
+compilereqs --help
+stdout '\-d, \-\-dependencies'
+stdout '\-P, \-\-python'
+stdout '\-o, \-\-output'
+stdout '\-i, \-\-index'
+
+# Verify default values in help
+compilereqs --help
+stdout 'default "requirements\.locked"'
+stdout 'default "https://libraries\.cgr\.dev/python/simple"'

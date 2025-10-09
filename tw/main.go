@@ -9,6 +9,7 @@ import (
 
 	"github.com/chainguard-dev/clog"
 	"github.com/chainguard-dev/tw/pkg/commands/bumpconstraints"
+	"github.com/chainguard-dev/tw/pkg/commands/compilereqs"
 	"github.com/chainguard-dev/tw/pkg/commands/dgrep"
 	"github.com/chainguard-dev/tw/pkg/commands/helm"
 	"github.com/chainguard-dev/tw/pkg/commands/kgrep"
@@ -21,6 +22,7 @@ import (
 
 var cmds = map[string]*cobra.Command{
 	"bumpconstraints": bumpconstraints.Command(),
+	"compilereqs":     compilereqs.Command(),
 	"dgrep":           dgrep.Command(),
 	"sfuzz":           sfuzz.Command(),
 	"kgrep":           kgrep.Command(),
