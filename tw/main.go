@@ -14,6 +14,7 @@ import (
 	"github.com/chainguard-dev/tw/pkg/commands/kgrep"
 	"github.com/chainguard-dev/tw/pkg/commands/kimages"
 	"github.com/chainguard-dev/tw/pkg/commands/sfuzz"
+	"github.com/chainguard-dev/tw/pkg/commands/shelldeps"
 	"github.com/chainguard-dev/tw/pkg/commands/shu"
 	"github.com/chainguard-dev/tw/pkg/commands/wassert"
 	"github.com/spf13/cobra"
@@ -28,6 +29,7 @@ var cmds = map[string]*cobra.Command{
 	"wassert":         wassert.Command(),
 	"shu":             shu.Command(),
 	"helm-inventory":  helm.Command(),
+	"shell-deps":      shelldeps.Command(),
 }
 
 func main() {
