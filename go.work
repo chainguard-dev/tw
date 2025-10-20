@@ -2,6 +2,7 @@ go 1.25
 
 use (
 	./gosh
+	./no-docs-check
 	./package-type-check
 	./symlink-check
 	./tw
