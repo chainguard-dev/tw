@@ -86,12 +86,17 @@ func extractDeps(ctx context.Context, r io.Reader, filename string) ([]string, e
 	deps := make(map[string]bool)
 	funcs := make(map[string]bool)
 	aliases := make(map[string]bool)
+	wrapperFuncs := make(map[string]bool) // Functions that execute their arguments
 
-	// First pass: collect function and alias definitions
+	// First pass: collect function and alias definitions, identify wrapper functions
 	syntax.Walk(file, func(node syntax.Node) bool {
 		switch n := node.(type) {
 		case *syntax.FuncDecl:
 			funcs[n.Name.Value] = true
+			// Check if this function executes its arguments (e.g., contains "$@" in command position)
+			if executesArguments(n.Body) {
+				wrapperFuncs[n.Name.Value] = true
+			}
 		case *syntax.CallExpr:
 			// Check for alias definitions
 			if len(n.Args) > 0 {
@@ -119,6 +124,21 @@ func extractDeps(ctx context.Context, r io.Reader, filename string) ([]string, e
 		case *syntax.CallExpr:
 			if len(n.Args) > 0 {
 				cmdName := wordToString(n.Args[0])
+
+				// If this is a wrapper function call, analyze its first argument as a potential command
+				if wrapperFuncs[cmdName] && len(n.Args) > 1 {
+					firstArg := wordToString(n.Args[1])
+					// Apply same filtering as regular commands
+					if !shellBuiltins[firstArg] && !funcs[firstArg] && !aliases[firstArg] && firstArg != "" {
+						if strings.HasPrefix(firstArg, "/") {
+							deps[firstArg] = true
+						} else if !strings.Contains(firstArg, "$") && !strings.Contains(firstArg, "*") {
+							deps[firstArg] = true
+						}
+					}
+				}
+
+				// Original logic: handle direct command invocations
 				// Skip if it's a builtin, function, or alias
 				if !shellBuiltins[cmdName] && !funcs[cmdName] && !aliases[cmdName] && cmdName != "" {
 					// Handle absolute paths
@@ -144,6 +164,56 @@ func extractDeps(ctx context.Context, r io.Reader, filename string) ([]string, e
 	sort.Strings(result)
 
 	return result, nil
+}
+
+// executesArguments checks if a function body contains "$@" or similar patterns in command position
+// This identifies "wrapper functions" that execute commands passed as arguments
+func executesArguments(body *syntax.Stmt) bool {
+	found := false
+	syntax.Walk(body, func(node syntax.Node) bool {
+		if found {
+			return false // Stop walking once we've found it
+		}
+		switch n := node.(type) {
+		case *syntax.CallExpr:
+			// Check if the command being invoked is "$@" or contains "$@"
+			if len(n.Args) > 0 {
+				word := n.Args[0]
+				if containsAllPositionalParams(word) {
+					found = true
+					return false
+				}
+			}
+		}
+		return true
+	})
+	return found
+}
+
+// containsAllPositionalParams checks if a word contains "$@" or "$*"
+func containsAllPositionalParams(w *syntax.Word) bool {
+	if w == nil {
+		return false
+	}
+	for _, part := range w.Parts {
+		switch p := part.(type) {
+		case *syntax.ParamExp:
+			// Check for $@ or $*
+			if p.Param.Value == "@" || p.Param.Value == "*" {
+				return true
+			}
+		case *syntax.DblQuoted:
+			// Check inside double quotes for "$@" or "$*"
+			for _, qp := range p.Parts {
+				if paramExp, ok := qp.(*syntax.ParamExp); ok {
+					if paramExp.Param.Value == "@" || paramExp.Param.Value == "*" {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
 }
 
 // wordToString converts a syntax.Word to a string
