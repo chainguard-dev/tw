@@ -1,13 +1,11 @@
 package shelldeps
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
 
 	"github.com/chainguard-dev/clog"
 	"github.com/spf13/cobra"
@@ -39,20 +37,14 @@ func (c *cfg) scanCommand() *cobra.Command {
 	return cmd
 }
 
-// validShebangs lists the shebangs that identify shell scripts
-var validShebangs = []string{
-	"#!/bin/sh",
-	"#! /bin/sh",
-	"#!/bin/dash",
-	"#! /bin/dash",
-	"#!/bin/bash",
-	"#! /bin/bash",
-	"#!/usr/bin/env sh",
-	"#! /usr/bin/env sh",
-	"#!/usr/bin/env dash",
-	"#! /usr/bin/env dash",
-	"#!/usr/bin/env bash",
-	"#! /usr/bin/env bash",
+// validShells lists the shell interpreters we recognize as shell scripts
+var validShells = map[string]bool{
+	"/bin/sh":   true,
+	"/bin/dash": true,
+	"/bin/bash": true,
+	"sh":        true,
+	"dash":      true,
+	"bash":      true,
 }
 
 // isShellScript checks if a file is a shell script based on its shebang
@@ -63,19 +55,12 @@ func isShellScript(path string) (bool, error) {
 	}
 	defer f.Close()
 
-	scanner := bufio.NewScanner(f)
-	if !scanner.Scan() {
-		return false, nil
+	shell, err := extractShebang(f)
+	if err != nil {
+		return false, err
 	}
 
-	firstLine := strings.TrimSpace(scanner.Text())
-	for _, shebang := range validShebangs {
-		if strings.HasPrefix(firstLine, shebang) {
-			return true, nil
-		}
-	}
-
-	return false, nil
+	return validShells[shell], nil
 }
 
 func (s *scanCfg) Run(ctx context.Context, cmd *cobra.Command, args []string) error {
@@ -190,6 +175,32 @@ func (s *scanCfg) Run(ctx context.Context, cmd *cobra.Command, args []string) er
 			results = append(results, result)
 			if s.parent.verbose {
 				clog.ErrorContext(ctx, "failed to open file", "file", file, "error", err)
+			}
+			continue
+		}
+
+		// Extract shell from shebang
+		shell, err := extractShebang(f)
+		if err != nil {
+			f.Close()
+			result.Error = fmt.Sprintf("failed to extract shebang: %v", err)
+			hadErrors = true
+			results = append(results, result)
+			if s.parent.verbose {
+				clog.ErrorContext(ctx, "failed to extract shebang", "file", file, "error", err)
+			}
+			continue
+		}
+		result.Shell = shell
+
+		// Reset file pointer to beginning for extractDeps
+		if _, err := f.Seek(0, 0); err != nil {
+			f.Close()
+			result.Error = fmt.Sprintf("failed to seek to beginning: %v", err)
+			hadErrors = true
+			results = append(results, result)
+			if s.parent.verbose {
+				clog.ErrorContext(ctx, "failed to seek", "file", file, "error", err)
 			}
 			continue
 		}
