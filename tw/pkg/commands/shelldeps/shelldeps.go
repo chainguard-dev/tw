@@ -1,6 +1,7 @@
 package shelldeps
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -71,6 +72,7 @@ var shellBuiltins = map[string]bool{
 type scriptResult struct {
 	File    string   `json:"file"`
 	Deps    []string `json:"deps"`
+	Shell   string   `json:"shell,omitempty"`
 	Missing []string `json:"missing,omitempty"`
 	Error   string   `json:"error,omitempty"`
 }
@@ -164,6 +166,35 @@ func extractDeps(ctx context.Context, r io.Reader, filename string) ([]string, e
 	sort.Strings(result)
 
 	return result, nil
+}
+
+// extractShebang reads the first line of a file and extracts the shell interpreter path.
+// Returns empty string if the file doesn't have a valid shell script shebang.
+func extractShebang(r io.Reader) (string, error) {
+	scanner := bufio.NewScanner(r)
+	if !scanner.Scan() {
+		return "", nil
+	}
+
+	firstLine := strings.TrimSpace(scanner.Text())
+
+	// Check if it starts with #!
+	if !strings.HasPrefix(firstLine, "#!") {
+		return "", nil
+	}
+
+	// Remove #! and any leading spaces after it
+	shebang := strings.TrimLeft(firstLine[2:], " ")
+
+	// Handle /usr/bin/env variants - extract just the shell name
+	if strings.HasPrefix(shebang, "/usr/bin/env ") {
+		parts := strings.Fields(shebang)
+		if len(parts) >= 2 {
+			return parts[1], nil
+		}
+	}
+
+	return shebang, nil
 }
 
 // executesArguments checks if a function body contains "$@" or similar patterns in command position
@@ -299,6 +330,9 @@ func outputResults(w io.Writer, results []scriptResult, jsonOut bool) error {
 
 		fmt.Fprintf(w, "%s:\n", result.File)
 		fmt.Fprintf(w, "  deps: %s\n", strings.Join(result.Deps, " "))
+		if result.Shell != "" {
+			fmt.Fprintf(w, "  shell: %s\n", result.Shell)
+		}
 		if result.Missing != nil {
 			fmt.Fprintf(w, "  missing: %s\n", strings.Join(result.Missing, " "))
 		}

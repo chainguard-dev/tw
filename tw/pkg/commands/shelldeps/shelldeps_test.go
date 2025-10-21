@@ -740,3 +740,119 @@ func TestWordToString(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractShebang(t *testing.T) {
+	tests := []struct {
+		name      string
+		content   string
+		wantShell string
+		wantErr   bool
+	}{
+		{
+			name:      "bash with full path",
+			content:   "#!/bin/bash\necho hello",
+			wantShell: "/bin/bash",
+			wantErr:   false,
+		},
+		{
+			name:      "sh with full path",
+			content:   "#!/bin/sh\necho hello",
+			wantShell: "/bin/sh",
+			wantErr:   false,
+		},
+		{
+			name:      "dash with full path",
+			content:   "#!/bin/dash\necho hello",
+			wantShell: "/bin/dash",
+			wantErr:   false,
+		},
+		{
+			name:      "bash with space after shebang",
+			content:   "#! /bin/bash\necho hello",
+			wantShell: "/bin/bash",
+			wantErr:   false,
+		},
+		{
+			name:      "env bash",
+			content:   "#!/usr/bin/env bash\necho hello",
+			wantShell: "bash",
+			wantErr:   false,
+		},
+		{
+			name:      "env sh",
+			content:   "#!/usr/bin/env sh\necho hello",
+			wantShell: "sh",
+			wantErr:   false,
+		},
+		{
+			name:      "env dash",
+			content:   "#!/usr/bin/env dash\necho hello",
+			wantShell: "dash",
+			wantErr:   false,
+		},
+		{
+			name:      "env with space after shebang",
+			content:   "#! /usr/bin/env bash\necho hello",
+			wantShell: "bash",
+			wantErr:   false,
+		},
+		{
+			name:      "no shebang",
+			content:   "echo hello",
+			wantShell: "",
+			wantErr:   false,
+		},
+		{
+			name:      "comment but not shebang",
+			content:   "# This is a comment\necho hello",
+			wantShell: "",
+			wantErr:   false,
+		},
+		{
+			name:      "empty file",
+			content:   "",
+			wantShell: "",
+			wantErr:   false,
+		},
+		{
+			name:      "only shebang",
+			content:   "#!/bin/bash",
+			wantShell: "/bin/bash",
+			wantErr:   false,
+		},
+		{
+			name:      "shebang with extra whitespace",
+			content:   "#!/bin/bash  \necho hello",
+			wantShell: "/bin/bash",
+			wantErr:   false,
+		},
+		{
+			name:      "python shebang",
+			content:   "#!/usr/bin/python3\nprint('hello')",
+			wantShell: "/usr/bin/python3",
+			wantErr:   false,
+		},
+		{
+			name:      "env python",
+			content:   "#!/usr/bin/env python3\nprint('hello')",
+			wantShell: "python3",
+			wantErr:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := strings.NewReader(tt.content)
+			gotShell, err := extractShebang(r)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("extractShebang() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if gotShell != tt.wantShell {
+				t.Errorf("extractShebang() = %q, want %q", gotShell, tt.wantShell)
+			}
+		})
+	}
+}
