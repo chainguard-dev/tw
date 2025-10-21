@@ -61,6 +61,32 @@ func (s *showCfg) Run(ctx context.Context, cmd *cobra.Command, args []string) er
 			continue
 		}
 
+		// Extract shell from shebang
+		shell, err := extractShebang(f)
+		if err != nil {
+			f.Close()
+			result.Error = fmt.Sprintf("failed to extract shebang: %v", err)
+			hadErrors = true
+			results = append(results, result)
+			if s.parent.verbose {
+				clog.ErrorContext(ctx, "failed to extract shebang", "file", file, "error", err)
+			}
+			continue
+		}
+		result.Shell = shell
+
+		// Reset file pointer to beginning for extractDeps
+		if _, err := f.Seek(0, 0); err != nil {
+			f.Close()
+			result.Error = fmt.Sprintf("failed to seek to beginning: %v", err)
+			hadErrors = true
+			results = append(results, result)
+			if s.parent.verbose {
+				clog.ErrorContext(ctx, "failed to seek", "file", file, "error", err)
+			}
+			continue
+		}
+
 		deps, err := extractDeps(ctx, f, file)
 		f.Close()
 
