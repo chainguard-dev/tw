@@ -127,6 +127,128 @@ done
 			wantDeps: []string{"gzip", "md5sum"},
 			wantErr:  false,
 		},
+		{
+			name: "wrapper function with quoted $@",
+			script: `#!/bin/sh
+vr() {
+	local rc=""
+	echo "running:" "$@" 1>&2
+	"$@" || rc=$?
+	[ $rc -eq 0 ] && return 0
+	echo "failed [$rc]:" "$@" 1>&2
+}
+
+vr ls /etc
+`,
+			wantDeps: []string{"ls"},
+			wantErr:  false,
+		},
+		{
+			name: "wrapper function with unquoted $@",
+			script: `#!/bin/bash
+run_cmd() {
+	echo "Executing: $@"
+	$@
+}
+
+run_cmd grep pattern file.txt
+run_cmd awk '{print $1}' data.txt
+`,
+			wantDeps: []string{"awk", "grep"},
+			wantErr:  false,
+		},
+		{
+			name: "wrapper function with $*",
+			script: `#!/bin/sh
+execute() {
+	"$*"
+}
+
+execute find . -name "*.txt"
+`,
+			wantDeps: []string{"find"},
+			wantErr:  false,
+		},
+		{
+			name: "wrapper function should not extract builtin",
+			script: `#!/bin/sh
+vr() {
+	"$@"
+}
+
+vr echo "hello"
+vr cd /tmp
+`,
+			wantDeps: []string{},
+			wantErr:  false,
+		},
+		{
+			name: "wrapper function with absolute path",
+			script: `#!/bin/bash
+sudo_run() {
+	"$@"
+}
+
+sudo_run /usr/bin/apt update
+`,
+			wantDeps: []string{"/usr/bin/apt"},
+			wantErr:  false,
+		},
+		{
+			name: "multiple wrapper functions",
+			script: `#!/bin/sh
+vr() {
+	"$@"
+}
+
+logged() {
+	echo "LOG: $@" >> /tmp/log
+	"$@"
+}
+
+vr grep foo bar
+logged sed 's/a/b/' file
+`,
+			wantDeps: []string{"grep", "sed"},
+			wantErr:  false,
+		},
+		{
+			name: "non-wrapper function should not trigger",
+			script: `#!/bin/sh
+# This function doesn't execute its args, just echoes them
+print_args() {
+	echo "$@"
+}
+
+print_args ls /etc
+grep pattern file
+`,
+			wantDeps: []string{"grep"},
+			wantErr:  false,
+		},
+		{
+			name: "mixed wrappers and non-wrappers",
+			script: `#!/bin/sh
+
+# Outer wrapper
+verbose_run() {
+	echo "Running: $@"
+	"$@"
+}
+
+# Not a wrapper - just echoes
+print_cmd() {
+	echo "Command: $@"
+}
+
+# Test cases
+verbose_run systemctl restart nginx
+print_cmd docker ps
+jq '.data' file.json
+`,
+			wantDeps: []string{"jq", "systemctl"},
+			wantErr:  false,
+		},
 	}
 
 	ctx := context.Background()
