@@ -104,7 +104,13 @@ func (c *cfg) Run(cmd *cobra.Command) error {
 
 	// Check that we have updates to process
 	if len(c.Packages) == 0 {
-		return fmt.Errorf("no package updates specified (provide as arguments or use -u/--updates-file)")
+		contents, err := os.ReadFile(c.UpdatesFile)
+		placeholder := "# future-updates"
+		if err == nil && strings.TrimSpace(string(contents)) == placeholder {
+			log.InfoContextf(ctx, "Constraints file is intentionally empty")
+		} else {
+			return fmt.Errorf("no package updates specified (provide as arguments or use -u/--updates-file). Use string '%s' as placeholder", placeholder)
+		}
 	}
 
 	// Parse package updates from arguments
