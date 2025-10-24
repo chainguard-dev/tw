@@ -6,7 +6,7 @@ require (
 	chainguard.dev/apko v0.30.12
 	github.com/aquasecurity/go-pep440-version v0.0.1
 	github.com/armon/go-radix v1.0.0
-	github.com/avast/retry-go/v4 v4.6.1
+	github.com/avast/retry-go/v4 v4.7.0
 	github.com/chainguard-dev/clog v1.7.0
 	github.com/docker/docker v28.3.3+incompatible
 	github.com/google/go-cmp v0.7.0
