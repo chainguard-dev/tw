@@ -61,6 +61,9 @@ shellcheck:
 	    shellcheck "$$s" || rc=$$?; \
 	done; exit $$rc
 
+clean:
+	rm -rf $(OUT_DIR)
+
 test-melange: $(KEY)
 	$(MELANGE) test --runner=docker melange.yaml $(MELANGE_OPTS) $(MELANGE_TEST_OPTS)
 
