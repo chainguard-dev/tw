@@ -100,9 +100,7 @@ func checkNoDocsViolations(packageName string) error {
 		}
 		fmt.Println()
 		fmt.Println("These files should be moved to a -doc subpackage.")
-		fmt.Println("Please add the following split pipeline(s):")
-		fmt.Println("  - split/manpages (for manual pages)")
-		fmt.Println("  - split/infodir (for GNU info pages)")
+		fmt.Println("Please add the split/alldocs pipeline.")
 		fmt.Println()
 		fmt.Printf("Total documentation files found: %d\n", len(docFiles))
 		return fmt.Errorf("documentation files found in package")
