@@ -8,7 +8,7 @@ require (
 	github.com/armon/go-radix v1.0.0
 	github.com/avast/retry-go/v4 v4.7.0
 	github.com/chainguard-dev/clog v1.7.0
-	github.com/docker/docker v28.3.3+incompatible
+	github.com/docker/docker v28.5.1+incompatible
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.20.6
 	github.com/mattn/go-isatty v0.0.20
