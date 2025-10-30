@@ -37,22 +37,42 @@ func CheckStaticPackage(pkg string) error {
 
 	// Check 2: Contains .a files
 	staticLibcount := 0
+	var nonStaticFiles []string
 	for _, file := range nonSBOMFiles {
 		if strings.HasSuffix(file, ".a") {
 			staticLibcount++
+		} else {
+			nonStaticFiles = append(nonStaticFiles, file)
 		}
 	}
+
 	if staticLibcount == 0 {
+		fmt.Printf("INFO: Package [%s] file count: total=%d, non-SBOM=%d, static-libs=%d, non-static=%d\n",
+			pkg, len(files), len(nonSBOMFiles), staticLibcount, len(nonStaticFiles))
+		if len(nonStaticFiles) > 0 {
+			fmt.Printf("INFO: Non-static files found:\n")
+			for _, f := range nonStaticFiles {
+				fmt.Printf("  - %s\n", f)
+			}
+		}
 		return fmt.Errorf("FAIL [2/3]: Static package [%s] does not contain any .a files.\n"+
 			"A static package must contain at least one static library (.a file)", pkg)
 	}
-	fmt.Printf("PASS [2/3]: Static package [%s] contains static library(.a) files\n", pkg)
+	fmt.Printf("PASS [2/3]: Static package [%s] contains %d static library(.a) file(s)\n", pkg, staticLibcount)
 
 	// Check 3: Contains only .a files
 	if len(nonSBOMFiles) > staticLibcount {
-		return fmt.Errorf("FAIL [3/3]: Static package [%s] also contains %d non-static files.\n"+
-			"A static package must contain only static library (.a) files", pkg, len(nonSBOMFiles)-staticLibcount)
+		fmt.Printf("INFO: Package [%s] file count: total=%d, non-SBOM=%d, static-libs=%d, non-static=%d\n",
+			pkg, len(files), len(nonSBOMFiles), staticLibcount, len(nonStaticFiles))
+		fmt.Printf("INFO: Non-static files found in package:\n")
+		for _, f := range nonStaticFiles {
+			fmt.Printf("  - %s\n", f)
+		}
+		return fmt.Errorf("FAIL [3/3]: Static package [%s] contains %d non-static file(s).\n"+
+			"A static package must contain only static library (.a) files.\n"+
+			"Found %d static libraries and %d non-static files out of %d total files (excluding SBOM)",
+			pkg, len(nonStaticFiles), staticLibcount, len(nonStaticFiles), len(nonSBOMFiles))
 	}
-	fmt.Printf("PASS [3/3]: Static package [%s] contains only static library(.a) files\n", pkg)
+	fmt.Printf("PASS [3/3]: Static package [%s] contains only static library(.a) files (%d total)\n", pkg, staticLibcount)
 	return nil
 }

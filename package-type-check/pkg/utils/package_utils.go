@@ -48,8 +48,16 @@ func GetPackageFiles(pkg string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get files for package %q: %w", pkg, err)
 	}
-	// Look Again
-	return strings.Split(string(output), "\n"), nil
+
+	// Split output and filter out empty strings
+	allFiles := strings.Split(string(output), "\n")
+	var files []string
+	for _, file := range allFiles {
+		if file != "" {
+			files = append(files, file)
+		}
+	}
+	return files, nil
 }
 
 // IsEmptyPackage checks if the package is empty and only contains SBOM Files
@@ -123,8 +131,13 @@ func GetPackageProvides(pkg string) ([]string, error) {
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	provides := make([]string, 0, len(lines))
 	for _, line := range lines {
-		if strings.TrimSpace(line) != "" {
-			provides = append(provides, strings.TrimSpace(line))
+		trimmed := strings.TrimSpace(line)
+		if trimmed != "" {
+			// Strip version suffix (e.g., "imagemagick-static=6.9.13.33-r0" -> "imagemagick-static")
+			if idx := strings.Index(trimmed, "="); idx != -1 {
+				trimmed = trimmed[:idx]
+			}
+			provides = append(provides, trimmed)
 		}
 	}
 	return provides, nil
