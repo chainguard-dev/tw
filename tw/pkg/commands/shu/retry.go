@@ -20,7 +20,8 @@ type retryCfg struct {
 	Delay    time.Duration
 	Timeout  time.Duration
 	// InBash indicates whether the passed command should be run inside Bash.
-	InBash bool
+	InBash     bool
+	FixedDelay bool
 }
 
 func retryCommand() *cobra.Command {
@@ -42,6 +43,7 @@ func retryCommand() *cobra.Command {
 	cmd.Flags().DurationVarP(&cfg.Delay, "delay", "d", 1*time.Second, "Delay between attempts")
 	cmd.Flags().DurationVarP(&cfg.Timeout, "timeout", "t", 5*time.Minute, "Timeout for the command")
 	cmd.Flags().BoolVarP(&cfg.InBash, "in-bash", "b", false, "Run the passed Bash inside a Bash shell")
+	cmd.Flags().BoolVarP(&cfg.FixedDelay, "fixed-delay", "f", false, "Use fixed delay between retries (default is exponential backoff)")
 
 	return cmd
 }
@@ -63,6 +65,19 @@ func (c *retryCfg) Run(cmd *cobra.Command, args []string) error {
 	l.InfoContext(ctx, "args received", "args", args, "in-bash", c.InBash)
 
 	attempt := 0
+	retryOpts := []retry.Option{
+		retry.OnRetry(func(attempt uint, err error) {
+			l.ErrorContextf(ctx, "[%d/%d] command failed, retrying: %s", attempt, c.Attempts, err)
+		}),
+		retry.Context(ctx),
+		retry.Attempts(uint(c.Attempts)),
+		retry.Delay(c.Delay),
+	}
+
+	if c.FixedDelay {
+		retryOpts = append(retryOpts, retry.DelayType(retry.FixedDelay))
+	}
+
 	err := retry.Do(
 		func() error {
 			attempt++
@@ -79,12 +94,7 @@ func (c *retryCfg) Run(cmd *cobra.Command, args []string) error {
 
 			return nil
 		},
-		retry.OnRetry(func(attempt uint, err error) {
-			l.ErrorContextf(ctx, "[%d/%d] command failed, retrying: %s", attempt, c.Attempts, err)
-		}),
-		retry.Context(ctx),
-		retry.Attempts(uint(c.Attempts)),
-		retry.Delay(c.Delay),
+		retryOpts...,
 	)
 
 	return err
