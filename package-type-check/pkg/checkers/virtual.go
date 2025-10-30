@@ -20,6 +20,14 @@ func CheckVirtualPackage(pkg string, virtualPkgs []string) error {
 		return fmt.Errorf("failed to get provides for package %q: %w", pkg, err)
 	}
 
+	fmt.Printf("INFO: Package [%s] provides %d virtual package(s)\n", pkg, len(provides))
+	if len(provides) > 0 {
+		fmt.Printf("INFO: Virtual packages provided by [%s]:\n", pkg)
+		for _, p := range provides {
+			fmt.Printf("  - %s\n", p)
+		}
+	}
+
 	providesSet := make(map[string]bool, len(provides))
 	for _, p := range provides {
 		providesSet[p] = true
@@ -34,6 +42,14 @@ func CheckVirtualPackage(pkg string, virtualPkgs []string) error {
 	}
 
 	if len(missingPkgs) > 0 {
+		fmt.Printf("INFO: Expected virtual packages to find:\n")
+		for _, vp := range virtualPkgs {
+			if providesSet[vp] {
+				fmt.Printf("  ✓ %s (found)\n", vp)
+			} else {
+				fmt.Printf("  ✗ %s (NOT found)\n", vp)
+			}
+		}
 		return fmt.Errorf("FAIL: package %q does not provide virtual packages: %v", pkg, missingPkgs)
 	}
 

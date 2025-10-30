@@ -131,8 +131,13 @@ func GetPackageProvides(pkg string) ([]string, error) {
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	provides := make([]string, 0, len(lines))
 	for _, line := range lines {
-		if strings.TrimSpace(line) != "" {
-			provides = append(provides, strings.TrimSpace(line))
+		trimmed := strings.TrimSpace(line)
+		if trimmed != "" {
+			// Strip version suffix (e.g., "imagemagick-static=6.9.13.33-r0" -> "imagemagick-static")
+			if idx := strings.Index(trimmed, "="); idx != -1 {
+				trimmed = trimmed[:idx]
+			}
+			provides = append(provides, trimmed)
 		}
 	}
 	return provides, nil
