@@ -48,8 +48,16 @@ func GetPackageFiles(pkg string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get files for package %q: %w", pkg, err)
 	}
-	// Look Again
-	return strings.Split(string(output), "\n"), nil
+
+	// Split output and filter out empty strings
+	allFiles := strings.Split(string(output), "\n")
+	var files []string
+	for _, file := range allFiles {
+		if file != "" {
+			files = append(files, file)
+		}
+	}
+	return files, nil
 }
 
 // IsEmptyPackage checks if the package is empty and only contains SBOM Files
