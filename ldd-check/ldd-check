@@ -175,6 +175,12 @@ check_file() {
     *python*site-packages*)
       dirldpath=$(dirname "$f")
       vmsg "Adding python site package directory '$dirldpath' to ld_library_path";;
+    /usr/lib/jvm/*/lib/server/*)
+      dirldpath=$(dirname "$f")
+      vmsg "Adding JVM server '$dirldpath' to ld_library_path";;
+    /usr/lib/jvm/*/lib/*)
+      dirldpath=$(dirname "$f")/server
+      vmsg "Adding JVM server '$dirldpath' to ld_library_path";;
   esac
 
   ldpath=$(join_nonempty ":" "$dirldpath" "$EXTRA_LIB_PATHS" "$LD_LIBRARY_PATH") ||
