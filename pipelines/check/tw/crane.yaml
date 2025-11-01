@@ -1,0 +1,27 @@
+# Some packages require pinned dependency versions
+# In a lot of cases, those versions are declared as environment variables
+# This allows us to prevent drift between our packaging and upstream images
+# This could also easily be expanded to compare other keys in image configs
+name: Check image environment with crane
+
+needs:
+  packages:
+    - busybox
+    - crane-check
+
+inputs:
+  image:
+    description: Image to be assessed (i.e. cgr.dev/chainguard/crane:latest).
+    required: true
+  environment:
+    description: |
+      Check package vars align with image environment. Expected input is ENV_VAR=VALUE.
+      For example, CUDA_VERSION=${{vars.cuda-version}}.
+    required: true
+  match:
+    description: Whether to use exact or relative version matching. Supported modes are 'exact' and 'relative'.
+    default: exact
+
+pipeline:
+  - name: Crane check
+    runs: crane-check --image "${{inputs.image}}" --env "${{inputs.environment}}" --match "${{inputs.match}}"
