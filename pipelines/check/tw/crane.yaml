@@ -1,0 +1,64 @@
+# Some packages require pinned dependency versions
+# In a lot of cases, those versions are declared as environment variables
+# This allows us to prevent drift between our packaging and upstream images
+# This could also easily be expanded to compare other keys in image configs
+name: Check image environment with crane
+
+needs:
+  packages:
+    - busybox
+    - crane
+    - jq
+
+inputs:
+  image:
+    description: Image to be assessed (i.e. cgr.dev/chainguard/crane:latest).
+    required: true
+  environment:
+    description: |
+      Check package vars align with image environment. Expected input is ENV_VAR=VALUE.
+      For example, CUDA_VERSION=${{vars.cuda-version}}.
+    required: true
+
+pipeline:
+  - name: Check image environment
+    runs: |
+      image_config="$(mktemp)"
+
+      crane config "${{inputs.image}}" > $image_config
+
+      if ! jq -er '."config"."Env"' $image_config >/dev/null; then
+        echo "Failed to parse environment from image config!" >&2
+        exit 1
+      fi
+      echo "Successfully parsed environment in image config."
+
+      check_env() {
+        local env="$1"
+        local env_key="${env%%=*}"
+        local env_val="${env#*=}"
+
+        if ! env_image=$(jq -er '."config"."Env" | .. | strings | select(test("'$env_key'="))' $image_config); then
+          echo "Failed to find $env_key in image config!" >&2
+          exit 1
+        fi
+        echo "Found $env_key in image config."
+
+        if [ "$env" != "$env_image" ]; then
+          local env_image_val="${env_image#*=}"
+
+          echo "
+          Invalid value provided for $env_key!
+          Provided value for $env_key: $env_val
+          Expected value for $env_key: $env_image_val
+          " >&2
+
+          exit 1
+        fi
+        echo "$env_key correctly set to $env_val."
+      }
+
+      envs="${{inputs.environment}}"
+      for env in $envs; do
+        check_env $env
+      done
