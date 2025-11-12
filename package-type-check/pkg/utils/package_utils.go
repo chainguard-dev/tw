@@ -83,6 +83,7 @@ func GetPackageDescription(pkg string) (string, error) {
 		return "", err
 	}
 
+	// NOTE: --quiet doesn't have any effect here, and that's maybe something to revisit in apk
 	cmd := exec.Command("apk", "info", "--installed", "--description", pkg)
 	output, err := cmd.Output()
 	if err != nil {
@@ -101,7 +102,7 @@ func GetPackageDependency(pkg string) ([]string, error) {
 		return nil, err
 	}
 
-	cmd := exec.Command("apk", "info", "--installed", "--depends", pkg)
+	cmd := exec.Command("apk", "info", "--installed", "--quiet", "--depends", pkg)
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get dependencies for package %q: %w", pkg, err)
@@ -122,7 +123,7 @@ func GetPackageProvides(pkg string) ([]string, error) {
 		return nil, err
 	}
 
-	cmd := exec.Command("apk", "info", "--installed", "--provides", pkg)
+	cmd := exec.Command("apk", "info", "--installed", "--quiet", "--provides", pkg)
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get provides for package %q: %w", pkg, err)
