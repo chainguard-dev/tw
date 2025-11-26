@@ -10,7 +10,8 @@ inputs:
       Space-separated list of binary names to check for help output.
       Can be a single binary or multiple binaries.
       Examples: "nginx" or "gcc g++ cpp" or "node npm npx"
-    required: true
+    required: false
+    default: ${{context.name}}
   help-flag:
     description: |
       Command line flag used to get help information.

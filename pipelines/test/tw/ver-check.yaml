@@ -10,7 +10,8 @@ inputs:
       Space-separated list of binary names to check for version.
       Can be a single binary or multiple binaries.
       Examples: "nginx" or "gcc g++ cpp" or "node npm npx"
-    required: true
+    required: false
+    default: ${{context.name}}
   version:
     description: |
       Expected version string to match in the binary's version output.
