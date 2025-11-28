@@ -27,6 +27,7 @@ func main() {
 	rootCmd.AddCommand(CheckVirtualCommand())
 	rootCmd.AddCommand(CheckStaticCommand())
 	rootCmd.AddCommand(CheckByProductCommand())
+	rootCmd.AddCommand(CheckDevCommand())
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -101,6 +102,17 @@ func CheckByProductCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return checkers.CheckByProductPackage(args[0])
+		},
+	}
+}
+
+func CheckDevCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "dev <PACKAGE>",
+		Short: "Check and verify the package is a dev package",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return checkers.CheckDevPackage(args[0])
 		},
 	}
 }
