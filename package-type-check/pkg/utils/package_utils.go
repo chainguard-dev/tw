@@ -204,3 +204,25 @@ func HasHeaderFiles(pkg string) (bool, error) {
 	}
 	return false, nil
 }
+
+// HasDebugPackageName checks if package name contains debug indicators
+func HasDebugPackageName(pkg string) bool {
+	return strings.Contains(pkg, "-dbg") || strings.Contains(pkg, "-debug")
+}
+
+// GetDebugSymbolFiles finds .debug files in /usr/lib/debug for a package
+func GetDebugSymbolFiles(pkg string) ([]string, error) {
+	files, err := GetPackageFiles(pkg)
+	if err != nil {
+		return nil, err
+	}
+
+	var debugFiles []string
+	for _, file := range files {
+		if strings.HasPrefix(file, "usr/lib/debug/") && strings.HasSuffix(file, ".debug") {
+			debugFiles = append(debugFiles, file)
+		}
+	}
+
+	return debugFiles, nil
+}
