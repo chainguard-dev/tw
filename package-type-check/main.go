@@ -18,6 +18,7 @@ func main() {
 			// Default help message if no command is provided
 			cmd.Help()
 		},
+		SilenceUsage: true,
 	}
 
 	// Add all subcommands
