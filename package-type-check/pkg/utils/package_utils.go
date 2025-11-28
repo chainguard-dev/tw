@@ -184,3 +184,23 @@ func TestReadableFile(path string) bool {
 	cmd.Stderr = nil
 	return cmd.Run() == nil
 }
+
+// IsDevPackage checks if package name ends with -dev or -devel
+func IsDevPackage(pkg string) bool {
+	return strings.HasSuffix(pkg, "-dev") || strings.HasSuffix(pkg, "-devel")
+}
+
+// HasHeaderFiles checks if package contains .h files under /usr
+func HasHeaderFiles(pkg string) (bool, error) {
+	files, err := GetPackageFiles(pkg)
+	if err != nil {
+		return false, err
+	}
+
+	for _, file := range files {
+		if strings.HasPrefix(file, "usr/") && strings.HasSuffix(file, ".h") {
+			return true, nil
+		}
+	}
+	return false, nil
+}
