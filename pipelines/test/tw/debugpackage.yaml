@@ -1,5 +1,11 @@
 name: Debug Package Check
 
+description: |
+  Validates that a package is a debug symbol package (typically named *-dbg or *-debug).
+  Debug packages contain debugging symbols and information stripped from binaries during build.
+  This check ensures the package structure matches debug package requirements and contains
+  appropriate debug information files.
+
 needs:
   packages:
     - package-type-check
