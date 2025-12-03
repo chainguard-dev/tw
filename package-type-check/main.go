@@ -13,7 +13,7 @@ func main() {
 	var rootCmd = &cobra.Command{
 		Use:   "package-type-check",
 		Short: "A tool to check and verify the type of package in Wolfi",
-		Long:  `This tool is used in wolfi melange test configuration to verify the kind of packages: : docs, meta, static, virtual, and by-product packages.`,
+		Long:  `This tool is used in wolfi melange test configuration to verify the kind of packages: : docs, meta, static, virtual, empty, and by-product packages.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			// Default help message if no command is provided
 			cmd.Help()
@@ -22,7 +22,6 @@ func main() {
 	}
 
 	// Add all subcommands
-	// TODO: Add other commands for static, byproduct
 	rootCmd.AddCommand(CheckDocsCommand())
 	rootCmd.AddCommand(CheckMetaCommand())
 	rootCmd.AddCommand(CheckVirtualCommand())
@@ -30,6 +29,7 @@ func main() {
 	rootCmd.AddCommand(CheckByProductCommand())
 	rootCmd.AddCommand(CheckDevCommand())
 	rootCmd.AddCommand(CheckDebugCommand())
+	rootCmd.AddCommand(CheckEmptyCommand())
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -126,6 +126,17 @@ func CheckDebugCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return checkers.CheckDebugPackage(args[0])
+		},
+	}
+}
+
+func CheckEmptyCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "empty <PACKAGE>",
+		Short: "Check and verify the package is an empty package",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return checkers.CheckEmptyPackage(args[0])
 		},
 	}
 }
