@@ -89,7 +89,7 @@ pipeline:
 
 
       # Now run checks based on what we have
-      
+
       # Check specific files if provided
       if [ -n "${files}" ]; then
         echo "Checking specific files..."
@@ -118,5 +118,5 @@ pipeline:
           echo "PASS: found ${count} file(s) matching '${name}' in ${dir}"
         fi
       fi
-      
+
       [ "${failed}" = "true" ] && exit 1
