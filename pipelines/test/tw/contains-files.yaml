@@ -87,13 +87,12 @@ pipeline:
         dir="/usr"
       fi
 
-
       # Now run checks based on what we have
 
       # Check specific files if provided
       if [ -n "${files}" ]; then
         echo "Checking specific files..."
-        
+
         for file in ${files}; do
           [ -z "${file}" ] && continue
           if [ ! -e "${file}" ]; then
@@ -109,7 +108,7 @@ pipeline:
       if [ -n "${dir}" ] && [ -n "${name}" ]; then
         echo "Checking pattern '${name}' in ${dir}..."
         list="$(find "${dir}" -name "${name}" -type "${type}" 2>/dev/null)"
-        
+
         if [ -z "${list}" ]; then
           echo "FAIL: no files matching '${name}' in ${dir}" >&2
           failed=true
