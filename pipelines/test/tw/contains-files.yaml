@@ -58,7 +58,6 @@ inputs:
 #        dir: /usr/lib/
 #        name: "libre2.so"
 #        type: f
-
 pipeline:
   - runs: |
       # Get raw inputs (all empty by default)
