@@ -7,21 +7,21 @@ inputs:
       Examples:
         dir: "/usr/lib/"
     required: false
-    default: "/usr/"
+    default: "" # Default to /usr gets set in the script.
   name:
     description: |
       A find-like name expression. Defaults to * (i.e, match anything).
     required: false
-    default: "*"
+    default: "" # Default to * gets set in the script.
   type:
     description: |
-      File type to find. Defaults to 'f' (i.e, regular file).
+      File type for `find -type`: f (file), d (dir), l (symlink). Default: f
     required: false
     default: "f"
   files:
     description: |
-      Space-separated list of file paths to check for existence.
-      If present, parameters 'dir', 'name' and 'type' will be ignored.
+      List of exact paths to check for existence (newline or space separated).
+      If combined with dir/name, both checks run.
     required: false
     default: ""
 
@@ -49,42 +49,74 @@ inputs:
 #          /usr/lib/ruby/gems/3.3.0/gems/webrick-1.9.2/Gemfile
 #          /usr/lib/ruby/gems/3.3.0/gems/webrick-1.9.2/sig/cgi.rbs
 #
+#    # files + dir + name (all three): runs BOTH checks
+#    - uses: test/tw/contains-files
+#      with:
+#        files: |
+#          /usr/bin/bash
+#          /etc/os-release
+#        dir: /usr/lib/
+#        name: "libre2.so"
+#        type: f
+
 pipeline:
-  - name: "check the specified dir for file names"
-    runs: |
+  - runs: |
+      # Get raw inputs (all empty by default)
+      files="${{inputs.files}}"
       dir="${{inputs.dir}}"
       name="${{inputs.name}}"
       type="${{inputs.type}}"
-      files="${{inputs.files}}"
+      failed=false
 
-      if [ ! -z "${files}" ] ; then
-        # NOOP: the other run mode was requested.
-        exit 0
+      # Determine what the user actually wants:
+      # - If NOTHING specified → apply sensible defaults
+      # - If ANYTHING specified → only use what they gave us
+
+      # If user provided ANY input, keep it. Otherwise apply defaults.
+      if [ -z "${files}" ] && [ -z "${dir}" ] && [ -z "${name}" ]; then
+        echo "No inputs specified, using defaults... dir=/usr, name=*"
+        dir="/usr"
+        name="*"
       fi
 
-      message="files found in [${dir}] with name [${name}] and type [${type}]"
-
-      list="$(find ${dir} -name ${name} -type ${type})"
-      if [ -z "${list}" ] ; then
-        echo "FAIL: no ${message}. This is unexpected." >&2
-        exit 1
+      # if only dir is specified set name to * and vice versa dir to /usr
+      if [ -n "${dir}" ] && [ -z "${name}" ]; then
+        name="*"
+      fi
+      if [ -z "${dir}" ] && [ -n "${name}" ]; then
+        dir="/usr"
       fi
 
-      echo "PASS: ${message}. This is expected."
 
-  - name: "check the speficied files paths"
-    runs: |
-      files="${{inputs.files}}"
-      if [ -z "${files}" ] ; then
-        # NOOP: the other run mode was requested
-        exit 0
+      # Now run checks based on what we have
+      
+      # Check specific files if provided
+      if [ -n "${files}" ]; then
+        echo "Checking specific files..."
+        
+        for file in ${files}; do
+          [ -z "${file}" ] && continue
+          if [ ! -e "${file}" ]; then
+            echo "FAIL: ${file} not found" >&2
+            failed=true
+          else
+            echo "PASS: ${file} exists."
+          fi
+        done
       fi
 
-      for file in $files ; do
-        if [ ! -e "$file" ] ; then
-          echo "FAIL: file [${file}] is not in the package. This is unexpected." >&2
-          exit 1
+      # Check pattern if dir/name were provided (or if nothing was specified)
+      if [ -n "${dir}" ] && [ -n "${name}" ]; then
+        echo "Checking pattern '${name}' in ${dir}..."
+        list="$(find "${dir}" -name "${name}" -type "${type}" 2>/dev/null)"
+        
+        if [ -z "${list}" ]; then
+          echo "FAIL: no files matching '${name}' in ${dir}" >&2
+          failed=true
+        else
+          count="$(echo "${list}" | wc -l)"
+          echo "PASS: found ${count} file(s) matching '${name}' in ${dir}"
         fi
-      done
-
-      echo "PASS: the specified file paths are in the package. This is expected."
+      fi
+      
+      [ "${failed}" = "true" ] && exit 1
