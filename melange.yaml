@@ -39,6 +39,9 @@ subpackages:
       - runs: |
           install -Dm755 tw/bin/twt ${{targets.contextdir}}/usr/bin/twt
       - uses: strip
+    test:
+      pipeline:
+        - runs: stat /usr/bin/twt
 
   - name: ldd-check
     options:
@@ -284,3 +287,14 @@ update:
   github:
     identifier: chainguard-dev/tw
     strip-prefix: v
+
+test:
+  pipeline:
+    - runs: stat /usr/bin/tw
+    - runs: |
+        readlink -v /usr/bin/kgrep
+        readlink -v /usr/bin/kimages
+        readlink -v /usr/bin/ptrace
+        readlink -v /usr/bin/sfuzz
+        readlink -v /usr/bin/shu
+        readlink -v /usr/bin/wassert
