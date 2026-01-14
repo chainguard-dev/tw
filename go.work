@@ -1,6 +1,7 @@
 go 1.25
 
 use (
+	./crane-check
 	./gosh
 	./no-docs-check
 	./package-type-check
