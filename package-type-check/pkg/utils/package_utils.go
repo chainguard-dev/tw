@@ -37,7 +37,8 @@ func GetTotalApkCount() int {
 	return count
 }
 
-// GetPackageFiles retrieves the list of files installed by the package
+// GetPackageFiles retrieves the list of files installed by the package.
+// Returns absolute paths with leading "/" (e.g., "/usr/share/man/man1/foo.1")
 func GetPackageFiles(pkg string) ([]string, error) {
 	if err := IsPackageInstalled(pkg); err != nil {
 		return nil, err
@@ -54,7 +55,7 @@ func GetPackageFiles(pkg string) ([]string, error) {
 	var files []string
 	for _, file := range allFiles {
 		if file != "" {
-			files = append(files, file)
+			files = append(files, NormalizePath(file))
 		}
 	}
 	return files, nil
@@ -69,7 +70,7 @@ func IsEmptyPackage(pkg string) (bool, error) {
 
 	nonSBOMFileCount := 0
 	for _, file := range files {
-		if !strings.Contains(file, "var/lib/db/sbom") && !strings.HasSuffix(file, ".spdx.json") {
+		if !strings.Contains(file, "/var/lib/db/sbom") && !strings.HasSuffix(file, ".spdx.json") {
 			nonSBOMFileCount++
 		}
 	}
@@ -159,6 +160,14 @@ func FileExists(filePath string) bool {
 	return err == nil
 }
 
+// NormalizePath ensures a path starts with "/"
+func NormalizePath(path string) string {
+	if !strings.HasPrefix(path, "/") {
+		return "/" + path
+	}
+	return path
+}
+
 // TestManPage tests if a man page is readable
 func TestManPage(path string) bool {
 	cmd := exec.Command("man", "-l", path)
@@ -198,7 +207,7 @@ func HasHeaderFiles(pkg string) (bool, error) {
 	}
 
 	for _, file := range files {
-		if strings.HasPrefix(file, "usr/") && strings.HasSuffix(file, ".h") {
+		if strings.HasPrefix(file, "/usr/") && strings.HasSuffix(file, ".h") {
 			return true, nil
 		}
 	}
@@ -219,7 +228,7 @@ func GetDebugSymbolFiles(pkg string) ([]string, error) {
 
 	var debugFiles []string
 	for _, file := range files {
-		if strings.HasPrefix(file, "usr/lib/debug/") && strings.HasSuffix(file, ".debug") {
+		if strings.HasPrefix(file, "/usr/lib/debug/") && strings.HasSuffix(file, ".debug") {
 			debugFiles = append(debugFiles, file)
 		}
 	}
