@@ -1,0 +1,62 @@
+# String arrays at image paths should extract all images
+# Some CRDs store images as arrays of strings rather than container objects
+
+chelm test cg.json --chart=chart
+cmp stdout expected.json
+
+-- cg.json --
+{
+  "images": {
+    "scraper": {
+      "values": {
+        "scraperImages": ["${ref}"]
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "default", "images": ["scraper"]}
+    ]
+  }
+}
+
+-- chart/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- chart/templates/servicemonitor.yaml --
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: test
+spec:
+  # Array of image strings (some monitoring CRDs use this pattern)
+  scraperImages:
+{{- range .Values.scraperImages }}
+    - {{ . }}
+{{- end }}
+
+-- chart/values.yaml --
+scraperImages:
+  - quay.io/prometheus/prometheus:v2.45.0
+
+-- expected.json --
+{
+  "passed": true,
+  "cases": [
+    {
+      "name": "default",
+      "passed": true,
+      "images": [
+        "cgr.test/chainguard/test/scraper@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      ],
+      "extractors": {
+        "regex": [
+          "cgr.test/chainguard/test/scraper@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ],
+        "structured": null
+      }
+    }
+  ]
+}

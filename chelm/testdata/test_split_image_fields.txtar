@@ -1,0 +1,105 @@
+# Split image fields with various marker patterns:
+# - Basic split: ${registry}, ${repo}, ${tag}
+# - Pseudo tag: ${pseudo_tag} (tag@digest format used by gitlab, redis-ha)
+# - Combined: ${registry}/${repo} in single value (gitlab style)
+chelm test cg.json --chart=chart
+cmp stdout expected.json
+
+-- cg.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": {
+          "registry": "${registry}",
+          "repository": "${repo}",
+          "tag": "${tag}"
+        }
+      }
+    },
+    "worker": {
+      "values": {
+        "worker": {
+          "image": "${registry}/${repo}",
+          "tag": "${pseudo_tag}"
+        }
+      }
+    },
+    "sidecar": {
+      "values": {
+        "sidecar": {
+          "registry": "${registry}",
+          "repository": "${repo}",
+          "tag": "${pseudo_tag}"
+        }
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "default", "images": ["app", "worker", "sidecar"]}
+    ]
+  }
+}
+
+-- chart/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- chart/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: {{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}
+        - name: worker
+          image: {{ .Values.worker.image }}:{{ .Values.worker.tag }}
+        - name: sidecar
+          image: {{ .Values.sidecar.registry }}/{{ .Values.sidecar.repository }}:{{ .Values.sidecar.tag }}
+
+-- chart/values.yaml --
+image:
+  registry: docker.io
+  repository: library/nginx
+  tag: latest
+worker:
+  image: docker.io/library/redis
+  tag: "7.0"
+sidecar:
+  registry: docker.io
+  repository: envoyproxy/envoy
+  tag: v1.28
+
+-- expected.json --
+{
+  "passed": true,
+  "cases": [
+    {
+      "name": "default",
+      "passed": true,
+      "images": [
+        "cgr.test/chainguard/test/app:v0.0.0",
+        "cgr.test/chainguard/test/sidecar:v0.0.0@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cgr.test/chainguard/test/worker:v0.0.0@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      ],
+      "extractors": {
+        "regex": [
+          "cgr.test/chainguard/test/app:v0.0.0",
+          "cgr.test/chainguard/test/sidecar:v0.0.0@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/worker:v0.0.0@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ],
+        "structured": [
+          "cgr.test/chainguard/test/app:v0.0.0",
+          "cgr.test/chainguard/test/sidecar:v0.0.0@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/worker:v0.0.0@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ]
+      }
+    }
+  ]
+}

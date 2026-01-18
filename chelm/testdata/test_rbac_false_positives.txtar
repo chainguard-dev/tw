@@ -1,0 +1,130 @@
+# RBAC false positive tests: verify that Kubernetes RBAC resource names are NOT extracted as images
+#
+# ClusterRoles and Roles often have names with colons like:
+# - release-name-cert-manager-controller-approve:cert-manager-io
+# - release-name-cert-manager-webhook:subjectaccessreviews
+# - release-name-cert-manager:leaderelection
+#
+# These should NOT be detected as container images.
+
+chelm test cg.json --chart=chart
+cmp stdout expected.json
+
+-- cg.json --
+{
+  "images": {
+    "controller": {
+      "values": {
+        "image": "${ref}"
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "default", "images": ["controller"]}
+    ]
+  }
+}
+
+-- chart/Chart.yaml --
+apiVersion: v2
+name: cert-manager
+version: 1.0.0
+
+-- chart/templates/rbac.yaml --
+# These RBAC resources have colon-separated names that look like image:tag
+# but are NOT container images
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: release-name-cert-manager-controller-approve:cert-manager-io
+rules:
+  - apiGroups: ["cert-manager.io"]
+    resources: ["signers"]
+    verbs: ["approve"]
+    resourceNames: ["issuers.cert-manager.io/*", "clusterissuers.cert-manager.io/*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: release-name-cert-manager-webhook:subjectaccessreviews
+rules:
+  - apiGroups: ["authorization.k8s.io"]
+    resources: ["subjectaccessreviews"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: release-name-cert-manager-webhook:dynamic-serving
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: release-name-cert-manager:leaderelection
+  namespace: cert-manager
+rules:
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "update", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: release-name-cert-manager-cainjector:leaderelection
+  namespace: cert-manager
+rules:
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "update", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: release-name-cert-manager-startupapicheck:create-cert
+  namespace: cert-manager
+rules:
+  - apiGroups: ["cert-manager.io"]
+    resources: ["certificates"]
+    verbs: ["create"]
+
+-- chart/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cert-manager-controller
+spec:
+  template:
+    spec:
+      containers:
+        - name: controller
+          image: {{ .Values.image }}
+
+-- chart/values.yaml --
+image: quay.io/jetstack/cert-manager-controller:v1.14.0
+
+-- expected.json --
+{
+  "passed": true,
+  "cases": [
+    {
+      "name": "default",
+      "passed": true,
+      "images": [
+        "cgr.test/chainguard/test/controller@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      ],
+      "extractors": {
+        "regex": [
+          "cgr.test/chainguard/test/controller@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ],
+        "structured": [
+          "cgr.test/chainguard/test/controller@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ]
+      }
+    }
+  ]
+}

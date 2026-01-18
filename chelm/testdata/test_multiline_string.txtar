@@ -1,0 +1,73 @@
+# Image in multiline YAML block should still be detected
+chelm test cg.json --chart=chart
+cmp stdout expected.json
+
+-- cg.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": "${ref}"
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "default", "images": ["app"]}
+    ]
+  }
+}
+
+-- chart/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- chart/templates/configmap.yaml --
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: script
+data:
+  run.sh: |
+    #!/bin/bash
+    # This script uses docker
+    docker pull {{ .Values.image }}
+    docker run {{ .Values.image }} echo "hello"
+
+-- chart/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: {{ .Values.image }}
+
+-- chart/values.yaml --
+image: nginx:latest
+
+-- expected.json --
+{
+  "passed": true,
+  "cases": [
+    {
+      "name": "default",
+      "passed": true,
+      "images": [
+        "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      ],
+      "extractors": {
+        "regex": [
+          "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ],
+        "structured": [
+          "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ]
+      }
+    }
+  ]
+}

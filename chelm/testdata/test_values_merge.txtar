@@ -1,0 +1,120 @@
+# Values merge edge cases:
+# 1. Deeply nested paths (5 levels) - common in kafka, mongodb charts
+# 2. Multiple images with overlapping parent paths - tests mergo behavior
+chelm test cg.json --chart=chart
+cmp stdout expected.json
+
+-- cg.json --
+{
+  "images": {
+    "deep-nested": {
+      "values": {
+        "components": {
+          "backend": {
+            "services": {
+              "worker": {
+                "container": {
+                  "image": "${ref}"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "sibling-image": {
+      "values": {
+        "components": {
+          "backend": {
+            "services": {
+              "api": {
+                "container": {
+                  "image": "${ref}"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "shared-parent": {
+      "values": {
+        "components": {
+          "backend": {
+            "init": {
+              "image": "${ref}"
+            }
+          }
+        }
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "default", "images": ["deep-nested", "sibling-image", "shared-parent"]}
+    ]
+  }
+}
+
+-- chart/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- chart/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+spec:
+  template:
+    spec:
+      initContainers:
+        - name: init
+          image: {{ .Values.components.backend.init.image }}
+      containers:
+        - name: worker
+          image: {{ .Values.components.backend.services.worker.container.image }}
+        - name: api
+          image: {{ .Values.components.backend.services.api.container.image }}
+
+-- chart/values.yaml --
+components:
+  backend:
+    init:
+      image: busybox:1.36
+    services:
+      worker:
+        container:
+          image: worker:v1
+      api:
+        container:
+          image: api:v1
+
+-- expected.json --
+{
+  "passed": true,
+  "cases": [
+    {
+      "name": "default",
+      "passed": true,
+      "images": [
+        "cgr.test/chainguard/test/deep-nested@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cgr.test/chainguard/test/shared-parent@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cgr.test/chainguard/test/sibling-image@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      ],
+      "extractors": {
+        "regex": [
+          "cgr.test/chainguard/test/deep-nested@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/shared-parent@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/sibling-image@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ],
+        "structured": [
+          "cgr.test/chainguard/test/deep-nested@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/shared-parent@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/sibling-image@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ]
+      }
+    }
+  ]
+}
