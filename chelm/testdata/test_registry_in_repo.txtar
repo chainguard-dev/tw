@@ -1,0 +1,66 @@
+# Registry included in repository field
+chelm test cg.json --chart=chart
+cmp stdout expected.json
+
+-- cg.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": {
+          "repository": "${registry_repo}",
+          "tag": "${tag}"
+        }
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "default", "images": ["app"]}
+    ]
+  }
+}
+
+-- chart/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- chart/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+
+-- chart/values.yaml --
+image:
+  repository: gcr.io/my-project/myapp
+  tag: v1.0.0
+
+-- expected.json --
+{
+  "passed": true,
+  "cases": [
+    {
+      "name": "default",
+      "passed": true,
+      "images": [
+        "cgr.test/chainguard/test/app:v0.0.0"
+      ],
+      "extractors": {
+        "regex": [
+          "cgr.test/chainguard/test/app:v0.0.0"
+        ],
+        "structured": [
+          "cgr.test/chainguard/test/app:v0.0.0"
+        ]
+      }
+    }
+  ]
+}

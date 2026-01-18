@@ -1,0 +1,45 @@
+# Chart template produces malformed image reference (missing repository)
+! chelm test cg.json --chart=chart
+stdout '"passed": false'
+
+-- cg.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": {
+          "registry": "${registry}",
+          "tag": "${tag}"
+        }
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "default", "images": ["app"]}
+    ]
+  }
+}
+
+-- chart/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- chart/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          # Broken template - missing repository, produces "cgr.test/ns:v0.0.0"
+          image: {{ .Values.image.registry }}:{{ .Values.image.tag }}
+
+-- chart/values.yaml --
+image:
+  registry: docker.io
+  tag: "1.25"

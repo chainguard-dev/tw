@@ -1,0 +1,41 @@
+# Generate validates and formats JSON input
+stdin input.json
+chelm generate
+cmp stdout expected.json
+
+-- input.json --
+{
+  "images": {
+    "nginx": {
+      "values": {
+        "image": "${ref}"
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "default", "images": ["nginx"]}
+    ]
+  }
+}
+
+-- expected.json --
+{
+  "images": {
+    "nginx": {
+      "values": {
+        "image": "${ref}"
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {
+        "name": "default",
+        "images": [
+          "nginx"
+        ]
+      }
+    ]
+  }
+}

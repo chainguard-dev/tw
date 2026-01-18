@@ -267,6 +267,18 @@ subpackages:
             [ -f /usr/bin/no-docs-check ]
             [ -x /usr/bin/no-docs-check ]
 
+  - name: chelm
+    options:
+      no-provides: true
+    pipeline:
+      - runs: |
+          make -C chelm MELANGE_CONTEXTDIR=${{targets.contextdir}} melange-install
+      - uses: strip
+    test:
+      pipeline:
+        - runs: |
+            chelm --help
+
 # TODO: I'd like to do this, but until we can dynamically generate the dependencies, we need to manually set them
 # data:
 #   - name: bins
