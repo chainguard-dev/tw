@@ -1,0 +1,73 @@
+# Image constructed via helper template
+chelm test cg.json --chart=chart
+cmp stdout expected.json
+
+-- cg.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": {
+          "registry": "${registry}",
+          "repository": "${repo}",
+          "tag": "${tag}"
+        }
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "default", "images": ["app"]}
+    ]
+  }
+}
+
+-- chart/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- chart/templates/_helpers.tpl --
+{{- define "chart.image" -}}
+{{- printf "%s/%s:%s" .Values.image.registry .Values.image.repository .Values.image.tag -}}
+{{- end -}}
+
+-- chart/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: {{ include "chart.image" . }}
+
+-- chart/values.yaml --
+image:
+  registry: docker.io
+  repository: library/nginx
+  tag: "1.25"
+
+-- expected.json --
+{
+  "passed": true,
+  "cases": [
+    {
+      "name": "default",
+      "passed": true,
+      "images": [
+        "cgr.test/chainguard/test/app:v0.0.0"
+      ],
+      "extractors": {
+        "regex": [
+          "cgr.test/chainguard/test/app:v0.0.0"
+        ],
+        "structured": [
+          "cgr.test/chainguard/test/app:v0.0.0"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+# YAML edge cases: anchors, null values, comments, quoted strings
+chelm test cg.json --chart=chart
+cmp stdout expected.json
+
+-- cg.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": "${ref}"
+      }
+    },
+    "worker": {
+      "values": {
+        "worker": {"image": "${ref}"}
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "default", "images": ["app", "worker"]}
+    ]
+  }
+}
+
+-- chart/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- chart/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  template:
+    spec:
+      containers:
+        # Main app container - using double quotes
+        - name: app
+          image: "{{ .Values.image }}"
+        # Worker container - using single quotes
+        - name: worker
+          image: '{{ .Values.worker.image }}'
+        # Disabled sidecar with null image (should not appear)
+        {{- if .Values.sidecar.image }}
+        - name: sidecar
+          image: {{ .Values.sidecar.image }}
+        {{- end }}
+          # Old image was: oldapp:v1.0
+          # image: deprecated/image:old
+
+-- chart/values.yaml --
+# YAML anchor example
+defaults: &defaults
+  pullPolicy: IfNotPresent
+
+image: nginx:latest
+
+worker:
+  <<: *defaults
+  image: redis:7
+
+# Null image - should be skipped
+sidecar:
+  image: null
+
+# Commented out - should not be detected
+# oldImage: legacy/app:v0.9
+
+-- expected.json --
+{
+  "passed": true,
+  "cases": [
+    {
+      "name": "default",
+      "passed": true,
+      "images": [
+        "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cgr.test/chainguard/test/worker@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      ],
+      "extractors": {
+        "regex": [
+          "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/worker@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ],
+        "structured": [
+          "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/worker@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ]
+      }
+    }
+  ]
+}

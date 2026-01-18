@@ -1,6 +1,7 @@
 go 1.25
 
 use (
+	./chelm
 	./gosh
 	./no-docs-check
 	./package-type-check

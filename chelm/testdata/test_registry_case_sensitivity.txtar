@@ -1,0 +1,77 @@
+# Registry case sensitivity: registries should be compared case-insensitively
+# Docker/OCI spec treats registry names as case-insensitive
+# This tests that CGR.TEST and cgr.test are treated as equivalent
+chelm test cg.json --chart=chart
+cmp stdout expected.json
+
+-- cg.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": {
+          "registry": "${registry}",
+          "repository": "${repo}",
+          "tag": "${tag}"
+        }
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "default", "images": ["app"]}
+    ]
+  }
+}
+
+-- chart/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- chart/templates/_helpers.tpl --
+{{- define "chart.image" -}}
+{{- $registry := .Values.image.registry | upper -}}
+{{- printf "%s/%s:%s" $registry .Values.image.repository .Values.image.tag -}}
+{{- end -}}
+
+-- chart/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          # Helper converts registry to uppercase
+          image: {{ include "chart.image" . }}
+
+-- chart/values.yaml --
+image:
+  registry: docker.io
+  repository: library/nginx
+  tag: "1.25"
+
+-- expected.json --
+{
+  "passed": true,
+  "cases": [
+    {
+      "name": "default",
+      "passed": true,
+      "images": [
+        "CGR.TEST/chainguard/test/app:v0.0.0"
+      ],
+      "extractors": {
+        "regex": [
+          "CGR.TEST/chainguard/test/app:v0.0.0"
+        ],
+        "structured": [
+          "CGR.TEST/chainguard/test/app:v0.0.0"
+        ]
+      }
+    }
+  ]
+}
