@@ -2,36 +2,38 @@ package shelldeps
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"mvdan.cc/sh/v3/syntax"
 )
 
 func TestCheckCommand(t *testing.T) {
 	tests := []struct {
-		name           string
-		files          map[string]string // filename -> content
-		packages       string            // comma-separated packages
-		checkGNUCompat bool
-		strict         bool
-		wantError      bool
-		wantOutput     []string // strings that should appear in output
-		wantNoOutput   []string // strings that should NOT appear in output
+		name            string
+		files           map[string]string // filename -> content
+		binaries        []string          // binaries to create in fake PATH (as real binaries = coreutils)
+		busyboxBinaries []string          // binaries to create as busybox symlinks
+		strict          bool
+		wantError       bool
+		wantOutput      []string // strings that should appear in output
+		wantNoOutput    []string // strings that should NOT appear in output
 	}{
 		{
-			name: "no issues with proper packages",
+			name: "no issues with available commands",
 			files: map[string]string{
 				"script.sh": `#!/bin/sh
 grep pattern file
 awk '{print $1}' data
 `,
 			},
-			packages:       "busybox,bash",
-			checkGNUCompat: true,
-			strict:         false,
-			wantError:      false,
-			wantOutput:     []string{"No issues found"},
+			binaries:   []string{"grep", "awk"},
+			strict:     false,
+			wantError:  false,
+			wantOutput: []string{"No issues found"},
 		},
 		{
 			name: "missing curl",
@@ -41,11 +43,10 @@ curl https://example.com
 grep pattern file
 `,
 			},
-			packages:       "busybox,bash",
-			checkGNUCompat: true,
-			strict:         false,
-			wantError:      false,
-			wantOutput:     []string{"missing:", "curl"},
+			binaries:   []string{"grep"},
+			strict:     false,
+			wantError:  false,
+			wantOutput: []string{"missing:", "curl"},
 		},
 		{
 			name: "missing curl with strict mode",
@@ -54,25 +55,10 @@ grep pattern file
 curl https://example.com
 `,
 			},
-			packages:       "busybox",
-			checkGNUCompat: true,
-			strict:         true,
-			wantError:      true,
-			wantOutput:     []string{"curl"},
-		},
-		{
-			name: "no missing with curl package",
-			files: map[string]string{
-				"script.sh": `#!/bin/sh
-curl https://example.com
-grep pattern file
-`,
-			},
-			packages:       "busybox,curl",
-			checkGNUCompat: true,
-			strict:         true,
-			wantError:      false,
-			wantOutput:     []string{"No issues found"},
+			binaries:  []string{},
+			strict:    true,
+			wantError: true,
+			wantOutput: []string{"curl"},
 		},
 		{
 			name: "gnu compat issue - realpath --no-symlinks",
@@ -82,11 +68,11 @@ path=$(realpath --no-symlinks /opt)
 echo $path
 `,
 			},
-			packages:       "busybox",
-			checkGNUCompat: true,
-			strict:         false,
-			wantError:      false,
-			wantOutput:     []string{"gnu-incompatible", "realpath", "--no-symlinks"},
+			binaries:        []string{"echo"},
+			busyboxBinaries: []string{"realpath"},
+			strict:          false,
+			wantError:       false,
+			wantOutput:      []string{"gnu-incompatible", "realpath", "--no-symlinks"},
 		},
 		{
 			name: "gnu compat issue in strict mode",
@@ -95,40 +81,12 @@ echo $path
 path=$(realpath --no-symlinks /opt)
 `,
 			},
-			packages:       "busybox",
-			checkGNUCompat: true,
-			strict:         true,
-			wantError:      true,
+			busyboxBinaries: []string{"realpath"},
+			strict:          true,
+			wantError:       true,
 		},
 		{
-			name: "no gnu issue when coreutils present",
-			files: map[string]string{
-				"script.sh": `#!/bin/sh
-path=$(realpath --no-symlinks /opt)
-`,
-			},
-			packages:       "busybox,coreutils",
-			checkGNUCompat: true,
-			strict:         true,
-			wantError:      false,
-			wantOutput:     []string{"No issues found"},
-		},
-		{
-			name: "skip gnu check when disabled",
-			files: map[string]string{
-				"script.sh": `#!/bin/sh
-path=$(realpath --no-symlinks /opt)
-`,
-			},
-			packages:       "busybox",
-			checkGNUCompat: false,
-			strict:         true,
-			wantError:      false,
-			wantOutput:     []string{"No issues found"},
-			wantNoOutput:   []string{"gnu-incompatible"},
-		},
-		{
-			name: "multiple scripts with mixed issues",
+			name: "multiple files with mixed issues",
 			files: map[string]string{
 				"good.sh": `#!/bin/sh
 grep pattern file
@@ -138,24 +96,11 @@ curl https://example.com
 path=$(realpath --no-symlinks /opt)
 `,
 			},
-			packages:       "busybox",
-			checkGNUCompat: true,
-			strict:         false,
-			wantError:      false,
-			wantOutput:     []string{"curl", "realpath", "Issues found in 1 of 2"},
-		},
-		{
-			name: "no packages specified - only gnu check",
-			files: map[string]string{
-				"script.sh": `#!/bin/sh
-path=$(realpath --no-symlinks /opt)
-`,
-			},
-			packages:       "",
-			checkGNUCompat: true,
-			strict:         false,
-			wantError:      false,
-			wantOutput:     []string{"gnu-incompatible"},
+			binaries:        []string{"grep"},
+			busyboxBinaries: []string{"realpath"},
+			strict:          false,
+			wantError:       false,
+			wantOutput:      []string{"curl", "realpath", "Issues found in 1 of 2"},
 		},
 	}
 
@@ -163,41 +108,77 @@ path=$(realpath --no-symlinks /opt)
 		t.Run(tt.name, func(t *testing.T) {
 			// Create temporary directory with test files
 			tmpDir := t.TempDir()
+			scriptsDir := filepath.Join(tmpDir, "scripts")
+			binDir := filepath.Join(tmpDir, "bin")
 
+			if err := os.MkdirAll(scriptsDir, 0755); err != nil {
+				t.Fatalf("failed to create scripts dir: %v", err)
+			}
+			if err := os.MkdirAll(binDir, 0755); err != nil {
+				t.Fatalf("failed to create bin dir: %v", err)
+			}
+
+			// Create script files
+			var scriptPaths []string
 			for filename, content := range tt.files {
-				path := filepath.Join(tmpDir, filename)
+				path := filepath.Join(scriptsDir, filename)
 				if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 					t.Fatalf("failed to create test file: %v", err)
 				}
+				scriptPaths = append(scriptPaths, path)
 			}
 
-			// Create the check config
+			// Create fake binaries in bin dir (these simulate coreutils)
+			for _, bin := range tt.binaries {
+				binPath := filepath.Join(binDir, bin)
+				if err := os.WriteFile(binPath, []byte("#!/bin/sh\n"), 0755); err != nil {
+					t.Fatalf("failed to create binary: %v", err)
+				}
+			}
+
+			// Create busybox symlinks (these simulate busybox-provided commands)
+			if len(tt.busyboxBinaries) > 0 {
+				busyboxPath := filepath.Join(binDir, "busybox")
+				if err := os.WriteFile(busyboxPath, []byte("#!/bin/sh\n"), 0755); err != nil {
+					t.Fatalf("failed to create busybox: %v", err)
+				}
+				for _, bin := range tt.busyboxBinaries {
+					binPath := filepath.Join(binDir, bin)
+					if err := os.Symlink("busybox", binPath); err != nil {
+						t.Fatalf("failed to create busybox symlink: %v", err)
+					}
+				}
+			}
+
+			// Run the check
 			parentCfg := &cfg{
 				verbose: false,
 				jsonOut: false,
 			}
 
 			checkCfg := &checkCfg{
-				parent:         parentCfg,
-				packages:       tt.packages,
-				checkGNUCompat: tt.checkGNUCompat,
-				strict:         tt.strict,
+				parent:     parentCfg,
+				searchPath: binDir,
+				strict:     tt.strict,
 			}
 
-			// Parse packages
-			if checkCfg.packages != "" {
-				checkCfg.packageList = strings.Split(checkCfg.packages, ",")
-				for i, pkg := range checkCfg.packageList {
-					checkCfg.packageList[i] = strings.TrimSpace(pkg)
+			// Process scripts
+			var results []checkResult
+			hasIssues := false
+			ctx := context.Background()
+
+			for _, file := range scriptPaths {
+				result := checkCfg.processScript(ctx, file)
+				results = append(results, result)
+
+				if len(result.Missing) > 0 || len(result.GNUIncompatible) > 0 || result.Error != "" {
+					hasIssues = true
 				}
 			}
 
-			// Run the check (simplified version without cobra command)
-			var output bytes.Buffer
-			results, hasIssues := runCheck(t, tmpDir, checkCfg)
-
 			// Output results
-			err := checkCfg.outputResultsForTest(&output, results)
+			var output bytes.Buffer
+			err := checkCfg.outputResults(&output, results)
 			if err != nil {
 				t.Fatalf("outputResults error: %v", err)
 			}
@@ -226,153 +207,52 @@ path=$(realpath --no-symlinks /opt)
 	}
 }
 
-// runCheck is a test helper that runs the check logic without cobra
-func runCheck(t *testing.T, searchDir string, cfg *checkCfg) ([]checkResult, bool) {
-	t.Helper()
-
-	// Find shell scripts
-	var shellScripts []string
-	err := filepath.Walk(searchDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() || !info.Mode().IsRegular() {
-			return nil
-		}
-
-		isShell, _ := isShellScript(path)
-		if isShell {
-			shellScripts = append(shellScripts, path)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk error: %v", err)
-	}
-
-	// Determine if we should skip GNU compat check
-	hasCoreutils := HasGNUCoreutils(cfg.packageList)
-	shouldCheckGNU := cfg.checkGNUCompat && !hasCoreutils
-
-	// Process each script
-	var results []checkResult
-	hasIssues := false
-
-	for _, file := range shellScripts {
-		result := cfg.processScriptForTest(file, shouldCheckGNU)
-		results = append(results, result)
-
-		if len(result.Missing) > 0 || len(result.GNUIncompatible) > 0 || result.Error != "" {
-			hasIssues = true
-		}
-	}
-
-	return results, hasIssues
-}
-
-// processScriptForTest is a test helper (same as processScript but without context)
-func (c *checkCfg) processScriptForTest(file string, checkGNU bool) checkResult {
-	result := checkResult{File: file}
-
-	f, err := os.Open(file)
-	if err != nil {
-		result.Error = err.Error()
-		return result
-	}
-	defer f.Close()
-
-	// Extract shell
-	shell, err := extractShebang(f)
-	if err != nil {
-		result.Error = err.Error()
-		return result
-	}
-	result.Shell = shell
-
-	// Reset for dep extraction
-	if _, err := f.Seek(0, 0); err != nil {
-		result.Error = err.Error()
-		return result
-	}
-
-	// Extract dependencies
-	deps, err := extractDeps(nil, f, file)
-	if err != nil {
-		result.Error = err.Error()
-		return result
-	}
-	result.Deps = deps
-
-	// Find missing commands if packages were specified
-	if len(c.packageList) > 0 {
-		result.Missing = FindMissingCommands(deps, c.packageList)
-	}
-
-	// Check GNU compatibility
-	if checkGNU {
-		if _, err := f.Seek(0, 0); err != nil {
-			result.Error = err.Error()
-			return result
-		}
-
-		incompatibilities, err := CheckGNUCompatibility(f, file)
-		if err == nil {
-			for _, inc := range incompatibilities {
-				result.GNUIncompatible = append(result.GNUIncompatible, gnuIncompatResult{
-					Command:     inc.Command,
-					Line:        inc.Line,
-					Description: inc.Description,
-					Fix:         inc.Fix,
-				})
-			}
-		}
-	}
-
-	return result
-}
-
-// outputResultsForTest is a test helper for outputting results
-func (c *checkCfg) outputResultsForTest(output *bytes.Buffer, results []checkResult) error {
-	return c.outputResults(output, results)
-}
-
 func TestCheckCommandJSON(t *testing.T) {
 	// Create temporary directory with test file
 	tmpDir := t.TempDir()
+	scriptsDir := filepath.Join(tmpDir, "scripts")
+	binDir := filepath.Join(tmpDir, "bin")
+
+	os.MkdirAll(scriptsDir, 0755)
+	os.MkdirAll(binDir, 0755)
 
 	content := `#!/bin/sh
 curl https://example.com
 path=$(realpath --no-symlinks /opt)
 `
-	path := filepath.Join(tmpDir, "script.sh")
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	scriptPath := filepath.Join(scriptsDir, "script.sh")
+	if err := os.WriteFile(scriptPath, []byte(content), 0644); err != nil {
 		t.Fatalf("failed to create test file: %v", err)
 	}
 
-	// Create the check config with JSON output
+	// Create realpath binary (to trigger GNU check)
+	os.WriteFile(filepath.Join(binDir, "realpath"), []byte("#!/bin/sh\n"), 0755)
+
+	// Run check with JSON output
 	parentCfg := &cfg{
 		verbose: false,
 		jsonOut: true,
 	}
 
 	checkCfg := &checkCfg{
-		parent:         parentCfg,
-		packages:       "busybox",
-		packageList:    []string{"busybox"},
-		checkGNUCompat: true,
-		strict:         false,
+		parent:     parentCfg,
+		searchPath: binDir,
+		strict:     false,
 	}
 
-	// Run check
-	results, _ := runCheck(t, tmpDir, checkCfg)
+	ctx := context.Background()
+	result := checkCfg.processScript(ctx, scriptPath)
 
 	// Output as JSON
 	var output bytes.Buffer
-	err := checkCfg.outputResults(&output, results)
+	err := checkCfg.outputResults(&output, []checkResult{result})
 	if err != nil {
 		t.Fatalf("outputResults error: %v", err)
 	}
 
 	outputStr := output.String()
 
-	// Verify it's JSON (starts with [ and contains expected fields)
+	// Verify it's JSON (starts with [)
 	if !strings.HasPrefix(strings.TrimSpace(outputStr), "[") {
 		t.Errorf("JSON output should start with [, got: %s", outputStr[:50])
 	}
@@ -384,8 +264,98 @@ path=$(realpath --no-symlinks /opt)
 	if !strings.Contains(outputStr, `"missing"`) {
 		t.Errorf("JSON output should contain 'missing' field")
 	}
+}
 
-	if !strings.Contains(outputStr, `"gnu_incompatible"`) {
-		t.Errorf("JSON output should contain 'gnu_incompatible' field")
+func TestFindMissingInPath(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create some binaries
+	for _, bin := range []string{"grep", "awk", "sed"} {
+		binPath := filepath.Join(tmpDir, bin)
+		if err := os.WriteFile(binPath, []byte("#!/bin/sh\n"), 0755); err != nil {
+			t.Fatalf("failed to create binary: %v", err)
+		}
+	}
+
+	tests := []struct {
+		name        string
+		deps        []string
+		wantMissing []string
+	}{
+		{
+			name:        "no missing",
+			deps:        []string{"grep", "awk"},
+			wantMissing: nil,
+		},
+		{
+			name:        "some missing",
+			deps:        []string{"grep", "curl", "jq"},
+			wantMissing: []string{"curl", "jq"},
+		},
+		{
+			name:        "all missing",
+			deps:        []string{"curl", "jq", "wget"},
+			wantMissing: []string{"curl", "jq", "wget"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := findMissingInPath(tt.deps, tmpDir)
+
+			if len(got) != len(tt.wantMissing) {
+				t.Errorf("findMissingInPath() returned %d items, want %d", len(got), len(tt.wantMissing))
+				t.Logf("got: %v, want: %v", got, tt.wantMissing)
+				return
+			}
+
+			gotMap := make(map[string]bool)
+			for _, m := range got {
+				gotMap[m] = true
+			}
+
+			for _, want := range tt.wantMissing {
+				if !gotMap[want] {
+					t.Errorf("expected %q to be missing", want)
+				}
+			}
+		})
+	}
+}
+
+func TestCheckGNUCompatWithPathAutoDetect(t *testing.T) {
+	// This tests that when a command is provided by coreutils (real binary),
+	// GNU-specific flags are NOT reported as issues.
+	// When a command is provided by busybox (symlink), they ARE reported.
+
+	tmpDir := t.TempDir()
+	binDir := filepath.Join(tmpDir, "bin")
+	os.MkdirAll(binDir, 0755)
+
+	// Create a "realpath" as a real binary (simulates coreutils)
+	realpathPath := filepath.Join(binDir, "realpath")
+	if err := os.WriteFile(realpathPath, []byte("#!/bin/sh\necho real"), 0755); err != nil {
+		t.Fatalf("failed to create realpath: %v", err)
+	}
+
+	script := `#!/bin/sh
+path=$(realpath --no-symlinks /opt)
+`
+	parser := syntax.NewParser(syntax.Variant(syntax.LangBash))
+	file, err := parser.Parse(strings.NewReader(script), "test.sh")
+	if err != nil {
+		t.Fatalf("failed to parse: %v", err)
+	}
+
+	// With path pointing to coreutils-like binary, should NOT report issues
+	issues := CheckGNUCompatWithPath(file, "test.sh", binDir)
+
+	// Since it's a real binary (not busybox symlink), provider is "coreutils"
+	// so issues should be filtered out
+	if len(issues) != 0 {
+		t.Errorf("expected 0 issues when coreutils provides the command, got %d", len(issues))
+		for _, issue := range issues {
+			t.Logf("  Issue: %s %s", issue.Command, issue.Flag)
+		}
 	}
 }

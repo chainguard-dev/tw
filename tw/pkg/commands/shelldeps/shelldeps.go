@@ -36,6 +36,7 @@ func Command() *cobra.Command {
 		cfg.showCommand(),
 		cfg.scanCommand(),
 		cfg.checkCommand(),
+		cfg.checkPackageCommand(),
 	)
 
 	return cmd

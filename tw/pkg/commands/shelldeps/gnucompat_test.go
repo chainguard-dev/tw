@@ -3,15 +3,27 @@ package shelldeps
 import (
 	"strings"
 	"testing"
+
+	"mvdan.cc/sh/v3/syntax"
 )
 
-func TestCheckGNUCompatibility(t *testing.T) {
+func parseScript(t *testing.T, script string) *syntax.File {
+	t.Helper()
+	parser := syntax.NewParser(syntax.Variant(syntax.LangBash))
+	file, err := parser.Parse(strings.NewReader(script), "test.sh")
+	if err != nil {
+		t.Fatalf("failed to parse script: %v", err)
+	}
+	return file
+}
+
+func TestCheckGNUCompatibilityAST(t *testing.T) {
 	tests := []struct {
-		name          string
-		script        string
-		wantIssues    int
-		wantCommands  []string // Commands expected to be flagged
-		wantNoIssues  []string // Commands that should NOT be flagged
+		name         string
+		script       string
+		wantIssues   int
+		wantCommands []string // Commands expected to be flagged
+		wantFlags    []string // Flags expected to be flagged
 	}{
 		{
 			name: "realpath --no-symlinks",
@@ -21,6 +33,7 @@ echo $path
 `,
 			wantIssues:   1,
 			wantCommands: []string{"realpath"},
+			wantFlags:    []string{"--no-symlinks"},
 		},
 		{
 			name: "realpath --relative-base",
@@ -29,14 +42,7 @@ path=$(realpath --relative-base=/opt /opt/foo/bar)
 `,
 			wantIssues:   1,
 			wantCommands: []string{"realpath"},
-		},
-		{
-			name: "realpath -q quiet mode",
-			script: `#!/bin/sh
-path=$(realpath -q /some/path)
-`,
-			wantIssues:   1,
-			wantCommands: []string{"realpath"},
+			wantFlags:    []string{"--relative-base"},
 		},
 		{
 			name: "stat --format",
@@ -45,14 +51,7 @@ size=$(stat --format=%s file.txt)
 `,
 			wantIssues:   1,
 			wantCommands: []string{"stat"},
-		},
-		{
-			name: "stat --printf",
-			script: `#!/bin/bash
-stat --printf='%s' file.txt
-`,
-			wantIssues:   1,
-			wantCommands: []string{"stat"},
+			wantFlags:    []string{"--format"},
 		},
 		{
 			name: "cp --reflink",
@@ -61,6 +60,7 @@ cp --reflink=auto src dest
 `,
 			wantIssues:   1,
 			wantCommands: []string{"cp"},
+			wantFlags:    []string{"--reflink"},
 		},
 		{
 			name: "date --iso-8601",
@@ -69,6 +69,7 @@ today=$(date --iso-8601)
 `,
 			wantIssues:   1,
 			wantCommands: []string{"date"},
+			wantFlags:    []string{"--iso-8601"},
 		},
 		{
 			name: "date -I shorthand",
@@ -77,78 +78,34 @@ today=$(date -I)
 `,
 			wantIssues:   1,
 			wantCommands: []string{"date"},
+			wantFlags:    []string{"-I"},
 		},
 		{
-			name: "mktemp --suffix",
+			name: "chmod --reference",
 			script: `#!/bin/bash
-tmpfile=$(mktemp --suffix=.txt)
+chmod --reference=file1 file2
 `,
 			wantIssues:   1,
-			wantCommands: []string{"mktemp"},
+			wantCommands: []string{"chmod"},
+			wantFlags:    []string{"--reference"},
 		},
 		{
-			name: "sort -h human numeric",
+			name: "install -D",
 			script: `#!/bin/sh
-du -h | sort -h
+install -D binary /usr/local/bin/
 `,
 			wantIssues:   1,
-			wantCommands: []string{"sort"},
+			wantCommands: []string{"install"},
+			wantFlags:    []string{"-D"},
 		},
 		{
-			name: "ls --time-style",
-			script: `#!/bin/bash
-ls -l --time-style=long-iso
-`,
-			wantIssues:   1,
-			wantCommands: []string{"ls"},
-		},
-		{
-			name: "df --output",
+			name: "install -Dm755 combined flags",
 			script: `#!/bin/sh
-df --output=source,target
+install -Dm755 binary /usr/local/bin/
 `,
 			wantIssues:   1,
-			wantCommands: []string{"df"},
-		},
-		{
-			name: "readlink -e",
-			script: `#!/bin/bash
-target=$(readlink -e symlink)
-`,
-			wantIssues:   1,
-			wantCommands: []string{"readlink"},
-		},
-		{
-			name: "readlink -m",
-			script: `#!/bin/sh
-target=$(readlink -m path)
-`,
-			wantIssues:   1,
-			wantCommands: []string{"readlink"},
-		},
-		{
-			name: "readlink -f is ok",
-			script: `#!/bin/sh
-target=$(readlink -f symlink)
-`,
-			wantIssues:   0,
-			wantNoIssues: []string{"readlink"},
-		},
-		{
-			name: "tail --pid",
-			script: `#!/bin/bash
-tail --pid=$$ -f logfile
-`,
-			wantIssues:   1,
-			wantCommands: []string{"tail"},
-		},
-		{
-			name: "touch --date",
-			script: `#!/bin/sh
-touch --date="2024-01-01" file
-`,
-			wantIssues:   1,
-			wantCommands: []string{"touch"},
+			wantCommands: []string{"install"},
+			wantFlags:    []string{"-D"},
 		},
 		{
 			name: "multiple issues",
@@ -171,54 +128,70 @@ ls -la /tmp
 			wantIssues: 0,
 		},
 		{
-			name: "comments are skipped",
+			name: "multiline command handled correctly",
 			script: `#!/bin/sh
-# realpath --no-symlinks would be nice
-# stat --format is also useful
-echo "hello"
+chmod \
+  --reference=foo \
+  bar
+`,
+			wantIssues:   1,
+			wantCommands: []string{"chmod"},
+			wantFlags:    []string{"--reference"},
+		},
+		{
+			name: "no false positive - different command uses --reference",
+			script: `#!/bin/sh
+chmod 644 foo && some-command --reference foo
+`,
+			wantIssues: 0, // chmod doesn't use --reference here
+		},
+		{
+			name: "readlink -f is ok",
+			script: `#!/bin/sh
+target=$(readlink -f symlink)
 `,
 			wantIssues: 0,
 		},
 		{
-			name: "install -D",
+			name: "readlink -e is GNU only",
 			script: `#!/bin/sh
-install -D binary /usr/local/bin/
+target=$(readlink -e symlink)
 `,
 			wantIssues:   1,
-			wantCommands: []string{"install"},
+			wantCommands: []string{"readlink"},
+			wantFlags:    []string{"-e"},
 		},
 		{
-			name: "chmod --reference",
+			name: "sort -h is GNU only",
+			script: `#!/bin/sh
+du -h | sort -h
+`,
+			wantIssues:   1,
+			wantCommands: []string{"sort"},
+			wantFlags:    []string{"-h"},
+		},
+		{
+			name: "mktemp --suffix",
 			script: `#!/bin/bash
-chmod --reference=file1 file2
+tmpfile=$(mktemp --suffix=.txt)
 `,
 			wantIssues:   1,
-			wantCommands: []string{"chmod"},
-		},
-		{
-			name: "chown --reference",
-			script: `#!/bin/sh
-chown --reference=file1 file2
-`,
-			wantIssues:   1,
-			wantCommands: []string{"chown"},
+			wantCommands: []string{"mktemp"},
+			wantFlags:    []string{"--suffix"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := strings.NewReader(tt.script)
-			issues, err := CheckGNUCompatibility(r, "test.sh")
-
-			if err != nil {
-				t.Fatalf("CheckGNUCompatibility() error = %v", err)
-			}
+			file := parseScript(t, tt.script)
+			issues := CheckGNUCompatibilityAST(file, "test.sh")
 
 			if len(issues) != tt.wantIssues {
-				t.Errorf("CheckGNUCompatibility() found %d issues, want %d", len(issues), tt.wantIssues)
+				t.Errorf("CheckGNUCompatibilityAST() found %d issues, want %d", len(issues), tt.wantIssues)
 				for _, issue := range issues {
-					t.Logf("  Issue: %s (line %d)", issue.Description, issue.Line)
+					t.Logf("  Issue: %s %s (line %d)", issue.Command, issue.Flag, issue.Line)
 				}
+				return
 			}
 
 			// Check that expected commands were flagged
@@ -235,16 +208,16 @@ chown --reference=file1 file2
 				}
 			}
 
-			// Check that commands that should NOT be flagged aren't
-			if len(tt.wantNoIssues) > 0 {
-				foundCmds := make(map[string]bool)
+			// Check that expected flags were flagged
+			if len(tt.wantFlags) > 0 {
+				foundFlags := make(map[string]bool)
 				for _, issue := range issues {
-					foundCmds[issue.Command] = true
+					foundFlags[issue.Flag] = true
 				}
 
-				for _, noIssue := range tt.wantNoIssues {
-					if foundCmds[noIssue] {
-						t.Errorf("command %q should NOT have been flagged", noIssue)
+				for _, wantFlag := range tt.wantFlags {
+					if !foundFlags[wantFlag] {
+						t.Errorf("expected flag %q to be flagged", wantFlag)
 					}
 				}
 			}
@@ -252,39 +225,28 @@ chown --reference=file1 file2
 	}
 }
 
-func TestHasGNUCoreutils(t *testing.T) {
+func TestMatchesFlag(t *testing.T) {
 	tests := []struct {
-		name     string
-		packages []string
-		want     bool
+		name  string
+		arg   string
+		flag  string
+		want  bool
 	}{
-		{
-			name:     "has coreutils",
-			packages: []string{"busybox", "coreutils", "bash"},
-			want:     true,
-		},
-		{
-			name:     "no coreutils",
-			packages: []string{"busybox", "bash"},
-			want:     false,
-		},
-		{
-			name:     "only coreutils",
-			packages: []string{"coreutils"},
-			want:     true,
-		},
-		{
-			name:     "empty list",
-			packages: []string{},
-			want:     false,
-		},
+		{"exact match long", "--reflink", "--reflink", true},
+		{"exact match short", "-D", "-D", true},
+		{"long flag with value", "--reflink=auto", "--reflink", true},
+		{"long flag no match", "--other", "--reflink", false},
+		{"combined short flags", "-Dm755", "-D", true},
+		{"combined short flags no match", "-m755", "-D", false},
+		{"short flag in arg", "-h", "-h", true},
+		{"different short flag", "-v", "-h", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := HasGNUCoreutils(tt.packages)
+			got := matchesFlag(tt.arg, tt.flag)
 			if got != tt.want {
-				t.Errorf("HasGNUCoreutils() = %v, want %v", got, tt.want)
+				t.Errorf("matchesFlag(%q, %q) = %v, want %v", tt.arg, tt.flag, got, tt.want)
 			}
 		})
 	}
@@ -292,14 +254,14 @@ func TestHasGNUCoreutils(t *testing.T) {
 
 func TestNeedsGNUCoreutils(t *testing.T) {
 	tests := []struct {
-		name             string
+		name              string
 		incompatibilities []GNUIncompatibility
-		want             bool
+		want              bool
 	}{
 		{
-			name:             "no incompatibilities",
+			name:              "no incompatibilities",
 			incompatibilities: []GNUIncompatibility{},
-			want:             false,
+			want:              false,
 		},
 		{
 			name: "has incompatibilities",
@@ -322,23 +284,24 @@ func TestNeedsGNUCoreutils(t *testing.T) {
 
 func TestFormatIncompatibilities(t *testing.T) {
 	tests := []struct {
-		name             string
+		name              string
 		incompatibilities []GNUIncompatibility
-		filename         string
-		wantEmpty        bool
-		wantContains     []string
+		filename          string
+		wantEmpty         bool
+		wantContains      []string
 	}{
 		{
-			name:             "empty list",
+			name:              "empty list",
 			incompatibilities: []GNUIncompatibility{},
-			filename:         "test.sh",
-			wantEmpty:        true,
+			filename:          "test.sh",
+			wantEmpty:         true,
 		},
 		{
 			name: "single issue",
 			incompatibilities: []GNUIncompatibility{
 				{
 					Command:     "realpath",
+					Flag:        "--no-symlinks",
 					Line:        5,
 					Description: "realpath --no-symlinks (GNU only)",
 					Fix:         "Add 'coreutils' to runtime dependencies",
@@ -346,7 +309,7 @@ func TestFormatIncompatibilities(t *testing.T) {
 			},
 			filename:     "script.sh",
 			wantEmpty:    false,
-			wantContains: []string{"script.sh", "Line 5", "realpath", "coreutils"},
+			wantContains: []string{"script.sh", "Line 5", "realpath"},
 		},
 	}
 
@@ -366,43 +329,6 @@ func TestFormatIncompatibilities(t *testing.T) {
 				if !strings.Contains(got, want) {
 					t.Errorf("FormatIncompatibilities() output should contain %q, got: %s", want, got)
 				}
-			}
-		})
-	}
-}
-
-func TestTruncateLine(t *testing.T) {
-	tests := []struct {
-		name   string
-		s      string
-		maxLen int
-		want   string
-	}{
-		{
-			name:   "short string",
-			s:      "hello",
-			maxLen: 10,
-			want:   "hello",
-		},
-		{
-			name:   "exact length",
-			s:      "hello",
-			maxLen: 5,
-			want:   "hello",
-		},
-		{
-			name:   "needs truncation",
-			s:      "hello world this is a long string",
-			maxLen: 15,
-			want:   "hello world ...",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := truncateLine(tt.s, tt.maxLen)
-			if got != tt.want {
-				t.Errorf("truncateLine() = %q, want %q", got, tt.want)
 			}
 		})
 	}

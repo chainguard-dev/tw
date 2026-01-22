@@ -1,280 +1,273 @@
 package shelldeps
 
 import (
-	"bufio"
 	"fmt"
-	"io"
-	"regexp"
+	"os"
+	"path/filepath"
 	"strings"
+
+	"mvdan.cc/sh/v3/syntax"
 )
 
 // GNUIncompatibility represents a GNU-specific feature that doesn't work with busybox
 type GNUIncompatibility struct {
 	Command     string // The command (e.g., "realpath")
-	Pattern     string // The flag/option pattern found
+	Flag        string // The specific flag that's GNU-only
 	Line        int    // Line number where found
-	LineContent string // The actual line content
 	Description string // Human-readable description
 	Fix         string // Suggested fix
 }
 
-// gnuPattern defines a pattern to match and its metadata
-type gnuPattern struct {
-	command     string
-	regex       *regexp.Regexp
-	description string
-	fix         string
-}
-
-// gnuPatterns contains all the GNU-specific patterns we check for
-var gnuPatterns = []gnuPattern{
-	// realpath
-	{
-		command:     "realpath",
-		regex:       regexp.MustCompile(`realpath\s+[^|;&]*--no-symlinks`),
-		description: "realpath --no-symlinks (GNU only)",
-		fix:         "Add 'coreutils' to runtime dependencies",
+// gnuOnlyFlags maps commands to their GNU-only flags/options
+// These flags work with GNU coreutils but NOT with busybox
+var gnuOnlyFlags = map[string]map[string]string{
+	"realpath": {
+		"--no-symlinks":   "realpath --no-symlinks (GNU only)",
+		"--relative-base": "realpath --relative-base (GNU only)",
+		"--relative-to":   "realpath --relative-to (GNU only)",
+		"-q":              "realpath -q/--quiet (GNU only)",
+		"--quiet":         "realpath --quiet (GNU only)",
 	},
-	{
-		command:     "realpath",
-		regex:       regexp.MustCompile(`realpath\s+[^|;&]*--relative-base`),
-		description: "realpath --relative-base (GNU only)",
-		fix:         "Add 'coreutils' to runtime dependencies",
+	"stat": {
+		"--format": "stat --format (GNU only, use -c for busybox)",
+		"--printf": "stat --printf (GNU only)",
 	},
-	{
-		command:     "realpath",
-		regex:       regexp.MustCompile(`realpath\s+-q\b`),
-		description: "realpath -q (GNU only, busybox doesn't support quiet mode)",
-		fix:         "Add 'coreutils' to runtime dependencies, or redirect stderr",
+	"cp": {
+		"--reflink": "cp --reflink (GNU only)",
+		"--sparse":  "cp --sparse (GNU only)",
 	},
-	{
-		command:     "realpath",
-		regex:       regexp.MustCompile(`realpath\s+[^|;&]*--quiet`),
-		description: "realpath --quiet (GNU only)",
-		fix:         "Add 'coreutils' to runtime dependencies",
+	"date": {
+		"--iso-8601": "date --iso-8601 (GNU only)",
+		"-I":         "date -I (GNU only, short for --iso-8601)",
 	},
-
-	// stat
-	{
-		command:     "stat",
-		regex:       regexp.MustCompile(`stat\s+[^|;&]*--format`),
-		description: "stat --format (GNU only, use -c for busybox)",
-		fix:         "Use 'stat -c' instead, or add 'coreutils' to runtime dependencies",
+	"mktemp": {
+		"--suffix": "mktemp --suffix (GNU only)",
 	},
-	{
-		command:     "stat",
-		regex:       regexp.MustCompile(`stat\s+[^|;&]*--printf`),
-		description: "stat --printf (GNU only)",
-		fix:         "Use 'stat -c' instead, or add 'coreutils' to runtime dependencies",
+	"sort": {
+		"-h":                   "sort -h (GNU only, human-numeric-sort)",
+		"--human-numeric-sort": "sort --human-numeric-sort (GNU only)",
 	},
-
-	// cp
-	{
-		command:     "cp",
-		regex:       regexp.MustCompile(`cp\s+[^|;&]*--reflink`),
-		description: "cp --reflink (GNU only)",
-		fix:         "Add 'coreutils' to runtime dependencies, or remove --reflink",
+	"ls": {
+		"--time-style": "ls --time-style (GNU only)",
 	},
-	{
-		command:     "cp",
-		regex:       regexp.MustCompile(`cp\s+[^|;&]*--sparse`),
-		description: "cp --sparse (GNU only)",
-		fix:         "Add 'coreutils' to runtime dependencies",
+	"df": {
+		"--output": "df --output (GNU only)",
 	},
-
-	// date
-	{
-		command:     "date",
-		regex:       regexp.MustCompile(`date\s+[^|;&]*--iso-8601`),
-		description: "date --iso-8601 (GNU only)",
-		fix:         "Use 'date +%Y-%m-%d' format instead, or add 'coreutils'",
+	"readlink": {
+		"-e":           "readlink -e (GNU only, use -f for busybox)",
+		"--canonicalize-existing": "readlink --canonicalize-existing (GNU only)",
+		"-m":           "readlink -m (GNU only)",
+		"--canonicalize-missing": "readlink --canonicalize-missing (GNU only)",
 	},
-	{
-		command:     "date",
-		regex:       regexp.MustCompile(`date\s+-I\b`),
-		description: "date -I (GNU only, short for --iso-8601)",
-		fix:         "Use 'date +%Y-%m-%d' format instead, or add 'coreutils'",
+	"tail": {
+		"--pid": "tail --pid (GNU only)",
 	},
-
-	// mktemp
-	{
-		command:     "mktemp",
-		regex:       regexp.MustCompile(`mktemp\s+[^|;&]*--suffix`),
-		description: "mktemp --suffix (GNU only)",
-		fix:         "Add 'coreutils' to runtime dependencies",
+	"touch": {
+		"--date": "touch --date (GNU only)",
 	},
-
-	// sort
-	{
-		command:     "sort",
-		regex:       regexp.MustCompile(`sort\s+[^|;&]*-h\b`),
-		description: "sort -h/--human-numeric-sort (GNU only)",
-		fix:         "Add 'coreutils' to runtime dependencies",
+	"head": {
+		"--bytes": "head --bytes (GNU only, use -c)",
 	},
-	{
-		command:     "sort",
-		regex:       regexp.MustCompile(`sort\s+[^|;&]*--human-numeric`),
-		description: "sort --human-numeric-sort (GNU only)",
-		fix:         "Add 'coreutils' to runtime dependencies",
+	"du": {
+		"--apparent-size": "du --apparent-size (GNU only)",
 	},
-
-	// ls
-	{
-		command:     "ls",
-		regex:       regexp.MustCompile(`ls\s+[^|;&]*--time-style`),
-		description: "ls --time-style (GNU only)",
-		fix:         "Add 'coreutils' to runtime dependencies",
+	"chmod": {
+		"--reference": "chmod --reference (GNU only)",
 	},
-
-	// df
-	{
-		command:     "df",
-		regex:       regexp.MustCompile(`df\s+[^|;&]*--output`),
-		description: "df --output (GNU only)",
-		fix:         "Add 'coreutils' to runtime dependencies",
+	"chown": {
+		"--reference": "chown --reference (GNU only)",
 	},
-
-	// readlink
-	{
-		command:     "readlink",
-		regex:       regexp.MustCompile(`readlink\s+-e\b`),
-		description: "readlink -e (GNU only, use -f for busybox)",
-		fix:         "Use 'readlink -f' instead (works on both), or add 'coreutils'",
+	"install": {
+		"-D": "install -D (GNU only, creates parent directories)",
 	},
-	{
-		command:     "readlink",
-		regex:       regexp.MustCompile(`readlink\s+-m\b`),
-		description: "readlink -m (GNU only)",
-		fix:         "Add 'coreutils' to runtime dependencies",
+	"tr": {
+		"--complement": "tr --complement (GNU only, use -c)",
 	},
-
-	// tail
-	{
-		command:     "tail",
-		regex:       regexp.MustCompile(`tail\s+[^|;&]*--pid`),
-		description: "tail --pid (GNU only)",
-		fix:         "Add 'coreutils' to runtime dependencies",
+	"wc": {
+		"--total": "wc --total (GNU only)",
 	},
-
-	// touch
-	{
-		command:     "touch",
-		regex:       regexp.MustCompile(`touch\s+[^|;&]*--date`),
-		description: "touch --date (GNU only)",
-		fix:         "Use 'touch -d' instead, or add 'coreutils'",
-	},
-
-	// head
-	{
-		command:     "head",
-		regex:       regexp.MustCompile(`head\s+[^|;&]*--bytes`),
-		description: "head --bytes (GNU only, use -c for busybox)",
-		fix:         "Use 'head -c' instead",
-	},
-
-	// du
-	{
-		command:     "du",
-		regex:       regexp.MustCompile(`du\s+[^|;&]*--apparent-size`),
-		description: "du --apparent-size (GNU only)",
-		fix:         "Add 'coreutils' to runtime dependencies",
-	},
-
-	// chmod/chown with --reference
-	{
-		command:     "chmod",
-		regex:       regexp.MustCompile(`chmod\s+[^|;&]*--reference`),
-		description: "chmod --reference (GNU only)",
-		fix:         "Add 'coreutils' to runtime dependencies",
-	},
-	{
-		command:     "chown",
-		regex:       regexp.MustCompile(`chown\s+[^|;&]*--reference`),
-		description: "chown --reference (GNU only)",
-		fix:         "Add 'coreutils' to runtime dependencies",
-	},
-
-	// install
-	{
-		command:     "install",
-		regex:       regexp.MustCompile(`install\s+[^|;&]*-D\b`),
-		description: "install -D (GNU only, creates parent directories)",
-		fix:         "Use 'mkdir -p' before install, or add 'coreutils'",
-	},
-
-	// tr
-	{
-		command:     "tr",
-		regex:       regexp.MustCompile(`tr\s+[^|;&]*--complement`),
-		description: "tr --complement (GNU only, use -c for busybox)",
-		fix:         "Use 'tr -c' instead",
-	},
-
-	// wc
-	{
-		command:     "wc",
-		regex:       regexp.MustCompile(`wc\s+[^|;&]*--total`),
-		description: "wc --total (GNU only)",
-		fix:         "Add 'coreutils' to runtime dependencies",
-	},
-
-	// seq
-	{
-		command:     "seq",
-		regex:       regexp.MustCompile(`seq\s+[^|;&]*--equal-width`),
-		description: "seq --equal-width (GNU only, use -w for busybox)",
-		fix:         "Use 'seq -w' instead",
+	"seq": {
+		"--equal-width": "seq --equal-width (GNU only, use -w)",
 	},
 }
 
-// CheckGNUCompatibility scans content for GNU-specific patterns that won't work with busybox.
-// It returns a list of incompatibilities found.
-func CheckGNUCompatibility(r io.Reader, filename string) ([]GNUIncompatibility, error) {
+// CheckGNUCompatibilityAST parses a shell script and finds GNU-specific flag usage
+// using AST analysis. This correctly handles multiline commands and avoids false positives.
+func CheckGNUCompatibilityAST(file *syntax.File, filename string) []GNUIncompatibility {
 	var incompatibilities []GNUIncompatibility
 
-	scanner := bufio.NewScanner(r)
-	lineNum := 0
-
-	for scanner.Scan() {
-		lineNum++
-		line := scanner.Text()
-
-		// Skip comments (but not shebangs on line 1)
-		trimmed := strings.TrimSpace(line)
-		if lineNum > 1 && strings.HasPrefix(trimmed, "#") {
-			continue
+	syntax.Walk(file, func(node syntax.Node) bool {
+		call, ok := node.(*syntax.CallExpr)
+		if !ok || len(call.Args) == 0 {
+			return true
 		}
 
-		// Check each pattern
-		for _, pattern := range gnuPatterns {
-			if pattern.regex.MatchString(line) {
-				incompatibilities = append(incompatibilities, GNUIncompatibility{
-					Command:     pattern.command,
-					Pattern:     pattern.regex.FindString(line),
-					Line:        lineNum,
-					LineContent: strings.TrimSpace(line),
-					Description: pattern.description,
-					Fix:         pattern.fix,
-				})
+		// Get the command name
+		cmdName := wordToString(call.Args[0])
+
+		// Handle absolute paths - extract just the command name
+		if strings.HasPrefix(cmdName, "/") {
+			cmdName = filepath.Base(cmdName)
+		}
+
+		// Check if this command has known GNU-only flags
+		gnuFlags, hasGNUFlags := gnuOnlyFlags[cmdName]
+		if !hasGNUFlags {
+			return true
+		}
+
+		// Check each argument for GNU-only flags
+		for _, arg := range call.Args[1:] {
+			argStr := wordToString(arg)
+
+			// Check against known GNU-only flags
+			for flag, description := range gnuFlags {
+				if matchesFlag(argStr, flag) {
+					incompatibilities = append(incompatibilities, GNUIncompatibility{
+						Command:     cmdName,
+						Flag:        flag,
+						Line:        int(call.Pos().Line()),
+						Description: description,
+						Fix:         fmt.Sprintf("Add 'coreutils' to runtime dependencies, or modify script to avoid %s", flag),
+					})
+				}
 			}
 		}
-	}
 
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error reading file: %w", err)
-	}
+		return true
+	})
 
-	return incompatibilities, nil
+	return incompatibilities
 }
 
-// HasGNUCoreutils checks if a list of packages includes coreutils
-func HasGNUCoreutils(packages []string) bool {
-	for _, pkg := range packages {
-		if pkg == "coreutils" {
-			return true
+// matchesFlag checks if an argument matches a flag pattern
+// Handles: --flag, --flag=value, -f, -fvalue
+func matchesFlag(arg, flag string) bool {
+	if arg == flag {
+		return true
+	}
+	// Handle --flag=value
+	if strings.HasPrefix(flag, "--") && strings.HasPrefix(arg, flag+"=") {
+		return true
+	}
+	// Handle combined short flags like -Dm (matches -D)
+	if len(flag) == 2 && flag[0] == '-' && flag[1] != '-' {
+		if strings.HasPrefix(arg, "-") && !strings.HasPrefix(arg, "--") {
+			// Check if the flag letter is in the combined flags
+			return strings.Contains(arg, string(flag[1]))
 		}
 	}
 	return false
+}
+
+// ProviderInfo contains information about what provides a command
+type ProviderInfo struct {
+	Command  string // The command name
+	Path     string // Full path to the binary
+	Provider string // "busybox", "coreutils", or "unknown"
+}
+
+// DetectCommandProvider determines if a command is provided by busybox or coreutils
+// by examining symlinks and binary names in the given PATH
+func DetectCommandProvider(cmd string, searchPath string) ProviderInfo {
+	info := ProviderInfo{
+		Command:  cmd,
+		Provider: "unknown",
+	}
+
+	// Search through PATH directories
+	dirs := filepath.SplitList(searchPath)
+	for _, dir := range dirs {
+		cmdPath := filepath.Join(dir, cmd)
+
+		// Check if file exists
+		fi, err := os.Lstat(cmdPath)
+		if err != nil {
+			continue
+		}
+
+		info.Path = cmdPath
+
+		// If it's a symlink, check where it points
+		if fi.Mode()&os.ModeSymlink != 0 {
+			target, err := os.Readlink(cmdPath)
+			if err != nil {
+				continue
+			}
+
+			// Resolve relative symlinks
+			if !filepath.IsAbs(target) {
+				target = filepath.Join(dir, target)
+			}
+
+			// Check if target is busybox
+			targetBase := filepath.Base(target)
+			if targetBase == "busybox" || strings.Contains(target, "busybox") {
+				info.Provider = "busybox"
+				return info
+			}
+
+			// Check if target points to coreutils (could be in /usr/bin/coreutils or similar)
+			if strings.Contains(target, "coreutils") {
+				info.Provider = "coreutils"
+				return info
+			}
+
+			// Follow the symlink to get more info
+			realPath, err := filepath.EvalSymlinks(cmdPath)
+			if err == nil {
+				realBase := filepath.Base(realPath)
+				if realBase == "busybox" {
+					info.Provider = "busybox"
+					return info
+				}
+			}
+		}
+
+		// If it's a regular file, check the binary name/path
+		// Assume non-symlinked binaries in standard paths are coreutils
+		if fi.Mode().IsRegular() {
+			// If it's a real binary (not busybox symlink), likely coreutils
+			info.Provider = "coreutils"
+			return info
+		}
+
+		// Found the command, but can't determine provider
+		return info
+	}
+
+	return info
+}
+
+// CheckGNUCompatWithPath checks GNU compatibility considering the actual binaries in PATH
+// Returns only incompatibilities where the command is provided by busybox
+func CheckGNUCompatWithPath(file *syntax.File, filename string, searchPath string) []GNUIncompatibility {
+	allIncompat := CheckGNUCompatibilityAST(file, filename)
+
+	if searchPath == "" {
+		// No PATH provided, return all potential incompatibilities
+		return allIncompat
+	}
+
+	var filtered []GNUIncompatibility
+	providerCache := make(map[string]ProviderInfo)
+
+	for _, incompat := range allIncompat {
+		// Check cached provider info
+		provider, ok := providerCache[incompat.Command]
+		if !ok {
+			provider = DetectCommandProvider(incompat.Command, searchPath)
+			providerCache[incompat.Command] = provider
+		}
+
+		// Only report if the command is provided by busybox (or unknown)
+		// If coreutils provides it, the GNU flags will work
+		if provider.Provider != "coreutils" {
+			filtered = append(filtered, incompat)
+		}
+	}
+
+	return filtered
 }
 
 // NeedsGNUCoreutils returns true if any of the incompatibilities require coreutils
@@ -293,17 +286,8 @@ func FormatIncompatibilities(incompatibilities []GNUIncompatibility, filename st
 
 	for _, inc := range incompatibilities {
 		sb.WriteString(fmt.Sprintf("    Line %d: %s\n", inc.Line, inc.Description))
-		sb.WriteString(fmt.Sprintf("      %s\n", truncateLine(inc.LineContent, 60)))
 		sb.WriteString(fmt.Sprintf("      Fix: %s\n", inc.Fix))
 	}
 
 	return sb.String()
-}
-
-// truncateLine truncates a line to maxLen characters, adding ... if truncated
-func truncateLine(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
 }

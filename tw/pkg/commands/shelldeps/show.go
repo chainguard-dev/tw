@@ -4,14 +4,16 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/chainguard-dev/clog"
 	"github.com/spf13/cobra"
 )
 
 type showCfg struct {
-	parent      *cfg
-	missingPath string
+	parent     *cfg
+	searchPath string
 }
 
 func (c *cfg) showCommand() *cobra.Command {
@@ -19,30 +21,35 @@ func (c *cfg) showCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "show [flags] file [file...]",
 		Short: "Show dependencies for one or more shell scripts",
-		Long:  "Analyze shell scripts and display their external command dependencies.",
-		Args:  cobra.MinimumNArgs(1),
+		Long: `Analyze shell scripts and display their external command dependencies.
+
+This command parses shell scripts and extracts all external commands they invoke.
+It excludes shell builtins, functions defined in the script, and aliases.
+
+Optionally, use --path to check which dependencies are missing from a PATH.
+
+Example usage:
+  # Show dependencies for a script
+  tw shell-deps show script.sh
+
+  # Show dependencies and check against PATH
+  tw shell-deps show --path=/usr/bin:/usr/local/bin script.sh
+
+  # JSON output
+  tw shell-deps show --json script.sh`,
+		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return showCfg.Run(cmd.Context(), cmd, args)
 		},
 	}
 
-	cmd.Flags().StringVar(&showCfg.missingPath, "missing", "", "path to directory containing available executables")
+	cmd.Flags().StringVar(&showCfg.searchPath, "path", "",
+		"PATH-like colon-separated directories to check for missing commands")
 
 	return cmd
 }
 
 func (s *showCfg) Run(ctx context.Context, cmd *cobra.Command, args []string) error {
-	// Validate missing path if provided
-	if s.missingPath != "" {
-		info, err := os.Stat(s.missingPath)
-		if err != nil {
-			return fmt.Errorf("--missing path error: %w", err)
-		}
-		if !info.IsDir() {
-			return fmt.Errorf("--missing path %s is not a directory", s.missingPath)
-		}
-	}
-
 	var results []scriptResult
 	hadErrors := false
 
@@ -102,19 +109,9 @@ func (s *showCfg) Run(ctx context.Context, cmd *cobra.Command, args []string) er
 
 		result.Deps = deps
 
-		// Find missing dependencies if requested
-		if s.missingPath != "" {
-			missing, err := findMissing(deps, s.missingPath)
-			if err != nil {
-				result.Error = err.Error()
-				hadErrors = true
-				results = append(results, result)
-				if s.parent.verbose {
-					clog.ErrorContext(ctx, "failed to find missing deps", "file", file, "error", err)
-				}
-				continue
-			}
-			result.Missing = missing
+		// Find missing dependencies if path provided
+		if s.searchPath != "" {
+			result.Missing = findMissingInPath(deps, s.searchPath)
 		}
 
 		results = append(results, result)
@@ -134,4 +131,37 @@ func (s *showCfg) Run(ctx context.Context, cmd *cobra.Command, args []string) er
 	}
 
 	return nil
+}
+
+// findMissingInPath checks which commands are not found in the search PATH
+func findMissingInPath(deps []string, searchPath string) []string {
+	var missing []string
+
+	dirs := filepath.SplitList(searchPath)
+
+	for _, dep := range deps {
+		// Skip absolute paths - check them directly
+		if strings.HasPrefix(dep, "/") {
+			if _, err := os.Stat(dep); err != nil {
+				missing = append(missing, dep)
+			}
+			continue
+		}
+
+		// Search in PATH directories
+		found := false
+		for _, dir := range dirs {
+			cmdPath := filepath.Join(dir, dep)
+			if _, err := os.Stat(cmdPath); err == nil {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			missing = append(missing, dep)
+		}
+	}
+
+	return missing
 }

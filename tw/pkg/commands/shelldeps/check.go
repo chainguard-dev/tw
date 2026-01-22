@@ -7,36 +7,32 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 
-	"github.com/chainguard-dev/clog"
 	"github.com/spf13/cobra"
+	"mvdan.cc/sh/v3/syntax"
 )
 
 type checkCfg struct {
-	parent         *cfg
-	packages       string   // Comma-separated list of available packages
-	packageList    []string // Parsed package list
-	checkGNUCompat bool     // Check for GNU coreutils incompatibilities
-	strict         bool     // Exit non-zero if issues found
-	matchRegex     string   // Regex to match additional files
-	executable     bool     // Only check executable files
+	parent     *cfg
+	searchPath string // PATH-like string for looking up commands
+	strict     bool   // Exit non-zero if issues found
 }
 
 // checkResult contains the results for a single script
 type checkResult struct {
-	File              string              `json:"file"`
-	Shell             string              `json:"shell,omitempty"`
-	Deps              []string            `json:"deps"`
-	Missing           []string            `json:"missing,omitempty"`
-	GNUIncompatible   []gnuIncompatResult `json:"gnu_incompatible,omitempty"`
-	Error             string              `json:"error,omitempty"`
+	File            string              `json:"file"`
+	Shell           string              `json:"shell,omitempty"`
+	Deps            []string            `json:"deps"`
+	Missing         []string            `json:"missing,omitempty"`
+	GNUIncompatible []gnuIncompatResult `json:"gnu_incompatible,omitempty"`
+	Error           string              `json:"error,omitempty"`
 }
 
 type gnuIncompatResult struct {
 	Command     string `json:"command"`
+	Flag        string `json:"flag"`
 	Line        int    `json:"line"`
 	Description string `json:"description"`
 	Fix         string `json:"fix"`
@@ -44,147 +40,82 @@ type gnuIncompatResult struct {
 
 func (c *cfg) checkCommand() *cobra.Command {
 	checkCfg := &checkCfg{
-		parent:         c,
-		checkGNUCompat: true, // Enable by default
+		parent: c,
 	}
 	cmd := &cobra.Command{
-		Use:   "check [flags] search-dir",
-		Short: "Check shell scripts for missing dependencies",
-		Long: `Scan a directory for shell scripts and check if their dependencies
-are satisfied by the specified packages.
+		Use:   "check [flags] file [file...]",
+		Short: "Check shell scripts for missing dependencies and GNU compatibility",
+		Long: `Analyze shell scripts and check if their dependencies are available
+in the specified PATH, and detect GNU coreutils incompatibilities.
 
-This command combines dependency extraction with package resolution
-to identify:
-  - Missing commands (not provided by any specified package)
-  - GNU coreutils incompatibilities (when using busybox)
+This command:
+  - Extracts external command dependencies from shell scripts
+  - Checks if those commands exist in the specified --path
+  - Detects GNU-specific flags that don't work with busybox
+  - Automatically determines if a command is provided by busybox or coreutils
+
+The --path flag accepts a PATH-like colon-separated list of directories
+(e.g., "/usr/bin:/usr/local/bin"). Commands are checked for existence
+in these directories.
+
+GNU compatibility checking is automatic: if a script uses 'chmod --reference'
+and /usr/bin/chmod is a symlink to busybox, it will report an error.
+If /usr/bin/chmod is provided by coreutils, no error is reported.
 
 Example usage:
-  # Check scripts against specific packages
-  tw shell-deps check --packages=busybox,bash,curl /opt/scripts
+  # Check specific files against system PATH
+  tw shell-deps check --path=/usr/bin:/usr/local/bin script.sh
 
   # Check with strict mode (exit 1 if issues found)
-  tw shell-deps check --packages=busybox,bash --strict /opt/scripts
+  tw shell-deps check --path=/usr/bin --strict entrypoint.sh run.sh
 
-  # Skip GNU compatibility check (if you know coreutils is available)
-  tw shell-deps check --packages=busybox,coreutils --no-gnu-compat /opt/scripts
-
-For pipeline usage, this integrates with melange test environments where
-the runtime dependencies are already installed.`,
-		Args: cobra.ExactArgs(1),
+  # Check files, auto-detect GNU issues based on actual binaries
+  tw shell-deps check --path=/usr/bin /opt/scripts/*.sh`,
+		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return checkCfg.Run(cmd.Context(), cmd, args)
 		},
 	}
 
-	cmd.Flags().StringVar(&checkCfg.packages, "packages", "",
-		"comma-separated list of available packages (e.g., busybox,bash,curl)")
-	cmd.Flags().BoolVar(&checkCfg.checkGNUCompat, "gnu-compat", true,
-		"check for GNU coreutils incompatibilities with busybox")
+	cmd.Flags().StringVar(&checkCfg.searchPath, "path", "/usr/bin:/usr/local/bin",
+		"PATH-like colon-separated directories to search for commands")
 	cmd.Flags().BoolVar(&checkCfg.strict, "strict", false,
 		"exit with non-zero status if any issues are found")
-	cmd.Flags().StringVar(&checkCfg.matchRegex, "match", "",
-		"regex pattern to match additional files as shell scripts")
-	cmd.Flags().BoolVarP(&checkCfg.executable, "executable", "x", false,
-		"only consider executable files as shell scripts")
 
 	return cmd
 }
 
 func (c *checkCfg) Run(ctx context.Context, cmd *cobra.Command, args []string) error {
-	searchDir := args[0]
-
-	// Parse package list
-	if c.packages != "" {
-		c.packageList = strings.Split(c.packages, ",")
-		for i, pkg := range c.packageList {
-			c.packageList[i] = strings.TrimSpace(pkg)
-		}
-	}
-
-	// Validate search directory
-	info, err := os.Stat(searchDir)
-	if err != nil {
-		return fmt.Errorf("search directory error: %w", err)
-	}
-	if !info.IsDir() {
-		return fmt.Errorf("search path %s is not a directory", searchDir)
-	}
-
-	// Compile match regex if provided
-	var matchPattern *regexp.Regexp
-	if c.matchRegex != "" {
-		matchPattern, err = regexp.Compile(c.matchRegex)
+	// Validate that all provided files exist
+	var files []string
+	for _, arg := range args {
+		// Expand globs
+		matches, err := filepath.Glob(arg)
 		if err != nil {
-			return fmt.Errorf("invalid --match regex: %w", err)
+			return fmt.Errorf("invalid pattern %s: %w", arg, err)
 		}
-	}
-
-	// Find all shell scripts
-	var shellScripts []string
-	err = filepath.Walk(searchDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			if c.parent.verbose {
-				clog.WarnContext(ctx, "failed to access path", "path", path, "error", err)
+		if len(matches) == 0 {
+			// Check if it's a literal file that doesn't exist
+			if _, err := os.Stat(arg); err != nil {
+				return fmt.Errorf("file not found: %s", arg)
 			}
-			return nil
+			files = append(files, arg)
+		} else {
+			files = append(files, matches...)
 		}
-
-		if info.IsDir() {
-			return nil
-		}
-
-		if !info.Mode().IsRegular() && info.Mode()&os.ModeSymlink == 0 {
-			return nil
-		}
-
-		isExecutable := info.Mode()&0111 != 0
-		if c.executable && !isExecutable {
-			return nil
-		}
-
-		matchedByRegex := matchPattern != nil && matchPattern.MatchString(filepath.Base(path))
-		if matchedByRegex {
-			shellScripts = append(shellScripts, path)
-			return nil
-		}
-
-		isShell, err := isShellScript(path)
-		if err != nil {
-			if c.parent.verbose {
-				clog.WarnContext(ctx, "failed to check shebang", "path", path, "error", err)
-			}
-			return nil
-		}
-
-		if isShell {
-			shellScripts = append(shellScripts, path)
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return fmt.Errorf("failed to walk directory: %w", err)
 	}
 
-	if len(shellScripts) == 0 {
-		if c.parent.verbose {
-			clog.InfoContext(ctx, "no shell scripts found", "dir", searchDir)
-		}
-		fmt.Fprintln(cmd.OutOrStdout(), "No shell scripts found.")
+	if len(files) == 0 {
+		fmt.Fprintln(cmd.OutOrStdout(), "No files to check.")
 		return nil
 	}
 
-	// Process each script
+	// Process each file
 	var results []checkResult
 	hasIssues := false
 
-	// Determine if we should skip GNU compat check
-	hasCoreutils := HasGNUCoreutils(c.packageList)
-	shouldCheckGNU := c.checkGNUCompat && !hasCoreutils
-
-	for _, file := range shellScripts {
-		result := c.processScript(ctx, file, shouldCheckGNU)
+	for _, file := range files {
+		result := c.processScript(ctx, file)
 		results = append(results, result)
 
 		if len(result.Missing) > 0 || len(result.GNUIncompatible) > 0 || result.Error != "" {
@@ -205,7 +136,7 @@ func (c *checkCfg) Run(ctx context.Context, cmd *cobra.Command, args []string) e
 	return nil
 }
 
-func (c *checkCfg) processScript(ctx context.Context, file string, checkGNU bool) checkResult {
+func (c *checkCfg) processScript(ctx context.Context, file string) checkResult {
 	result := checkResult{File: file}
 
 	f, err := os.Open(file)
@@ -215,7 +146,7 @@ func (c *checkCfg) processScript(ctx context.Context, file string, checkGNU bool
 	}
 	defer f.Close()
 
-	// Extract shell
+	// Extract shell from shebang
 	shell, err := extractShebang(f)
 	if err != nil {
 		result.Error = fmt.Sprintf("failed to extract shebang: %v", err)
@@ -223,7 +154,21 @@ func (c *checkCfg) processScript(ctx context.Context, file string, checkGNU bool
 	}
 	result.Shell = shell
 
-	// Reset for dep extraction
+	// Reset for parsing
+	if _, err := f.Seek(0, 0); err != nil {
+		result.Error = fmt.Sprintf("failed to seek: %v", err)
+		return result
+	}
+
+	// Parse the script
+	parser := syntax.NewParser(syntax.Variant(syntax.LangBash))
+	parsedFile, err := parser.Parse(f, file)
+	if err != nil {
+		result.Error = fmt.Sprintf("parse error: %v", err)
+		return result
+	}
+
+	// Reset for dep extraction (we need the reader again for extractDeps)
 	if _, err := f.Seek(0, 0); err != nil {
 		result.Error = fmt.Sprintf("failed to seek: %v", err)
 		return result
@@ -237,36 +182,57 @@ func (c *checkCfg) processScript(ctx context.Context, file string, checkGNU bool
 	}
 	result.Deps = deps
 
-	// Find missing commands if packages were specified
-	if len(c.packageList) > 0 {
-		result.Missing = FindMissingCommands(deps, c.packageList)
+	// Find missing commands in PATH
+	if c.searchPath != "" {
+		result.Missing = c.findMissingInPath(deps)
 	}
 
-	// Check GNU compatibility
-	if checkGNU {
-		if _, err := f.Seek(0, 0); err != nil {
-			result.Error = fmt.Sprintf("failed to seek for GNU check: %v", err)
-			return result
-		}
-
-		incompatibilities, err := CheckGNUCompatibility(f, file)
-		if err != nil {
-			if c.parent.verbose {
-				clog.WarnContext(ctx, "failed to check GNU compat", "file", file, "error", err)
-			}
-		} else {
-			for _, inc := range incompatibilities {
-				result.GNUIncompatible = append(result.GNUIncompatible, gnuIncompatResult{
-					Command:     inc.Command,
-					Line:        inc.Line,
-					Description: inc.Description,
-					Fix:         inc.Fix,
-				})
-			}
-		}
+	// Check GNU compatibility using AST (auto-detects busybox vs coreutils)
+	incompatibilities := CheckGNUCompatWithPath(parsedFile, file, c.searchPath)
+	for _, inc := range incompatibilities {
+		result.GNUIncompatible = append(result.GNUIncompatible, gnuIncompatResult{
+			Command:     inc.Command,
+			Flag:        inc.Flag,
+			Line:        inc.Line,
+			Description: inc.Description,
+			Fix:         inc.Fix,
+		})
 	}
 
 	return result
+}
+
+// findMissingInPath checks which commands are not found in the search PATH
+func (c *checkCfg) findMissingInPath(deps []string) []string {
+	var missing []string
+
+	dirs := filepath.SplitList(c.searchPath)
+
+	for _, dep := range deps {
+		// Skip absolute paths - check them directly
+		if strings.HasPrefix(dep, "/") {
+			if _, err := os.Stat(dep); err != nil {
+				missing = append(missing, dep)
+			}
+			continue
+		}
+
+		// Search in PATH directories
+		found := false
+		for _, dir := range dirs {
+			cmdPath := filepath.Join(dir, dep)
+			if _, err := os.Stat(cmdPath); err == nil {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			missing = append(missing, dep)
+		}
+	}
+
+	return missing
 }
 
 func (c *checkCfg) outputResults(w io.Writer, results []checkResult) error {
@@ -277,20 +243,18 @@ func (c *checkCfg) outputResults(w io.Writer, results []checkResult) error {
 	}
 
 	// Text output
-	var issueCount int
-	var scriptWithIssues []checkResult
+	var scriptsWithIssues []checkResult
 
 	for _, result := range results {
 		if len(result.Missing) > 0 || len(result.GNUIncompatible) > 0 || result.Error != "" {
-			scriptWithIssues = append(scriptWithIssues, result)
-			issueCount++
+			scriptsWithIssues = append(scriptsWithIssues, result)
 		}
 	}
 
 	// Summary header
-	fmt.Fprintf(w, "Checked %d shell scripts\n", len(results))
+	fmt.Fprintf(w, "Checked %d file(s)\n", len(results))
 
-	if len(scriptWithIssues) == 0 {
+	if len(scriptsWithIssues) == 0 {
 		fmt.Fprintln(w, "✓ No issues found")
 		return nil
 	}
@@ -298,7 +262,7 @@ func (c *checkCfg) outputResults(w io.Writer, results []checkResult) error {
 	fmt.Fprintf(w, "\n")
 
 	// Report issues
-	for _, result := range scriptWithIssues {
+	for _, result := range scriptsWithIssues {
 		fmt.Fprintf(w, "%s:\n", result.File)
 
 		if result.Error != "" {
@@ -322,8 +286,8 @@ func (c *checkCfg) outputResults(w io.Writer, results []checkResult) error {
 		if len(result.GNUIncompatible) > 0 {
 			fmt.Fprintf(w, "  gnu-incompatible:\n")
 			for _, inc := range result.GNUIncompatible {
-				fmt.Fprintf(w, "    - line %d: %s\n", inc.Line, inc.Description)
-				fmt.Fprintf(w, "      fix: %s\n", inc.Fix)
+				fmt.Fprintf(w, "    - line %d: %s %s\n", inc.Line, inc.Command, inc.Flag)
+				fmt.Fprintf(w, "      %s\n", inc.Description)
 			}
 		}
 
@@ -332,25 +296,7 @@ func (c *checkCfg) outputResults(w io.Writer, results []checkResult) error {
 
 	// Summary footer
 	fmt.Fprintf(w, "---\n")
-	fmt.Fprintf(w, "Issues found in %d of %d scripts\n", len(scriptWithIssues), len(results))
-
-	// Collect unique suggestions
-	suggestions := make(map[string]bool)
-	for _, result := range scriptWithIssues {
-		if len(result.Missing) > 0 {
-			suggestions["Missing commands: consider adding packages that provide them"] = true
-		}
-		if len(result.GNUIncompatible) > 0 {
-			suggestions["GNU compatibility: add 'coreutils' to runtime dependencies"] = true
-		}
-	}
-
-	if len(suggestions) > 0 {
-		fmt.Fprintln(w, "\nSuggestions:")
-		for suggestion := range suggestions {
-			fmt.Fprintf(w, "  - %s\n", suggestion)
-		}
-	}
+	fmt.Fprintf(w, "Issues found in %d of %d file(s)\n", len(scriptsWithIssues), len(results))
 
 	return nil
 }
