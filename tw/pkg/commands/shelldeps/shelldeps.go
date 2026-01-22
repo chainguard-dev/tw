@@ -35,6 +35,7 @@ func Command() *cobra.Command {
 	cmd.AddCommand(
 		cfg.showCommand(),
 		cfg.scanCommand(),
+		cfg.checkCommand(),
 	)
 
 	return cmd
