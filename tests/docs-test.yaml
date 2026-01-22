@@ -1,0 +1,110 @@
+package:
+  name: docs-test
+  version: "0.0.1"
+  epoch: 0
+  description: Test for docs pipeline validation
+  options:
+    no-provides: true
+  dependencies:
+    provider-priority: 0
+  copyright:
+    - license: Apache-2.0
+
+environment:
+  contents:
+    packages:
+      - build-base
+      - busybox
+
+pipeline:
+  - runs: |
+      echo ""
+
+subpackages:
+  # Positive test: Valid docs package from Wolfi (man pages + other docs)
+  - name: giflib-doc
+    description: giflib documentation from Wolfi
+    pipeline:
+      - runs: echo "Demo build for giflib-doc already present in wolfi"
+    test:
+      pipeline:
+        - uses: test/tw/docs
+
+  # Negative test: Non-docs Wolfi package (glibc)
+  - name: glibc
+    description: Non-documentation package from Wolfi (should fail docs check)
+    pipeline:
+      - runs: echo "Demo build for glibc - this is NOT a docs package"
+    test:
+      environment:
+        contents:
+          packages:
+            - package-type-check
+      pipeline:
+        - name: Verify pipeline correctly rejects non-docs package
+          runs: |
+            set +e
+            output=$(package-type-check docs "${{context.name}}" 2>&1)
+            result=$?
+            echo "=== Output from package-type-check ==="
+            echo "$output"
+            echo "=== Exit code: $result ==="
+            if [ $result -eq 0 ]; then
+              echo "FAIL: Pipeline should have rejected non-docs package (glibc)" >&2
+              exit 1
+            fi
+            echo "PASS: Pipeline correctly rejected non-docs Wolfi package"
+
+  # Negative test: Invalid docs package with binaries
+  - name: docs-test-invalid-binary
+    description: Invalid docs package containing binaries
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.contextdir}}/usr/bin
+          echo '#!/bin/sh' > ${{targets.contextdir}}/usr/bin/not-docs
+          chmod +x ${{targets.contextdir}}/usr/bin/not-docs
+    test:
+      environment:
+        contents:
+          packages:
+            - package-type-check
+      pipeline:
+        - name: Verify pipeline correctly rejects package with binaries
+          runs: |
+            set +e
+            output=$(package-type-check docs "${{context.name}}" 2>&1)
+            result=$?
+            echo "=== Output from package-type-check ==="
+            echo "$output"
+            echo "=== Exit code: $result ==="
+            if [ $result -eq 0 ]; then
+              echo "FAIL: Pipeline should have rejected package with binaries" >&2
+              exit 1
+            fi
+            echo "PASS: Pipeline correctly rejected invalid docs package"
+
+  # Negative test: Empty docs package
+  - name: docs-test-invalid-empty
+    description: Invalid empty docs package
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.contextdir}}/usr/share/doc/placeholder
+    test:
+      environment:
+        contents:
+          packages:
+            - package-type-check
+      pipeline:
+        - name: Verify pipeline correctly rejects empty package
+          runs: |
+            set +e
+            output=$(package-type-check docs "${{context.name}}" 2>&1)
+            result=$?
+            echo "=== Output from package-type-check ==="
+            echo "$output"
+            echo "=== Exit code: $result ==="
+            if [ $result -eq 0 ]; then
+              echo "FAIL: Pipeline should have rejected empty package" >&2
+              exit 1
+            fi
+            echo "PASS: Pipeline correctly rejected empty docs package"

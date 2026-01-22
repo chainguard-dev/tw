@@ -44,7 +44,10 @@ jobs:
         run: make build
       - name: Test all projects
         run: |
-          make test
+          make test-projects
       - name: Test in melange
         run: |
           make test-melange
+      - name: Test pipeline validations
+        run: |
+          make test-pipelines
