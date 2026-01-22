@@ -12,7 +12,7 @@ permissions: {}
 
 jobs:
   test:
-    name: Test Projects
+    name: Test Projects and Pipelines
     strategy:
       fail-fast: false
       matrix:
