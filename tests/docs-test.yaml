@@ -1,6 +1,6 @@
 package:
   name: docs-test
-  version: "0.0.1"
+  version: "0.0.0"
   epoch: 0
   description: Test for docs pipeline validation
   options:
@@ -13,12 +13,11 @@ package:
 environment:
   contents:
     packages:
-      - build-base
       - busybox
 
 pipeline:
   - runs: |
-      echo ""
+      echo "Test package for docs test pipeline validation"
 
 subpackages:
   # Positive test: Valid docs package from Wolfi (man pages + other docs)

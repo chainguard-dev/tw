@@ -60,6 +60,8 @@ Each test file contains:
 - **Positive tests**: Valid packages that should pass the pipeline check
 - **Negative tests**: Invalid packages that should be rejected by the pipeline
 
+More about the pipeline tests can be found in the [tests/README.md](tests/README.md) file.
+
 ### 4. Run All Tests
 Run the complete test suite (all three test types):
 
