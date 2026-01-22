@@ -7,7 +7,7 @@ ifeq (${ARCH}, arm64)
 	ARCH = aarch64
 endif
 
-PROJECT_DIRS := $(patsubst ./%,%,$(shell find . -maxdepth 1 -type d -not -path "." -not -path "./.*" -not -path "./tools" -not -path "./packages"))
+PROJECT_DIRS := $(patsubst ./%,%,$(shell find . -maxdepth 1 -type d -not -path "." -not -path "./.*" -not -path "./tools" -not -path "./packages" -not -path "./tests"))
 
 PROJECT_TESTS := $(addprefix test-project/, $(PROJECT_DIRS))
 
