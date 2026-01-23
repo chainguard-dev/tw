@@ -2,6 +2,15 @@
 
 The `shell-deps` command analyzes shell scripts (bash, dash, or sh) and lists external programs (dependencies) that the shell script may invoke. It can also detect GNU coreutils-specific flags that don't work with busybox.
 
+## Key Features
+
+- **Complete Dependency Visibility**: Shows ALL dependencies found, not just problems
+- **Categorized Output**: Dependencies are categorized as available ✓, missing ✗, or GNU-required ⚠
+- **CI/CD Friendly**: Strict mode is enabled by default (exits with error code 1 on issues)
+- **GNU vs Busybox Detection**: Automatically detects which commands need GNU coreutils
+- **Package Analysis**: Can analyze installed APK packages for dependency issues
+- **Detailed Summaries**: Provides counts and statistics for better understanding
+
 ## Overview
 
 `shell-deps` uses the [mvdan.cc/sh/v3](https://github.com/mvdan/sh) parser to analyze shell scripts and identify external command dependencies. It correctly excludes:
@@ -126,7 +135,7 @@ tw shell-deps check [flags] file [file...]
 
 **Flags:**
 - `--path=PATH` - PATH-like colon-separated directories to search for commands (default: `/usr/bin:/usr/local/bin`)
-- `--strict` - Exit with non-zero status if any issues are found
+- `--strict` - Exit with non-zero status if any issues are found (default: `true`)
 
 This command performs two types of checks:
 1. **Missing dependencies** - Commands that don't exist in the specified PATH
@@ -134,36 +143,56 @@ This command performs two types of checks:
 
 The GNU compatibility check automatically determines whether commands are provided by busybox or coreutils by examining symlinks in the PATH.
 
+**Key Feature:** The output shows ALL dependencies found, categorized as:
+- ✓ **available** - Commands found in PATH
+- ✗ **missing** - Commands not found in PATH
+- ⚠ **gnu-required** - Commands that need GNU coreutils (not busybox)
+
 **Examples:**
 
 ```bash
-# Check specific files against system PATH
-tw shell-deps check --path=/usr/bin:/usr/local/bin script.sh
+# Check specific files (strict mode by default, exits with 1 if issues found)
+tw shell-deps check script.sh
 
-# Check with strict mode (exit 1 if issues found)
-tw shell-deps check --path=/usr/bin --strict entrypoint.sh run.sh
+# Check with report-only mode (don't exit with error)
+tw shell-deps check --strict=false script.sh
 
-# Check files, auto-detect GNU issues based on actual binaries
-tw shell-deps check --path=/usr/bin /opt/scripts/*.sh
+# Check with custom PATH
+tw shell-deps check --path=/usr/bin:/usr/local/bin /opt/scripts/*.sh
 ```
 
 **Example Output:**
 
 ```
-Checked 2 file(s)
+Dependency Check Results
+========================
+Analyzed: 2 shell script(s)
+Checked against PATH: /usr/bin:/usr/local/bin
+Mode: strict (will fail on issues)
 
 entrypoint.sh:
   shell: /bin/sh
-  deps: chmod install realpath
-  missing: custom-tool
-  gnu-incompatible:
+  dependencies found: 5
+    ✓ available (3): chmod install touch
+    ⚠ gnu-required (1): realpath [gnu]
+    ✗ missing (1): custom-tool
+  gnu-incompatible issues:
     - line 15: realpath --no-symlinks
       realpath --no-symlinks (GNU only)
-    - line 23: install -D
-      install -D (GNU only, creates parent directories)
+
+run.sh:
+  shell: /bin/bash
+  dependencies found: 3
+    ✓ available (3): echo grep sed
 
 ---
-Issues found in 1 of 2 file(s)
+Summary:
+  Total scripts analyzed: 2
+  Total dependencies found: 8
+  Total missing commands: 1
+  Total GNU compatibility issues: 1
+
+✗ Issues found in 1 of 2 file(s)
 ```
 
 ### check-package
@@ -176,7 +205,7 @@ tw shell-deps check-package [flags] <package-name>
 
 **Flags:**
 - `--path=PATH` - PATH-like colon-separated directories to search for commands (default: `/usr/bin:/bin`)
-- `--strict` - Exit with non-zero status if any issues are found
+- `--strict` - Exit with non-zero status if any issues are found (default: `true`)
 - `--package-dir=DIR` - Directory to search for package YAML files for runtime dependency lookup (default: `.`)
 
 This command:
@@ -189,11 +218,14 @@ This command:
 **Examples:**
 
 ```bash
-# Check an installed package
+# Check an installed package (strict mode by default, exits with 1 if issues found)
 tw shell-deps check-package vim
 
-# Check with strict mode (exit 1 if issues found)
-tw shell-deps check-package --strict git
+# Check with report-only mode (don't exit with error)
+tw shell-deps check-package --strict=false git
+
+# Check with custom PATH
+tw shell-deps check-package --path=/usr/bin:/bin curl
 
 # Check with JSON output
 tw shell-deps check-package --json nginx

@@ -16,6 +16,7 @@ import (
 type checkPackageCfg struct {
 	parent     *cfg
 	searchPath string // PATH-like string for looking up commands (defaults to /usr/bin:/bin)
+	strict     bool   // Exit non-zero if issues found
 }
 
 // runtimeDepsInfo contains analysis of a package's runtime dependencies
@@ -62,6 +63,8 @@ Example usage:
 
 	cmd.Flags().StringVar(&checkPkgCfg.searchPath, "path", "/usr/bin:/bin",
 		"PATH-like colon-separated directories to search for commands")
+	cmd.Flags().BoolVar(&checkPkgCfg.strict, "strict", true,
+		"exit with non-zero status if any issues are found")
 
 	return cmd
 }
@@ -122,8 +125,8 @@ func (c *checkPackageCfg) Run(ctx context.Context, cmd *cobra.Command, packageNa
 		return err
 	}
 
-	// Exit with error if issues found
-	if hasIssues {
+	// Exit with error if strict mode and issues found
+	if c.strict && hasIssues {
 		return fmt.Errorf("shell dependency issues found in package %s", packageName)
 	}
 
