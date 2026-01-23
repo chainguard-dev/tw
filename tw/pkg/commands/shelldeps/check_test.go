@@ -33,7 +33,7 @@ awk '{print $1}' data
 			binaries:   []string{"grep", "awk"},
 			strict:     false,
 			wantError:  false,
-			wantOutput: []string{"No issues found"},
+			wantOutput: []string{"✓ All dependencies are available and compatible"},
 		},
 		{
 			name: "missing curl",
@@ -46,7 +46,7 @@ grep pattern file
 			binaries:   []string{"grep"},
 			strict:     false,
 			wantError:  false,
-			wantOutput: []string{"missing:", "curl"},
+			wantOutput: []string{"✗ missing", "curl"},
 		},
 		{
 			name: "missing curl with strict mode",
@@ -100,7 +100,7 @@ path=$(realpath --no-symlinks /opt)
 			busyboxBinaries: []string{"realpath"},
 			strict:          false,
 			wantError:       false,
-			wantOutput:      []string{"curl", "realpath", "Issues found in 1 of 2"},
+			wantOutput:      []string{"curl", "realpath", "✗ Issues found in 1 of 2"},
 		},
 	}
 
