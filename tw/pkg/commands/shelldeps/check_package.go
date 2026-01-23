@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -67,27 +68,28 @@ func (c *cfg) checkPackageCommand() *cobra.Command {
 	}
 	cmd := &cobra.Command{
 		Use:   "check-package <package-name>",
-		Short: "Check a melange package for missing shell dependencies and GNU compatibility",
-		Long: `Analyze a melange package and check if shell scripts have all required dependencies.
+		Short: "Check an installed package's shell scripts for dependencies and GNU compatibility",
+		Long: `Analyze shell scripts installed by a package and check for dependency issues.
 
 This command:
-  - Finds the melange YAML file for the given package
-  - Extracts shell scripts from the package (pipeline runs, installed scripts)
-  - Checks if script dependencies exist in the system PATH
+  - Gets the list of files installed by the package (using apk info -L)
+  - Identifies shell scripts among the installed files
+  - Extracts dependencies from each shell script
+  - Checks runtime dependencies to detect GNU/busybox compatibility issues
   - Detects GNU-specific flags that don't work with busybox
 
 The --path flag specifies where to look for binaries (defaults to /usr/bin:/bin).
 Use --strict to exit with non-zero status if any issues are found.
 
 Example usage:
-  # Check a package against system PATH
-  tw shell-deps check-package valkey-8.1-iamguarded-compat
+  # Check an installed package
+  tw shell-deps check-package vim
 
   # Check with strict mode (exit 1 if issues found)
-  tw shell-deps check-package --strict valkey-8.1
+  tw shell-deps check-package --strict git
 
-  # Check against custom PATH
-  tw shell-deps check-package --path=/custom/bin valkey-8.1`,
+  # Check with JSON output
+  tw shell-deps check-package --json nginx`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return checkPkgCfg.Run(cmd.Context(), cmd, args[0])
@@ -105,36 +107,40 @@ Example usage:
 }
 
 func (c *checkPackageCfg) Run(ctx context.Context, cmd *cobra.Command, packageName string) error {
-	// Find the package YAML file
-	yamlPath, err := c.findPackageYAML(packageName)
+	// Get list of installed files from the package
+	installedFiles, err := c.getInstalledFiles(packageName)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get installed files for package %s: %w", packageName, err)
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "Found package: %s\n", yamlPath)
+	fmt.Fprintf(cmd.OutOrStdout(), "Package: %s\n", packageName)
+	fmt.Fprintf(cmd.OutOrStdout(), "Found %d installed file(s)\n", len(installedFiles))
 
-	// Parse the YAML file
-	config, err := c.parsePackageYAML(yamlPath)
+	// Get runtime dependencies for the package
+	runtimeDeps, err := c.getRuntimeDeps(packageName)
 	if err != nil {
-		return fmt.Errorf("failed to parse %s: %w", yamlPath, err)
+		// Non-fatal - we can still check scripts without runtime dep info
+		fmt.Fprintf(cmd.OutOrStdout(), "Warning: could not determine runtime dependencies: %v\n", err)
+		runtimeDeps = runtimeDepsInfo{}
+	} else {
+		fmt.Fprintf(cmd.OutOrStdout(), "Runtime dependencies: %v\n", runtimeDeps.AllDeps)
+		if runtimeDeps.HasBusybox && !runtimeDeps.HasCoreutils {
+			fmt.Fprintf(cmd.OutOrStdout(), "Note: Package has busybox but NOT coreutils - GNU-specific flags will fail\n")
+		}
 	}
 
-	// Extract runtime dependencies for the target package
-	runtimeDeps := c.extractRuntimeDeps(config, packageName)
-	fmt.Fprintf(cmd.OutOrStdout(), "Runtime dependencies: %v\n", runtimeDeps.AllDeps)
-	if runtimeDeps.HasBusybox && !runtimeDeps.HasCoreutils {
-		fmt.Fprintf(cmd.OutOrStdout(), "Note: Package has busybox but NOT coreutils - GNU-specific flags will fail\n")
+	// Filter for shell scripts
+	scripts, err := c.findShellScripts(installedFiles)
+	if err != nil {
+		return fmt.Errorf("failed to find shell scripts: %w", err)
 	}
-
-	// Extract scripts from the package
-	scripts := c.extractScriptsFromConfig(config, packageName)
 
 	if len(scripts) == 0 {
-		fmt.Fprintln(cmd.OutOrStdout(), "No shell scripts found in package.")
+		fmt.Fprintln(cmd.OutOrStdout(), "No shell scripts found in installed files.")
 		return nil
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "Found %d script(s) to check\n\n", len(scripts))
+	fmt.Fprintf(cmd.OutOrStdout(), "Found %d shell script(s) to check\n\n", len(scripts))
 
 	// Check each script
 	var results []packageCheckResult
@@ -164,8 +170,157 @@ func (c *checkPackageCfg) Run(ctx context.Context, cmd *cobra.Command, packageNa
 
 // scriptSource represents a shell script extracted from the package
 type scriptSource struct {
-	Name    string // Descriptive name (e.g., "pipeline[0].runs" or "subpackage:foo/pipeline[0].runs")
+	Name    string // Descriptive name (e.g., "pipeline[0].runs" or file path)
 	Content string // The script content
+}
+
+// getInstalledFiles returns the list of files installed by a package
+func (c *checkPackageCfg) getInstalledFiles(packageName string) ([]string, error) {
+	cmd := exec.Command("apk", "info", "-L", packageName)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("apk info -L failed: %w (output: %s)", err, string(output))
+	}
+
+	lines := strings.Split(string(output), "\n")
+	var files []string
+
+	// Skip the first line which is "package-version contains:"
+	for i, line := range lines {
+		if i == 0 {
+			continue
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		// Prepend / if not already absolute path
+		if !strings.HasPrefix(line, "/") {
+			line = "/" + line
+		}
+		files = append(files, line)
+	}
+
+	return files, nil
+}
+
+// getRuntimeDeps returns runtime dependencies for a package
+func (c *checkPackageCfg) getRuntimeDeps(packageName string) (runtimeDepsInfo, error) {
+	// Try to get dependencies from apk
+	cmd := exec.Command("apk", "info", "-R", packageName)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		// Fall back to trying to find melange YAML
+		yamlPath, yamlErr := c.findPackageYAML(packageName)
+		if yamlErr != nil {
+			return runtimeDepsInfo{}, fmt.Errorf("could not get deps from apk or yaml: apk error: %w, yaml error: %v", err, yamlErr)
+		}
+
+		config, parseErr := c.parsePackageYAML(yamlPath)
+		if parseErr != nil {
+			return runtimeDepsInfo{}, fmt.Errorf("could not parse yaml: %w", parseErr)
+		}
+
+		return c.extractRuntimeDeps(config, packageName), nil
+	}
+
+	// Parse apk output - only use the first version's dependencies
+	lines := strings.Split(string(output), "\n")
+	var deps []string
+	info := runtimeDepsInfo{}
+
+	// Skip the first line which is "package-version depends on:"
+	// Stop at the next empty line (which separates versions)
+	inFirstBlock := false
+	for i, line := range lines {
+		if i == 0 {
+			inFirstBlock = true
+			continue
+		}
+
+		line = strings.TrimSpace(line)
+
+		// Stop if we hit an empty line (end of first version's deps)
+		if line == "" {
+			break
+		}
+
+		// If we see "depends on:", it means we've hit another version - stop
+		if strings.Contains(line, "depends on:") {
+			break
+		}
+
+		if !inFirstBlock {
+			continue
+		}
+
+		// Skip .so dependencies and other low-level deps
+		if strings.HasPrefix(line, "so:") {
+			continue
+		}
+		deps = append(deps, line)
+
+		// Check for busybox and coreutils
+		depLower := strings.ToLower(line)
+		if depLower == "busybox" || strings.HasPrefix(depLower, "busybox-") {
+			info.HasBusybox = true
+		}
+		if depLower == "coreutils" || strings.HasPrefix(depLower, "coreutils-") {
+			info.HasCoreutils = true
+		}
+	}
+
+	info.AllDeps = deps
+	return info, nil
+}
+
+// findShellScripts filters a list of files and returns those that are shell scripts
+func (c *checkPackageCfg) findShellScripts(files []string) ([]scriptSource, error) {
+	var scripts []scriptSource
+
+	for _, filePath := range files {
+		// Check if file exists and is a regular file
+		info, err := os.Stat(filePath)
+		if err != nil {
+			if c.parent.verbose {
+				fmt.Fprintf(os.Stderr, "Skipping %s: %v\n", filePath, err)
+			}
+			continue
+		}
+
+		if info.IsDir() {
+			continue
+		}
+
+		// Check for shell script shebang using existing function
+		isShell, err := isShellScript(filePath)
+		if err != nil {
+			if c.parent.verbose {
+				fmt.Fprintf(os.Stderr, "Could not check %s: %v\n", filePath, err)
+			}
+			continue
+		}
+
+		if !isShell {
+			continue
+		}
+
+		// Read the script content
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			if c.parent.verbose {
+				fmt.Fprintf(os.Stderr, "Could not read %s: %v\n", filePath, err)
+			}
+			continue
+		}
+
+		scripts = append(scripts, scriptSource{
+			Name:    filePath,
+			Content: string(content),
+		})
+	}
+
+	return scripts, nil
 }
 
 // packageCheckResult contains the results for checking a script against package dependencies

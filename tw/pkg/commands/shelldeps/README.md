@@ -168,7 +168,7 @@ Issues found in 1 of 2 file(s)
 
 ### check-package
 
-Check a melange package for missing shell dependencies and GNU compatibility issues.
+Check an installed package for missing shell dependencies and GNU compatibility issues.
 
 ```bash
 tw shell-deps check-package [flags] <package-name>
@@ -177,47 +177,53 @@ tw shell-deps check-package [flags] <package-name>
 **Flags:**
 - `--path=PATH` - PATH-like colon-separated directories to search for commands (default: `/usr/bin:/bin`)
 - `--strict` - Exit with non-zero status if any issues are found
-- `--package-dir=DIR` - Directory to search for package YAML files (default: `.`)
+- `--package-dir=DIR` - Directory to search for package YAML files for runtime dependency lookup (default: `.`)
 
 This command:
-1. Finds the melange YAML file for the given package (supports main packages and subpackages)
-2. Extracts shell scripts from the package's pipeline and test sections
-3. Analyzes the package's runtime dependencies to determine if it uses busybox or coreutils
-4. Reports GNU-specific flags that will fail if busybox is the only provider
+1. Gets the list of files installed by the package using `apk info -L`
+2. Filters for shell scripts among the installed files
+3. Analyzes each script's dependencies
+4. Checks the package's runtime dependencies (from `apk info -R` or melange YAML)
+5. Reports GNU-specific flags that will fail if busybox is the only provider
 
 **Examples:**
 
 ```bash
-# Check a package against system PATH
-tw shell-deps check-package valkey-8.1-iamguarded-compat
+# Check an installed package
+tw shell-deps check-package vim
 
 # Check with strict mode (exit 1 if issues found)
-tw shell-deps check-package --strict valkey-8.1
+tw shell-deps check-package --strict git
 
-# Check against custom PATH and package directory
-tw shell-deps check-package --path=/custom/bin --package-dir=/path/to/packages mypackage
+# Check with JSON output
+tw shell-deps check-package --json nginx
 ```
 
 **Example Output:**
 
 ```
-Found package: ./valkey-8.1.yaml
-Runtime dependencies: [busybox valkey-8.1]
-Note: Package has busybox but NOT coreutils - GNU-specific flags will fail
-Found 3 script(s) to check
+Package: vim
+Found 2034 installed file(s)
+Runtime dependencies: []
+Found 5 shell script(s) to check
 
-Checked 3 script(s)
+Checked 5 script(s)
+✓ No issues found
+```
 
-subpackage:valkey-8.1-iamguarded-compat/pipeline[0].runs:
-  gnu-incompatible (busybox cannot handle these):
-    - line 5: install -D
-      install -D (GNU only, creates parent directories)
-  ⚠ MISSING RUNTIME DEPENDENCY: coreutils
-    Package declares 'busybox' but scripts use GNU-specific flags.
-    Add 'coreutils' to dependencies.runtime in the package YAML.
+**With JSON:**
 
----
-Issues found in 1 of 3 script(s)
+```json
+[
+  {
+    "file": "/usr/bin/vimtutor",
+    "deps": ["mkdir", "mktemp", "tempfile", "touch"]
+  },
+  {
+    "file": "/usr/share/vim/vim91/tools/vimspell.sh",
+    "deps": ["awk", "mktemp", "sort", "spell", "tempfile", "touch"]
+  }
+]
 ```
 
 ## Dependency Detection
