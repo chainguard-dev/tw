@@ -24,9 +24,10 @@ type cfg struct {
 func Command() *cobra.Command {
 	cfg := &cfg{}
 	cmd := &cobra.Command{
-		Use:   "shell-deps",
-		Short: "Analyze shell script dependencies",
-		Long:  "Process shell scripts (bash, dash, or sh) and list external programs (deps) that the shell script may invoke.",
+		Use:          "shell-deps",
+		Short:        "Analyze shell script dependencies",
+		Long:         "Process shell scripts (bash, dash, or sh) and list external programs (deps) that the shell script may invoke.",
+		SilenceUsage: true,
 	}
 
 	cmd.PersistentFlags().BoolVarP(&cfg.verbose, "verbose", "v", false, "increase verbosity")
