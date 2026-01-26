@@ -100,21 +100,52 @@ check_binary() {
         binarymsg="'$binary [$fbinary]'"
     fi
 
-    # Auto-detect version flag if not specified
+    # Auto-detect version flag by trying common flags and checking if output
+    # contains the expected version. This ensures we find the correct flag
+    # even when other flags produce output (e.g., help text) without version info.
     local detected_flag="$version_flag"
     if [ "$version_flag" = "auto" ]; then
         vmsg "Auto-detecting version flag for $fbinary..."
+        # Track all flags that produced output, to show if auto-detection fails
+        local tried_flags="" tried_outputs=""
         for flag in $ver_candidates; do
             vmsg "Trying: $fbinary $flag"
             if output=$($binary $flag 2>&1) && [ -n "$output" ]; then
-                detected_flag="$flag"
-                vmsg "Success with: $flag"
-                break
+                # Remember output for error reporting (first line only, to keep it readable)
+                tried_flags="${tried_flags}${tried_flags:+ }$flag"
+                tried_outputs="${tried_outputs}  $flag: $(echo "$output" | head -1)
+"
+                # Verify the output actually contains the expected version string
+                # using the same matching logic that will be used for validation
+                local found_version=false
+                case "$match_type" in
+                    "exact")
+                        [ "$output" = "$expected_version" ] && found_version=true
+                        ;;
+                    "regex")
+                        echo "$output" | grep -qE "$expected_version" && found_version=true
+                        ;;
+                    "contains")
+                        echo "$output" | grep -qF "$expected_version" && found_version=true
+                        ;;
+                esac
+                if [ "$found_version" = "true" ]; then
+                    detected_flag="$flag"
+                    vmsg "Success with: $flag (version found in output)"
+                    break
+                else
+                    vmsg "Flag $flag produced output but expected version not found, trying next"
+                fi
             fi
         done
 
         if [ "$detected_flag" = "auto" ]; then
-            fail "Could not auto-detect version flag for '$binarymsg' (tried: $ver_candidates)"
+            fail "Could not auto-detect version flag for $binarymsg (tried: $ver_candidates)"
+            # Show what was found to help diagnose wrong expected version
+            if [ -n "$tried_outputs" ]; then
+                echo "  Hint: expected version '$expected_version' not found in any output:"
+                printf "%s" "$tried_outputs"
+            fi
             return 1
         fi
     else
