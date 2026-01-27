@@ -1,28 +1,31 @@
 #!/bin/sh
+
 # shellcheck disable=SC2015,SC2039,SC2166,SC3043
+set -e
+
 VERBOSITY=1
 # run with 'TWGIT=$PWD' to test locally
 TWGIT=${TWGIT:-https://github.com/chainguard-dev/tw}
 
-stderr() { echo "$@" 1>&2; }
+stderr() { echo "Error: $*" 1>&2; }
 fail() { [ $# -eq 0 ] || stderr "$@"; exit 1; }
 
 Usage() {
 	cat <<EOF
-Usage: ${0##*/} tag packages-git-dir/ [ packages-git-dir ...]]
+Usage: ${0##*/} tag stereo-git-dir/
 
-   Release 'tag' to wolfi, where 'wolfi-os' is a wolfi-dev/os
+   Release tw 'tag' to stereo, where 'stereo-git-dir/' is a local chainguard-dev/stereo
    git checkout.
 
-   packages-git-dir is a local git checkout.  A commit will be
-   added to it that has the pipelines/ sync'd.
-
-   If the packages-git-dir is wolfi, then melange.yaml will be
-   copied to tw.yaml.
+   A commit will be added to it that has the pipelines/ sync'd.
 EOF
 }
 
-bad_Usage() { Usage 1>&2; [ $# -eq 0 ] || stderr "$@"; return 1; }
+bad_Usage() {
+    [ $# -eq 0 ] || stderr "$@"
+    Usage
+    return 1
+}
 cleanup() {
 	[ -z "${TEMP_D}" -o ! -d "${TEMP_D}" ] || rm -Rf "${TEMP_D}"
 }
@@ -31,7 +34,7 @@ debug() {
 	local level="$1"
     shift
 	[ "$VERBOSITY" -lt "$level" ] && return
-	stderr "${@}"
+	echo "${@}"
 }
 
 sync_to_dir() {
@@ -57,14 +60,21 @@ sync_to_dir() {
 		( cd "$gdir" && git add "$d" ) ||
 			fail "failed to git add $d"
 	done
+}
 
-	( cd "$gdir" && git commit -m "tw - bump to $tag" ) ||
-		fail "failed to commit to $gdir"
-	return 0
+git_commit() {
+    local stereo_git_dir="$1"
+	cd "$stereo_git_dir"
+    git commit -m "tw - bump to $tag"
 }
 
 
 main() {
+	if [ $# -ne 2 ] ; then
+        bad_Usage "got $# args expected 2."
+        return 1
+    fi
+
 	[ "$1" = "--help" ] && { Usage; exit 0; }
 
 	while getopts "hv" opt; do
@@ -79,17 +89,11 @@ main() {
 
 	shift $((OPTIND -1))
 
-	[ $# -ge 2 ] || { bad_Usage "got $# args expected 2+"; return 1; }
-
 	local tag="$1"
 	tag=v${tag#v} # chop of 'v' in v0.0.1
 	shift
 
-	local gdir=""
-	for gdir in "$@"; do
-		[ -d "$gdir" ] || fail "$gdir: not a directory"
-		( cd "$gdir" ) || fail "failed to cd $gdir"
-	done
+	local stereo_dir="$1"
 
 	TEMP_D=$(mktemp -d "${TMPDIR:-/tmp}/${0##*/}.XXXXXX") ||
 		fail "failed to make tempdir"
@@ -100,10 +104,10 @@ main() {
 	cd tw || fail "failed cd into git cloned $TWGIT"
 	cksum=$(git rev-parse "$tag") || fail "$tag did not exist"
 
-	for gdir in "$@"; do
-		sync_to_dir "$gdir" || exit 1
-	done
-	return 0
+	sync_to_dir "${stereo_dir}/os"
+	sync_to_dir "${stereo_dir}/enterprise-packages"
+	sync_to_dir "${stereo_dir}/extra-packages"
+    git_commit "${stereo_dir}"
 }
 
 main "$@"
