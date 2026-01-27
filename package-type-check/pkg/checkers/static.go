@@ -30,7 +30,7 @@ func CheckStaticPackage(pkg string) error {
 
 	var nonSBOMFiles []string
 	for _, file := range files {
-		if !strings.Contains(file, "var/lib/db/sbom") && !strings.HasSuffix(file, ".spdx.json") {
+		if !strings.Contains(file, "/var/lib/db/sbom") && !strings.HasSuffix(file, ".spdx.json") {
 			nonSBOMFiles = append(nonSBOMFiles, file)
 		}
 	}
