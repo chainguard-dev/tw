@@ -775,25 +775,25 @@ func TestExtractShebang(t *testing.T) {
 		{
 			name:      "env bash",
 			content:   "#!/usr/bin/env bash\necho hello",
-			wantShell: "bash",
+			wantShell: "/usr/bin/env bash",
 			wantErr:   false,
 		},
 		{
 			name:      "env sh",
 			content:   "#!/usr/bin/env sh\necho hello",
-			wantShell: "sh",
+			wantShell: "/usr/bin/env sh",
 			wantErr:   false,
 		},
 		{
 			name:      "env dash",
 			content:   "#!/usr/bin/env dash\necho hello",
-			wantShell: "dash",
+			wantShell: "/usr/bin/env dash",
 			wantErr:   false,
 		},
 		{
 			name:      "env with space after shebang",
 			content:   "#! /usr/bin/env bash\necho hello",
-			wantShell: "bash",
+			wantShell: "/usr/bin/env bash",
 			wantErr:   false,
 		},
 		{
@@ -835,7 +835,7 @@ func TestExtractShebang(t *testing.T) {
 		{
 			name:      "env python",
 			content:   "#!/usr/bin/env python3\nprint('hello')",
-			wantShell: "python3",
+			wantShell: "/usr/bin/env python3",
 			wantErr:   false,
 		},
 	}

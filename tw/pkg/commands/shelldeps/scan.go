@@ -39,21 +39,15 @@ func (c *cfg) scanCommand() *cobra.Command {
 
 // validShells lists the shell interpreters we recognize as shell scripts
 var validShells = map[string]bool{
-	"/bin/sh":        true,
-	"/bin/dash":      true,
-	"/bin/bash":      true,
-	"/usr/bin/sh":    true,
-	"/usr/bin/dash":  true,
-	"/usr/bin/bash":  true,
-	"/bin/zsh":       true,
-	"/usr/bin/zsh":   true,
-	"/bin/ksh":       true,
-	"/usr/bin/ksh":   true,
-	"sh":             true,
-	"dash":           true,
-	"bash":           true,
-	"zsh":            true,
-	"ksh":            true,
+	"/bin/sh":       true,
+	"/bin/dash":     true,
+	"/bin/bash":     true,
+	"/usr/bin/sh":   true,
+	"/usr/bin/dash": true,
+	"/usr/bin/bash": true,
+	"sh":            true,
+	"dash":          true,
+	"bash":          true,
 }
 
 // isShellScript checks if a file is a shell script based on its shebang
