@@ -1,0 +1,73 @@
+# Init container image detection
+chelm test cg.json --chart=chart
+cmp stdout expected.json
+
+-- cg.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": "${ref}"
+      }
+    },
+    "init": {
+      "values": {
+        "initImage": "${ref}"
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "default", "images": ["app", "init"]}
+    ]
+  }
+}
+
+-- chart/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- chart/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  template:
+    spec:
+      initContainers:
+        - name: init
+          image: {{ .Values.initImage }}
+      containers:
+        - name: app
+          image: {{ .Values.image }}
+
+-- chart/values.yaml --
+image: nginx:latest
+initImage: busybox:1.35
+
+-- expected.json --
+{
+  "passed": true,
+  "cases": [
+    {
+      "name": "default",
+      "passed": true,
+      "images": [
+        "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cgr.test/chainguard/test/init@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      ],
+      "extractors": {
+        "regex": [
+          "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/init@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ],
+        "structured": [
+          "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/init@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ]
+      }
+    }
+  ]
+}

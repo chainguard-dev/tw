@@ -1,0 +1,69 @@
+# Global registry override pattern
+chelm test cg.json --chart=chart
+cmp stdout expected.json
+
+-- cg.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "global": {"imageRegistry": "${registry}"},
+        "image": {
+          "repository": "${repo}",
+          "tag": "${tag}"
+        }
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "default", "images": ["app"]}
+    ]
+  }
+}
+
+-- chart/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- chart/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: {{ .Values.global.imageRegistry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}
+
+-- chart/values.yaml --
+global:
+  imageRegistry: docker.io
+image:
+  repository: library/nginx
+  tag: latest
+
+-- expected.json --
+{
+  "passed": true,
+  "cases": [
+    {
+      "name": "default",
+      "passed": true,
+      "images": [
+        "cgr.test/chainguard/test/app:v0.0.0"
+      ],
+      "extractors": {
+        "regex": [
+          "cgr.test/chainguard/test/app:v0.0.0"
+        ],
+        "structured": [
+          "cgr.test/chainguard/test/app:v0.0.0"
+        ]
+      }
+    }
+  ]
+}

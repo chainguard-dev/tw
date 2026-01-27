@@ -1,0 +1,15 @@
+# Invalid marker rejected
+stdin input.json
+! chelm generate
+stderr 'unknown field'
+
+-- input.json --
+{
+  "images": {
+    "nginx": {
+      "values": {
+        "image": "${bad_marker}"
+      }
+    }
+  }
+}

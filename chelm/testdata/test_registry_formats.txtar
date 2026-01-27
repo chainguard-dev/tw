@@ -1,0 +1,128 @@
+# Various container registry formats all detected correctly
+chelm test cg.json --chart=chart
+cmp stdout expected.json
+
+-- cg.json --
+{
+  "images": {
+    "gcr": {
+      "values": {
+        "images": {"gcr": "${ref}"}
+      }
+    },
+    "artifact": {
+      "values": {
+        "images": {"artifact": "${ref}"}
+      }
+    },
+    "ecr": {
+      "values": {
+        "images": {"ecr": "${ref}"}
+      }
+    },
+    "quay": {
+      "values": {
+        "images": {"quay": "${ref}"}
+      }
+    },
+    "ghcr": {
+      "values": {
+        "images": {"ghcr": "${ref}"}
+      }
+    },
+    "dockerhub": {
+      "values": {
+        "images": {"dockerhub": "${ref}"}
+      }
+    },
+    "withport": {
+      "values": {
+        "images": {"withport": "${ref}"}
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "default", "images": ["gcr", "artifact", "ecr", "quay", "ghcr", "dockerhub", "withport"]}
+    ]
+  }
+}
+
+-- chart/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- chart/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  template:
+    spec:
+      containers:
+        - name: gcr
+          image: {{ .Values.images.gcr }}
+        - name: artifact
+          image: {{ .Values.images.artifact }}
+        - name: ecr
+          image: {{ .Values.images.ecr }}
+        - name: quay
+          image: {{ .Values.images.quay }}
+        - name: ghcr
+          image: {{ .Values.images.ghcr }}
+        - name: dockerhub
+          image: {{ .Values.images.dockerhub }}
+        - name: withport
+          image: {{ .Values.images.withport }}
+
+-- chart/values.yaml --
+images:
+  gcr: gcr.io/my-project/myapp:v1.0.0
+  artifact: us-docker.pkg.dev/my-project/my-repo/myapp:v1.0.0
+  ecr: 123456789012.dkr.ecr.us-east-1.amazonaws.com/myapp:v1.0.0
+  quay: quay.io/myorg/myapp:v1.0.0
+  ghcr: ghcr.io/myorg/myapp:v1.0.0
+  dockerhub: docker.io/library/nginx:1.25
+  withport: myregistry.local:5000/myapp:v1.0.0
+
+-- expected.json --
+{
+  "passed": true,
+  "cases": [
+    {
+      "name": "default",
+      "passed": true,
+      "images": [
+        "cgr.test/chainguard/test/artifact@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cgr.test/chainguard/test/dockerhub@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cgr.test/chainguard/test/ecr@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cgr.test/chainguard/test/gcr@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cgr.test/chainguard/test/ghcr@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cgr.test/chainguard/test/quay@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cgr.test/chainguard/test/withport@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      ],
+      "extractors": {
+        "regex": [
+          "cgr.test/chainguard/test/artifact@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/dockerhub@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/ecr@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/gcr@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/ghcr@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/quay@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/withport@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ],
+        "structured": [
+          "cgr.test/chainguard/test/artifact@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/dockerhub@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/ecr@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/gcr@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/ghcr@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/quay@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/withport@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ]
+      }
+    }
+  ]
+}

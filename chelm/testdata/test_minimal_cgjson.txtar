@@ -1,0 +1,38 @@
+# Minimal/empty cg.json inputs don't panic - defaults are applied
+chelm test cg.json --chart=chart
+cmp stdout expected.json
+
+-- cg.json --
+{}
+
+-- chart/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- chart/templates/configmap.yaml --
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test
+data:
+  key: value
+
+-- chart/values.yaml --
+{}
+
+-- expected.json --
+{
+  "passed": true,
+  "cases": [
+    {
+      "name": "default",
+      "passed": true,
+      "images": null,
+      "extractors": {
+        "regex": null,
+        "structured": null
+      }
+    }
+  ]
+}

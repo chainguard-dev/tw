@@ -1,0 +1,46 @@
+# Test fails when expected images are not all extracted
+! chelm test cg.json --chart=chart
+stdout '"passed": false'
+
+-- cg.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": "${ref}"
+      }
+    },
+    "missing": {
+      "values": {
+        "notUsed": {"image": "${ref}"}
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "default", "images": ["app", "missing"]}
+    ]
+  }
+}
+
+-- chart/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- chart/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: {{ .Values.image }}
+
+-- chart/values.yaml --
+image: nginx:latest
+notUsed:
+  image: unused:latest

@@ -1,0 +1,111 @@
+# Images in non-standard locations: annotations, env vars, command args, configmaps
+#
+# The structured extractor only finds images from image-related field names.
+# The regex extractor finds fully-qualified images (with registry domain) anywhere.
+# So env var values and command args are only caught by regex.
+chelm test cg.json --chart=chart
+cmp stdout expected.json
+
+-- cg.json --
+{
+  "images": {
+    "main": {
+      "values": {
+        "image": "${ref}"
+      }
+    },
+    "sidecar": {
+      "values": {
+        "sidecar": {"image": "${ref}"}
+      }
+    },
+    "init": {
+      "values": {
+        "init": {"image": "${ref}"}
+      }
+    },
+    "config": {
+      "values": {
+        "config": {"image": "${ref}"}
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "default", "images": ["main", "sidecar", "init", "config"]}
+    ]
+  }
+}
+
+-- chart/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- chart/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+  annotations:
+    # Image in annotation
+    app.kubernetes.io/sidecar-image: {{ .Values.sidecar.image }}
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: {{ .Values.image }}
+          # Image in env var
+          env:
+            - name: INIT_IMAGE
+              value: {{ .Values.init.image }}
+          # Image in command args
+          args:
+            - --sidecar-image={{ .Values.sidecar.image }}
+
+-- chart/templates/configmap.yaml --
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: images-config
+data:
+  # Image in configmap
+  runner-image: {{ .Values.config.image }}
+
+-- chart/values.yaml --
+image: nginx:latest
+sidecar:
+  image: envoyproxy/envoy:v1.28
+init:
+  image: busybox:1.36
+config:
+  image: alpine:3.19
+
+-- expected.json --
+{
+  "passed": true,
+  "cases": [
+    {
+      "name": "default",
+      "passed": true,
+      "images": [
+        "cgr.test/chainguard/test/config@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cgr.test/chainguard/test/init@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cgr.test/chainguard/test/main@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cgr.test/chainguard/test/sidecar@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      ],
+      "extractors": {
+        "regex": [
+          "cgr.test/chainguard/test/config@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/init@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/main@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/sidecar@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ],
+        "structured": [
+          "cgr.test/chainguard/test/main@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ]
+      }
+    }
+  ]
+}

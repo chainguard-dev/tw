@@ -1,0 +1,118 @@
+# False positive tests: verify that non-image patterns are NOT extracted
+#
+# Tests that these patterns do not get falsely detected as container images:
+# - Booleans: "true", "false"
+# - Host:port: "redis:6379", "kafka:9092"
+# - Labels: "app.kubernetes.io/name: myapp"
+# - Time formats: "12:30:00"
+# - URLs with ports: "http://api:8080"
+# - Version strings: "v1.0.0", "1.0.0"
+# - Images without tags: "gcr.io/project/image" (no :tag or @digest)
+
+chelm test cg.json --chart=chart
+cmp stdout expected.json
+
+-- cg.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": "${ref}"
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "default", "images": ["app"]}
+    ]
+  }
+}
+
+-- chart/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- chart/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+  labels:
+    # Version strings - should NOT be detected as images
+    app.kubernetes.io/version: "1.0.0"
+    helm.sh/chart: test-chart-0.1.0
+    # Booleans - should NOT be detected as images
+    enabled: "true"
+    disabled: "false"
+spec:
+  selector:
+    matchLabels:
+      # Labels with colons - should NOT be detected as images
+      app.kubernetes.io/name: myapp
+      app.kubernetes.io/instance: release-1
+      app.kubernetes.io/component: frontend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: myapp
+        version: v1
+    spec:
+      containers:
+        - name: app
+          image: {{ .Values.image }}
+          env:
+            # Booleans - should NOT be detected as images
+            - name: DEBUG
+              value: "true"
+            - name: PROD
+              value: "false"
+            # Host:port patterns - should NOT be detected as images
+            - name: REDIS_HOST
+              value: "redis-master:6379"
+            - name: KAFKA_BROKERS
+              value: "kafka-0:9092,kafka-1:9092"
+            - name: MYSQL_HOST
+              value: "mysql:3306"
+            # URLs with ports - should NOT be detected as images
+            - name: API_URL
+              value: "http://api.example.com:8080/v1"
+            - name: METRICS_URL
+              value: "https://metrics.example.com:9090"
+            - name: WEBHOOK_URL
+              value: "http://webhook:8000/callback"
+            # Time formats - should NOT be detected as images
+            - name: START_TIME
+              value: "12:30:00"
+            - name: SCHEDULE
+              value: "0 */6 * * *"
+            # Image refs without tags - should NOT be detected (no :tag or @digest)
+            - name: TAGLESS_IMAGE
+              value: "gcr.io/my-project/myapp"
+            - name: TAGLESS_NESTED
+              value: "us-docker.pkg.dev/my-project/repo/app"
+
+-- chart/values.yaml --
+image: nginx:latest
+
+-- expected.json --
+{
+  "passed": true,
+  "cases": [
+    {
+      "name": "default",
+      "passed": true,
+      "images": [
+        "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      ],
+      "extractors": {
+        "regex": [
+          "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ],
+        "structured": [
+          "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ]
+      }
+    }
+  ]
+}

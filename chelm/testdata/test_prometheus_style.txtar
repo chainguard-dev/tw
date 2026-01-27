@@ -1,0 +1,96 @@
+# Multiple images like prometheus-stack
+chelm test cg.json --chart=chart
+cmp stdout expected.json
+
+-- cg.json --
+{
+  "images": {
+    "prometheus": {
+      "values": {
+        "prometheus": {"image": "${ref}"}
+      }
+    },
+    "alertmanager": {
+      "values": {
+        "alertmanager": {"image": "${ref}"}
+      }
+    },
+    "config-reloader": {
+      "values": {
+        "configReloader": {"image": "${ref}"}
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "default", "images": ["prometheus", "alertmanager", "config-reloader"]}
+    ]
+  }
+}
+
+-- chart/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- chart/templates/prometheus.yaml --
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: prometheus
+spec:
+  template:
+    spec:
+      containers:
+        - name: prometheus
+          image: {{ .Values.prometheus.image }}
+        - name: config-reloader
+          image: {{ .Values.configReloader.image }}
+
+-- chart/templates/alertmanager.yaml --
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: alertmanager
+spec:
+  template:
+    spec:
+      containers:
+        - name: alertmanager
+          image: {{ .Values.alertmanager.image }}
+
+-- chart/values.yaml --
+prometheus:
+  image: quay.io/prometheus/prometheus:v2.48.0
+alertmanager:
+  image: quay.io/prometheus/alertmanager:v0.26.0
+configReloader:
+  image: quay.io/prometheus-operator/prometheus-config-reloader:v0.70.0
+
+-- expected.json --
+{
+  "passed": true,
+  "cases": [
+    {
+      "name": "default",
+      "passed": true,
+      "images": [
+        "cgr.test/chainguard/test/alertmanager@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cgr.test/chainguard/test/config-reloader@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cgr.test/chainguard/test/prometheus@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      ],
+      "extractors": {
+        "regex": [
+          "cgr.test/chainguard/test/alertmanager@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/config-reloader@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/prometheus@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ],
+        "structured": [
+          "cgr.test/chainguard/test/alertmanager@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/config-reloader@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/prometheus@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ]
+      }
+    }
+  ]
+}

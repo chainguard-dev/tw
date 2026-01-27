@@ -1,0 +1,226 @@
+# Comprehensive ignore list tests:
+# Ignore entries match against the ORIGINAL extracted string (before normalization).
+# So "busybox:1.35" in ignore list matches exactly "busybox:1.35" in the chart.
+#
+# 1. Basic ignore with exact original string match
+# 2. Partial ignore - alpine not in ignore list, so test fails
+# 3. Multiple ignores + "auto" for istio sidecar injection placeholder
+
+# Case 1: Short names in ignore list are normalized to match extracted images
+chelm test cg-basic.json --chart=chart-basic
+cmp stdout expected-basic.json
+
+# Case 2: Partial ignore - alpine not in ignore list, so test fails
+! chelm test cg-partial.json --chart=chart-partial
+cmp stdout expected-partial.json
+
+# Case 3: Multiple short names + "auto" for istio sidecar injection
+chelm test cg-auto.json --chart=chart-auto
+cmp stdout expected-auto.json
+
+-- cg-basic.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": "${ref}"
+      }
+    }
+  },
+  "test": {
+    "ignore": ["busybox:1.35"],
+    "cases": [
+      {"name": "default", "images": ["app"]}
+    ]
+  }
+}
+
+-- cg-partial.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": "${ref}"
+      }
+    }
+  },
+  "test": {
+    "ignore": ["busybox:1.35"],
+    "cases": [
+      {"name": "default", "images": ["app"]}
+    ]
+  }
+}
+
+-- cg-auto.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": "${ref}"
+      }
+    }
+  },
+  "test": {
+    "ignore": [
+      "busybox:1.36",
+      "alpine:3.19",
+      "auto"
+    ],
+    "cases": [
+      {"name": "default", "images": ["app"]}
+    ]
+  }
+}
+
+-- chart-basic/Chart.yaml --
+apiVersion: v2
+name: test-chart-basic
+version: 0.1.0
+
+-- chart-basic/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: basic
+spec:
+  template:
+    spec:
+      initContainers:
+        - name: init
+          image: busybox:1.35
+      containers:
+        - name: app
+          image: {{ .Values.image }}
+
+-- chart-basic/values.yaml --
+image: nginx:latest
+
+-- chart-partial/Chart.yaml --
+apiVersion: v2
+name: test-chart-partial
+version: 0.1.0
+
+-- chart-partial/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: partial
+spec:
+  template:
+    spec:
+      initContainers:
+        - name: init-ignored
+          image: busybox:1.35
+        - name: init-not-ignored
+          image: alpine:3.19
+      containers:
+        - name: app
+          image: {{ .Values.image }}
+
+-- chart-partial/values.yaml --
+image: nginx:latest
+
+-- chart-auto/Chart.yaml --
+apiVersion: v2
+name: test-chart-auto
+version: 0.1.0
+
+-- chart-auto/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auto
+spec:
+  template:
+    spec:
+      initContainers:
+        - name: init-busybox
+          image: busybox:1.36
+        - name: init-alpine
+          image: alpine:3.19
+      containers:
+        - name: app
+          image: {{ .Values.image }}
+        # Istio-style "auto" is not a valid image ref, so not extracted
+        - name: istio-proxy
+          image: auto
+
+-- chart-auto/values.yaml --
+image: nginx:latest
+
+-- expected-basic.json --
+{
+  "passed": true,
+  "cases": [
+    {
+      "name": "default",
+      "passed": true,
+      "images": [
+        "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "index.docker.io/library/busybox:1.35"
+      ],
+      "extractors": {
+        "regex": [
+          "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ],
+        "structured": [
+          "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "index.docker.io/library/busybox:1.35"
+        ]
+      }
+    }
+  ]
+}
+-- expected-partial.json --
+{
+  "passed": false,
+  "cases": [
+    {
+      "name": "default",
+      "passed": false,
+      "images": [
+        "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "index.docker.io/library/alpine:3.19",
+        "index.docker.io/library/busybox:1.35"
+      ],
+      "extractors": {
+        "regex": [
+          "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ],
+        "structured": [
+          "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "index.docker.io/library/alpine:3.19",
+          "index.docker.io/library/busybox:1.35"
+        ]
+      }
+    }
+  ]
+}
+-- expected-auto.json --
+{
+  "passed": true,
+  "cases": [
+    {
+      "name": "default",
+      "passed": true,
+      "images": [
+        "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "index.docker.io/library/alpine:3.19",
+        "index.docker.io/library/auto:latest",
+        "index.docker.io/library/busybox:1.36"
+      ],
+      "extractors": {
+        "regex": [
+          "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ],
+        "structured": [
+          "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "index.docker.io/library/alpine:3.19",
+          "index.docker.io/library/auto:latest",
+          "index.docker.io/library/busybox:1.36"
+        ]
+      }
+    }
+  ]
+}

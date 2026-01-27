@@ -1,0 +1,385 @@
+# Field name mismatch tests: verify validation catches when cg.json field names
+# don't match the field names actually used in the chart templates.
+#
+# Each test case is isolated with its own chart and cg.json.
+#
+# Test 1: digest field mismatch - cg.json maps ${digest} to .sha, chart uses .digest
+# Test 2: tag field mismatch - cg.json maps ${tag} to .version, chart uses .tag
+# Test 3: repo field mismatch - cg.json maps ${repo} to .name, chart uses .repository
+# Test 4: registry field mismatch - cg.json maps ${registry} to .reg, chart uses .registry
+# Test 5: unmapped tag - cg.json doesn't map tag at all, chart uses hardcoded value
+# Test 6: undeclared imageID - image defined in cg.json but not listed in test case
+
+! chelm test cg-digest.json --chart=chart-digest
+cmp stdout expected-digest.json
+
+! chelm test cg-tag.json --chart=chart-tag
+cmp stdout expected-tag.json
+
+! chelm test cg-repo.json --chart=chart-repo
+cmp stdout expected-repo.json
+
+! chelm test cg-registry.json --chart=chart-registry
+cmp stdout expected-registry.json
+
+! chelm test cg-unmapped.json --chart=chart-unmapped
+cmp stdout expected-unmapped.json
+
+! chelm test cg-undeclared.json --chart=chart-undeclared
+cmp stdout expected-undeclared.json
+
+-- cg-digest.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": {
+          "registry": "${registry}",
+          "repository": "${repo}",
+          "sha": "${digest}"
+        }
+      }
+    }
+  },
+  "test": {
+    "cases": [{"name": "default", "images": ["app"]}]
+  }
+}
+-- chart-digest/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+-- chart-digest/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: {{ .Values.image.registry }}/{{ .Values.image.repository }}@{{ .Values.image.digest }}
+-- chart-digest/values.yaml --
+image:
+  registry: docker.io
+  repository: library/nginx
+  sha: ""
+  digest: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+-- expected-digest.json --
+{
+  "passed": false,
+  "cases": [
+    {
+      "name": "default",
+      "passed": false,
+      "images": [
+        "cgr.test/chainguard/test/app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      ],
+      "extractors": {
+        "regex": [
+          "cgr.test/chainguard/test/app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        ],
+        "structured": [
+          "cgr.test/chainguard/test/app@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        ]
+      }
+    }
+  ]
+}
+-- cg-tag.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": {
+          "registry": "${registry}",
+          "repository": "${repo}",
+          "version": "${tag}"
+        }
+      }
+    }
+  },
+  "test": {
+    "cases": [{"name": "default", "images": ["app"]}]
+  }
+}
+-- chart-tag/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+-- chart-tag/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: {{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}
+-- chart-tag/values.yaml --
+image:
+  registry: docker.io
+  repository: library/nginx
+  version: ""
+  tag: "1.25"
+-- expected-tag.json --
+{
+  "passed": false,
+  "cases": [
+    {
+      "name": "default",
+      "passed": false,
+      "images": [
+        "cgr.test/chainguard/test/app:1.25"
+      ],
+      "extractors": {
+        "regex": [
+          "cgr.test/chainguard/test/app:1.25"
+        ],
+        "structured": [
+          "cgr.test/chainguard/test/app:1.25"
+        ]
+      }
+    }
+  ]
+}
+-- cg-repo.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": {
+          "registry": "${registry}",
+          "name": "${repo}",
+          "tag": "${tag}"
+        }
+      }
+    }
+  },
+  "test": {
+    "cases": [{"name": "default", "images": ["app"]}]
+  }
+}
+-- chart-repo/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+-- chart-repo/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: {{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}
+-- chart-repo/values.yaml --
+image:
+  registry: docker.io
+  name: ""
+  repository: library/nginx
+  tag: latest
+-- expected-repo.json --
+{
+  "passed": false,
+  "cases": [
+    {
+      "name": "default",
+      "passed": false,
+      "images": [
+        "cgr.test/library/nginx:v0.0.0"
+      ],
+      "extractors": {
+        "regex": [
+          "cgr.test/library/nginx:v0.0.0"
+        ],
+        "structured": [
+          "cgr.test/library/nginx:v0.0.0"
+        ]
+      }
+    }
+  ]
+}
+-- cg-registry.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": {
+          "reg": "${registry}",
+          "repository": "${repo}",
+          "tag": "${tag}"
+        }
+      }
+    }
+  },
+  "test": {
+    "cases": [{"name": "default", "images": ["app"]}]
+  }
+}
+-- chart-registry/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+-- chart-registry/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: {{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}
+-- chart-registry/values.yaml --
+image:
+  reg: ""
+  registry: docker.io
+  repository: library/nginx
+  tag: latest
+-- expected-registry.json --
+{
+  "passed": false,
+  "cases": [
+    {
+      "name": "default",
+      "passed": false,
+      "images": [
+        "index.docker.io/chainguard/test/app:v0.0.0"
+      ],
+      "extractors": {
+        "regex": [
+          "index.docker.io/chainguard/test/app:v0.0.0"
+        ],
+        "structured": [
+          "index.docker.io/chainguard/test/app:v0.0.0"
+        ]
+      }
+    }
+  ]
+}
+-- cg-unmapped.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": {
+          "registry": "${registry}",
+          "repository": "${repo}"
+        }
+      }
+    }
+  },
+  "test": {
+    "cases": [{"name": "default", "images": ["app"]}]
+  }
+}
+-- chart-unmapped/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+-- chart-unmapped/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: {{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}
+-- chart-unmapped/values.yaml --
+image:
+  registry: docker.io
+  repository: library/nginx
+  tag: latest
+-- expected-unmapped.json --
+{
+  "passed": false,
+  "cases": [
+    {
+      "name": "default",
+      "passed": false,
+      "images": [
+        "cgr.test/chainguard/test/app:latest"
+      ],
+      "extractors": {
+        "regex": [
+          "cgr.test/chainguard/test/app:latest"
+        ],
+        "structured": [
+          "cgr.test/chainguard/test/app:latest"
+        ]
+      }
+    }
+  ]
+}
+-- cg-undeclared.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": "${ref}"
+      }
+    },
+    "sidecar": {
+      "values": {
+        "sidecar": "${ref}"
+      }
+    }
+  },
+  "test": {
+    "cases": [{"name": "default", "images": ["app"]}]
+  }
+}
+-- chart-undeclared/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+-- chart-undeclared/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: {{ .Values.image }}
+        - name: sidecar
+          image: {{ .Values.sidecar }}
+-- chart-undeclared/values.yaml --
+image: nginx:latest
+sidecar: busybox:latest
+-- expected-undeclared.json --
+{
+  "passed": false,
+  "cases": [
+    {
+      "name": "default",
+      "passed": false,
+      "images": [
+        "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cgr.test/chainguard/test/sidecar@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      ],
+      "extractors": {
+        "regex": [
+          "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/sidecar@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ],
+        "structured": [
+          "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "cgr.test/chainguard/test/sidecar@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ]
+      }
+    }
+  ]
+}

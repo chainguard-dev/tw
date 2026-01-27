@@ -1,0 +1,39 @@
+# Generate to output file, with default test case added
+stdin input.json
+chelm generate -o cg.json
+cmp cg.json expected.json
+
+-- input.json --
+{
+  "images": {
+    "redis": {
+      "values": {
+        "image": {
+          "registry": "${registry}",
+          "repo": "${repo}"
+        }
+      }
+    }
+  }
+}
+
+-- expected.json --
+{
+  "images": {
+    "redis": {
+      "values": {
+        "image": {
+          "registry": "${registry}",
+          "repo": "${repo}"
+        }
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {
+        "name": "default"
+      }
+    ]
+  }
+}

@@ -1,0 +1,95 @@
+# Hardcoded images in various locations - all should be detected and fail validation
+#
+# Tests that hardcoded (non-parameterized) images are caught in:
+# - Sidecar containers
+# - Kubernetes annotations (artifacthub.io style)
+# - Custom Resource specs (ServiceMonitor)
+
+! chelm test cg.json --chart=chart
+cmp stdout expected.json
+
+-- cg.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": "${ref}"
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "default", "images": ["app"]}
+    ]
+  }
+}
+
+-- chart/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- chart/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+  annotations:
+    # ArtifactHub style image list - hardcoded image should be caught
+    artifacthub.io/images: |
+      - name: app
+        image: {{ .Values.image }}
+      - name: sidecar
+        image: docker.io/library/busybox:1.36
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: {{ .Values.image }}
+        # Hardcoded sidecar - should be caught
+        - name: sidecar
+          image: busybox:1.35
+
+-- chart/templates/servicemonitor.yaml --
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: test
+spec:
+  endpoints:
+    - port: metrics
+      # Hardcoded image in CRD - should be caught
+      params:
+        scraper_image: ["quay.io/prometheus/prometheus:v2.48.0"]
+
+-- chart/values.yaml --
+image: nginx:latest
+
+-- expected.json --
+{
+  "passed": false,
+  "cases": [
+    {
+      "name": "default",
+      "passed": false,
+      "images": [
+        "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "index.docker.io/library/busybox:1.35",
+        "index.docker.io/library/busybox:1.36",
+        "quay.io/prometheus/prometheus:v2.48.0"
+      ],
+      "extractors": {
+        "regex": [
+          "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "index.docker.io/library/busybox:1.36",
+          "quay.io/prometheus/prometheus:v2.48.0"
+        ],
+        "structured": [
+          "cgr.test/chainguard/test/app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "index.docker.io/library/busybox:1.35"
+        ]
+      }
+    }
+  ]
+}

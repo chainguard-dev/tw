@@ -1,0 +1,60 @@
+# Values mapping references non-existent path in chart - image not substituted, fails validation
+! chelm test cg.json --chart=chart
+cmp stdout expected.json
+stderr 'validation failed'
+
+-- cg.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "nonexistent": {"deeply": {"nested": {"image": "${ref}"}}}
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "default", "images": ["app"]}
+    ]
+  }
+}
+
+-- chart/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- chart/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: {{ .Values.image }}
+
+-- chart/values.yaml --
+image: nginx:latest
+
+-- expected.json --
+{
+  "passed": false,
+  "cases": [
+    {
+      "name": "default",
+      "passed": false,
+      "images": [
+        "index.docker.io/library/nginx:latest"
+      ],
+      "extractors": {
+        "regex": null,
+        "structured": [
+          "index.docker.io/library/nginx:latest"
+        ]
+      }
+    }
+  ]
+}
