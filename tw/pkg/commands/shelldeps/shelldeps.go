@@ -171,8 +171,8 @@ func extractDeps(ctx context.Context, r io.Reader, filename string) ([]string, e
 	return result, nil
 }
 
-// extractShebang reads the first line of a file and extracts the shell interpreter path.
-// Returns empty string if the file doesn't have a valid shell script shebang.
+// extractShebang reads the first line of a file and extracts the raw shebang content after #!.
+// Returns empty string if the file doesn't have a shebang.
 func extractShebang(r io.Reader) (string, error) {
 	scanner := bufio.NewScanner(r)
 	if !scanner.Scan() {
@@ -186,18 +186,34 @@ func extractShebang(r io.Reader) (string, error) {
 		return "", nil
 	}
 
-	// Remove #! and any leading spaces after it
-	shebang := strings.TrimLeft(firstLine[2:], " ")
+	// Return everything after #! (trimmed of leading spaces)
+	return strings.TrimLeft(firstLine[2:], " "), nil
+}
 
-	// Handle /usr/bin/env variants - extract just the shell name
+// getShebangProgram extracts just the interpreter program from a shebang string.
+// Handles /usr/bin/env wrappers and strips arguments (like -f in "/bin/sh -f").
+func getShebangProgram(shebang string) string {
+	if shebang == "" {
+		return ""
+	}
+
+	// Handle /usr/bin/env wrapper - extract the program after env
 	if strings.HasPrefix(shebang, "/usr/bin/env ") {
 		parts := strings.Fields(shebang)
 		if len(parts) >= 2 {
-			return parts[1], nil
+			return parts[1]
 		}
+		return ""
 	}
 
-	return shebang, nil
+	// For direct interpreter paths, strip any arguments
+	// e.g., "/bin/sh -f" -> "/bin/sh"
+	parts := strings.Fields(shebang)
+	if len(parts) > 0 {
+		return parts[0]
+	}
+
+	return ""
 }
 
 // executesArguments checks if a function body contains "$@" or similar patterns in command position

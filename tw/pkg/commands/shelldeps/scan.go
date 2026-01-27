@@ -39,12 +39,15 @@ func (c *cfg) scanCommand() *cobra.Command {
 
 // validShells lists the shell interpreters we recognize as shell scripts
 var validShells = map[string]bool{
-	"/bin/sh":   true,
-	"/bin/dash": true,
-	"/bin/bash": true,
-	"sh":        true,
-	"dash":      true,
-	"bash":      true,
+	"/bin/sh":       true,
+	"/bin/dash":     true,
+	"/bin/bash":     true,
+	"/usr/bin/sh":   true,
+	"/usr/bin/dash": true,
+	"/usr/bin/bash": true,
+	"sh":            true,
+	"dash":          true,
+	"bash":          true,
 }
 
 // isShellScript checks if a file is a shell script based on its shebang
@@ -55,12 +58,14 @@ func isShellScript(path string) (bool, error) {
 	}
 	defer f.Close()
 
-	shell, err := extractShebang(f)
+	shebang, err := extractShebang(f)
 	if err != nil {
 		return false, err
 	}
 
-	return validShells[shell], nil
+	// Use getShebangProgram to extract just the interpreter, stripping arguments
+	program := getShebangProgram(shebang)
+	return validShells[program], nil
 }
 
 func (s *scanCfg) Run(ctx context.Context, cmd *cobra.Command, args []string) error {
