@@ -399,4 +399,3 @@ func (c *checkPackageCfg) outputPackageResults(w io.Writer, results []packageChe
 
 	return nil
 }
-

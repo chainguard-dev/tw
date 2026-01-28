@@ -227,10 +227,10 @@ tmpfile=$(mktemp --suffix=.txt)
 
 func TestMatchesFlag(t *testing.T) {
 	tests := []struct {
-		name  string
-		arg   string
-		flag  string
-		want  bool
+		name string
+		arg  string
+		flag string
+		want bool
 	}{
 		{"exact match long", "--reflink", "--reflink", true},
 		{"exact match short", "-D", "-D", true},

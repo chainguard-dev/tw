@@ -54,10 +54,10 @@ var gnuOnlyFlags = map[string]map[string]string{
 		"--output": "df --output (GNU only)",
 	},
 	"readlink": {
-		"-e":           "readlink -e (GNU only, use -f for busybox)",
+		"-e":                      "readlink -e (GNU only, use -f for busybox)",
 		"--canonicalize-existing": "readlink --canonicalize-existing (GNU only)",
-		"-m":           "readlink -m (GNU only)",
-		"--canonicalize-missing": "readlink --canonicalize-missing (GNU only)",
+		"-m":                      "readlink -m (GNU only)",
+		"--canonicalize-missing":  "readlink --canonicalize-missing (GNU only)",
 	},
 	"tail": {
 		"--pid": "tail --pid (GNU only)",

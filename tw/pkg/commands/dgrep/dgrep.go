@@ -42,19 +42,19 @@ var commonErrorPatterns = []string{
 }
 
 type cfg struct {
-	Container      string
-	Timeout        time.Duration
-	IgnoreCase     bool
-	Retry          int
-	Patterns       []string
-	NotExpected    []string
+	Container          string
+	Timeout            time.Duration
+	IgnoreCase         bool
+	Retry              int
+	Patterns           []string
+	NotExpected        []string
 	NotExpectedExclude []string
-	InvertMatch    bool
-	DefaultErrors  bool
+	InvertMatch        bool
+	DefaultErrors      bool
 
-	compiled           []*regexp.Regexp
+	compiled            []*regexp.Regexp
 	notExpectedCompiled []*regexp.Regexp
-	highlighter        func(string) string
+	highlighter         func(string) string
 }
 
 func Command() *cobra.Command {
@@ -152,7 +152,7 @@ func (c *cfg) retryableRun(ctx context.Context) error {
 	scanner := bufio.NewScanner(strings.NewReader(stdoutBuf.String()))
 	for scanner.Scan() {
 		line := scanner.Text()
-		
+
 		// Check expected patterns
 		for i, re := range c.compiled {
 			if re.MatchString(line) {
@@ -164,7 +164,7 @@ func (c *cfg) retryableRun(ctx context.Context) error {
 				break
 			}
 		}
-		
+
 		// Check not-expected patterns
 		for _, re := range c.notExpectedCompiled {
 			if re.MatchString(line) {
@@ -180,7 +180,7 @@ func (c *cfg) retryableRun(ctx context.Context) error {
 	scanner = bufio.NewScanner(strings.NewReader(stderrBuf.String()))
 	for scanner.Scan() {
 		line := scanner.Text()
-		
+
 		// Check expected patterns
 		for i, re := range c.compiled {
 			if re.MatchString(line) {
@@ -191,7 +191,7 @@ func (c *cfg) retryableRun(ctx context.Context) error {
 				matchedPatterns[i] = true
 			}
 		}
-		
+
 		// Check not-expected patterns
 		for _, re := range c.notExpectedCompiled {
 			if re.MatchString(line) {
@@ -206,7 +206,7 @@ func (c *cfg) retryableRun(ctx context.Context) error {
 	// Print all matches at the end
 	nmatches := len(matches)
 	nNotExpected := len(notExpectedMatches)
-	
+
 	clog.InfoContextf(ctx, "found %d expected matches in container %s", nmatches, c.Container)
 	for i, m := range matches {
 		clog.InfoContextf(ctx, "-- [%d/%d] expected in %s: %s", i+1, nmatches, m.Container, m.Text)
@@ -258,7 +258,7 @@ func (c *cfg) prerun(_ context.Context, args []string) error {
 		// Start with all default patterns
 		patterns := make([]string, len(commonErrorPatterns))
 		copy(patterns, commonErrorPatterns)
-		
+
 		// Remove excluded patterns
 		for _, exclude := range c.NotExpectedExclude {
 			filtered := []string{}
@@ -269,7 +269,7 @@ func (c *cfg) prerun(_ context.Context, args []string) error {
 			}
 			patterns = filtered
 		}
-		
+
 		// Add defaults (after exclusions) to not-expected patterns
 		c.NotExpected = append(c.NotExpected, patterns...)
 	}
