@@ -22,17 +22,11 @@ package:
   version: "0.0.0"               # Always use 0.0.0
   epoch: 0
   description: Test for <pipeline-name> pipeline validation
-  options:
-    no-provides: true
-  dependencies:
-    provider-priority: 0         # CRITICAL: Allows Wolfi packages to take precedence
-  copyright:
-    - license: Apache-2.0
 
 environment:
   contents:
     packages:
-      - busybox     # REQUIRED: Provides /bin/sh and basic utilities
+      - wolfi-base     # REQUIRED: Provides /bin/sh and basic utilities
 
 pipeline:
   # Main package should NOT be tested - just use a log line
@@ -54,16 +48,7 @@ package:
   epoch: 0
 ```
 
-**Why:** Using `0.0.0` ensures test packages never conflict with real packages and clearly indicates these are test-only packages and also allows Wolfi packages to take precedence.
-
-#### 2. Set `provider-priority: 0`
-```yaml
-package:
-  dependencies:
-    provider-priority: 0
-```
-
-**Why:** This allows Wolfi packages to take precedence over test packages. When your test references a Wolfi package name (like `glibc` or `giflib-doc`), the real Wolfi package will be used instead of your empty test package.
+**Why:** Using `0.0.0` ensures test packages never conflict with real packages and clearly indicates these are test-only packagese.
 
 #### 3. Don't Test the Main Package
 ```yaml
@@ -208,36 +193,16 @@ echo "PASS: Pipeline correctly rejected invalid package"
 
 **Why:** The test succeeds when the pipeline checker fails (non-zero exit code).
 
-#### 4. Add package-type-check to Environment
+#### 4. Add tw bin used to Environment
 ```yaml
 test:
   environment:
     contents:
       packages:
-        - package-type-check
+        - package-type-check # or gem-check, header-check etc
 ```
 
 **Why:** Negative tests invoke the checker manually, so it must be available in the test environment.
-
-
-## Test Checklist
-
-When creating a new pipeline test file:
-
-- [ ] Filename matches pattern: `<pipeline-name>-test.yaml`
-- [ ] Package name matches filename (without `.yaml`)
-- [ ] Version is `0.0.0` with `epoch: 0`
-- [ ] `provider-priority: 0` is set
-- [ ] `no-provides: true` is set
-- [ ] Environment includes `busybox` packages
-- [ ] Main package pipeline only has a log line
-- [ ] At least one positive test as subpackage
-- [ ] At least one negative test as subpackage
-- [ ] Consider testing real Wolfi packages
-- [ ] Negative tests use `set +e`
-- [ ] Negative tests capture and display output
-- [ ] Negative tests explicitly `exit 0` on success
-- [ ] Negative tests have `package-type-check` in environment
 
 ## Running Tests
 
@@ -246,79 +211,10 @@ Run all pipeline tests:
 make test-pipelines
 ```
 
-Run just your test file during development:
-```bash
-# Build test package
-melange build --runner docker tests/docs-test.yaml \
-  --arch=$(uname -m) \
-  --keyring-append=local-melange.rsa.pub \
-  --repository-append=./packages \
-  --signing-key=local-melange.rsa \
-  --out-dir=./tests/packages \
-  --pipeline-dir=./pipelines
-
-# Run tests
-melange test --runner docker tests/docs-test.yaml \
-  --arch=$(uname -m) \
-  --keyring-append=local-melange.rsa.pub \
-  --repository-append=./packages \
-  --repository-append=./tests/packages \
-  --pipeline-dirs=./pipelines \
-  --test-package-append=wolfi-base
-```
-
 ## Common Mistakes to Avoid
 
 ### 1. Forgetting `set +e` in Negative Tests
 **Problem:** Script exits immediately when checker fails, test never validates the failure
 
-**Solution:** Always start negative tests with `set +e`
-
-### 2. Not Using `provider-priority: 0`
-**Problem:** Test packages shadow real Wolfi packages, tests don't run against real packages
-
-**Solution:** Always set `provider-priority: 0` in main package
-
-### 3. Testing Main Package Instead of Subpackages
-**Problem:** Hard to identify which test scenario failed
-
-**Solution:** Use main package only for metadata, put all tests in subpackages
-
-### 4. Not Capturing Output in Negative Tests
+### 2. Not Capturing Output in Negative Tests
 **Problem:** Can't debug why test failed
-
-**Solution:** Always capture and display checker output with `output=$(...) 2>&1`
-
-### 5. Forgetting `exit 0` in Negative Tests
-**Problem:** Shell returns exit code from last command (non-zero), test fails
-
-**Solution:** Explicitly `exit 0` when validation passes
-
-### 6. Wrong Variable in Test Scripts
-**Problem:** Using `${{package.name}}` instead of `${{targets.subpkgname}}`
-
-**Solution:** In subpackage tests, use `${{targets.subpkgname}}` to reference the subpackage name
-
-## Best Practices
-
-1. **Test both synthetic and real packages**: Synthetic packages test specific scenarios; real Wolfi packages test production cases
-
-2. **Use descriptive subpackage names**: 
-   - Good: `docs-valid-man-pages`, `docs-invalid-with-binary`
-   - Bad: `test1`, `test2`
-
-3. **Add comments explaining test intent**:
-   ```yaml
-   - name: docs-edge-case-empty-man
-     description: Test handling of empty man page files (should fail)
-   ```
-
-4. **Keep test packages minimal**: Only create files necessary to test the specific scenario
-
-5. **One scenario per subpackage**: Don't combine multiple test cases in one subpackage
-
-6. **Document expected behavior**: Use description field to explain what should happen
-
-7. **Test edge cases**: Empty files, symlinks, unusual permissions, etc.
-
-8. **Validate error messages**: Check that rejection messages are helpful in negative tests
