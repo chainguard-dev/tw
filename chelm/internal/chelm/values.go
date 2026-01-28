@@ -104,4 +104,3 @@ func resolveField(f images.RefField, repo name.Repository) string {
 		return ""
 	}
 }
-

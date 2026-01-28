@@ -55,9 +55,9 @@ grep pattern file
 curl https://example.com
 `,
 			},
-			binaries:  []string{},
-			strict:    true,
-			wantError: true,
+			binaries:   []string{},
+			strict:     true,
+			wantError:  true,
 			wantOutput: []string{"curl"},
 		},
 		{
