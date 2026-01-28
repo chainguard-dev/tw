@@ -1,0 +1,17 @@
+name: Empty package pipeline validation tests
+
+description: Test suite for test/tw/emptypackage pipeline
+
+testcases:
+  - name: Non-empty package bash
+    description: Verify emptypackage pipeline fails for packages with files
+    package: bash
+    pipelines:
+      - uses: test/tw/emptypackage
+    expect_pass: false
+  - name: Empty package faiss
+    description: Verify emptypackage pipeline passes for faiss
+    package: faiss
+    pipelines:
+      - uses: test/tw/emptypackage
+    expect_pass: true
