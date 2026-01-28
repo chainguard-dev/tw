@@ -7,7 +7,3 @@ melange.rsa*
 
 # macOS
 .DS_Store
-
-# tests
-
-tests/packages/*

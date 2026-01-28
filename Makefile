@@ -51,7 +51,7 @@ ${KEY}:
 	${MELANGE} keygen ${KEY}
 
 build: $(KEY)
-	$(MELANGE) build --runner docker melange.yaml $(MELANGE_OPTS) $(MELANGE_BUILD_OPTS)
+	$(MELANGE) build melange.yaml $(MELANGE_OPTS) $(MELANGE_BUILD_OPTS)
 
 test-projects: $(PROJECT_TESTS)
 .PHONY: $(PROJECT_TESTS)
@@ -79,7 +79,7 @@ clean:
 .PHONY: test-melange
 test-melange: $(KEY)
 	@echo "==> Testing melange.yaml package..."
-	$(MELANGE) test --runner=docker melange.yaml $(MELANGE_OPTS) $(MELANGE_TEST_OPTS)
+	$(MELANGE) test melange.yaml $(MELANGE_OPTS) $(MELANGE_TEST_OPTS)
 
 # Build pipeline test packages
 .PHONY: build-pipeline-tests
@@ -87,7 +87,7 @@ build-pipeline-tests: $(KEY)
 	@echo "==> Building pipeline test packages..."
 	@rc=0; for test_file in $(TEST_PIPELINE_FILES); do \
 		echo "Building $$test_file"; \
-		$(MELANGE) build --runner docker $$test_file $(MELANGE_OPTS) --signing-key=${KEY} --pipeline-dir ${TOP_D}/pipelines --out-dir=${TEST_OUT_DIR} || rc=$$?; \
+		$(MELANGE) build $$test_file $(MELANGE_OPTS) --signing-key=${KEY} --pipeline-dir ${TOP_D}/pipelines --out-dir=${TEST_OUT_DIR} || rc=$$?; \
 		if [ $$rc -ne 0 ]; then \
 			echo "ERROR: Build failed for $$test_file" >&2; \
 			exit $$rc; \
@@ -100,7 +100,7 @@ run-pipeline-tests: $(KEY)
 	@echo "==> Running pipeline validation tests..."
 	@rc=0; for test_file in $(TEST_PIPELINE_FILES); do \
 		echo "Testing $$test_file"; \
-		$(MELANGE) test --runner docker $$test_file $(MELANGE_OPTS) $(MELANGE_TEST_OPTS) || rc=$$?; \
+		$(MELANGE) test $$test_file $(MELANGE_OPTS) $(MELANGE_TEST_OPTS) || rc=$$?; \
 		if [ $$rc -ne 0 ]; then \
 			echo "ERROR: Tests failed for $$test_file" >&2; \
 			exit $$rc; \
