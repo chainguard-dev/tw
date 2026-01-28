@@ -62,4 +62,3 @@ func validateMarkers(m *images.Mapping) error {
 	_, err = images.Parse(bytes.NewReader(data))
 	return err
 }
-

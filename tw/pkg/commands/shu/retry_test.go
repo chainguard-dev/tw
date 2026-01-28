@@ -2,12 +2,12 @@ package shu
 
 import (
 	"context"
+	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/require"
 	"os/exec"
 	"syscall"
 	"testing"
 	"time"
-	"github.com/spf13/cobra"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNewCommand(t *testing.T) {
@@ -77,7 +77,6 @@ func TestRetryRun(t *testing.T) {
 			args:          []string{"true"},
 			expectedError: false,
 		},
-		
 	}
 
 	for _, tt := range tests {

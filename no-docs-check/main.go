@@ -134,16 +134,16 @@ func getDocumentationPaths() []string {
 		"usr/man/",
 		"usr/share/info/",
 		"usr/local/share/info/",
-        "usr/share/doc",
-        "usr/share/local/doc",
-        "usr/local/share/doc",
+		"usr/share/doc",
+		"usr/share/local/doc",
+		"usr/local/share/doc",
 	}
 }
 
 func isDocumentationFile(filePath string, docPaths []string) bool {
 	for _, docPath := range docPaths {
 		if strings.HasPrefix(filePath, docPath) {
-    		if filepath.Base(filePath) == "dir" {
+			if filepath.Base(filePath) == "dir" {
 				continue
 			}
 			return true
