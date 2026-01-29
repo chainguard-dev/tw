@@ -166,9 +166,11 @@ EOF
 FAILS=0
 FAILS_LIST=""
 PASSES=0
+HEADERS_TESTED=0
 # shellcheck disable=SC2086
 set -- $files
 for f in "$@"; do
+	HEADERS_TESTED=$((HEADERS_TESTED+1))
 	success=false
 	# File paths may be absolute, or relative to /usr/include
 	# Strip off leading optional usr/include/ or /usr/include/
@@ -191,6 +193,7 @@ done
 set -- $packages
 for pkg in "$@"; do
 	for f in $(apk info -qL "$pkg" | grep "^usr/include/.*\.h[p]*$" | sed -e "s:^usr/include/::"); do
+		HEADERS_TESTED=$((HEADERS_TESTED+1))
 		success=false
 		for lang in "c" "cpp"; do
 			if test_header "$lang" "$f" "$configure_opts"; then
@@ -206,6 +209,15 @@ for pkg in "$@"; do
 		fi
 	done
 done
+
+# Check if no headers were found
+if [ "$HEADERS_TESTED" -eq 0 ]; then
+	if [ -n "$packages" ]; then
+		error "No headers found in packages: $packages"
+	else
+		error "No headers found in specified files"
+	fi
+fi
 
 [ $FAILS -eq 0 ] && failmsg="" || failmsg="$FAILS fails."
 info "Tested [packages='$packages', configure-opts='$configure_opts']." \

@@ -1,0 +1,134 @@
+package:
+  name: header-check-test
+  version: "0.0.0"
+  epoch: 0
+  description: Manual tests for header-check pipeline edge cases that require synthetic packages
+
+environment:
+  contents:
+    packages:
+      - busybox
+      - wolfi-base
+
+pipeline:
+  - runs: |
+      echo "Manual edge case tests for header-check pipeline"
+
+subpackages:
+  # Test case 1: Package with no headers
+  - name: header-check-test-no-headers-dev
+    description: Package with zero headers - should error instead of passing
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.contextdir}}/usr/lib
+          mkdir -p ${{targets.contextdir}}/usr/share/doc
+          echo "Package with no headers" > ${{targets.contextdir}}/usr/share/doc/README
+          echo "fake library" > ${{targets.contextdir}}/usr/lib/libfake.a
+    test:
+      environment:
+        contents:
+          packages:
+            - header-check
+      pipeline:
+        - name: Verify no headers error is raised
+          runs: |
+            set +e
+            output=$(header-check --packages="${{context.name}}" 2>&1)
+            result=$?
+            echo "$output"
+
+            if [ $result -ne 0 ] && echo "$output" | grep -q "No headers found"; then
+              echo "PASS: Package with 0 headers correctly fails with error"
+              exit 0
+            else
+              echo "FAIL: Expected error for package with no headers"
+              echo "Exit code: $result"
+              exit 1
+            fi
+
+  # Test case 2: Headers installed to wrong path
+  - name: header-check-test-wrong-path-dev
+    description: Headers in non-standard location - tests packaging error detection
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.contextdir}}/opt/include
+          mkdir -p ${{targets.contextdir}}/usr/lib
+          cat > ${{targets.contextdir}}/opt/include/wrong_path.h << 'EOF'
+          #ifndef WRONG_PATH_H
+          #define WRONG_PATH_H
+          #include <stdio.h>
+          void wrong_path_function(void);
+          #endif
+          EOF
+          echo "fake library" > ${{targets.contextdir}}/usr/lib/libwrongpath.a
+    test:
+      environment:
+        contents:
+          packages:
+            - header-check
+      pipeline:
+        - name: Verify wrong path not detected
+          runs: |
+            set +e
+            output=$(header-check --packages="${{context.name}}" 2>&1)
+            result=$?
+            echo "$output"
+
+            if [ $result -ne 0 ] && echo "$output" | grep -q "No headers found"; then
+              echo "PASS: Headers in /opt/include not detected, correctly fails"
+              exit 0
+            else
+              echo "FAIL: Expected error for headers in wrong path"
+              echo "Exit code: $result"
+              exit 1
+            fi
+
+  # Test case 3: Multiple headers with partial failures
+  - name: header-check-test-partial-failure-dev
+    description: Mix of valid and invalid headers - tests error reporting
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.contextdir}}/usr/include
+
+          cat > ${{targets.contextdir}}/usr/include/valid1.h << 'EOF'
+          #ifndef VALID1_H
+          #define VALID1_H
+          #include <stdio.h>
+          void valid1_func(void);
+          #endif
+          EOF
+
+          cat > ${{targets.contextdir}}/usr/include/valid2.h << 'EOF'
+          #ifndef VALID2_H
+          #define VALID2_H
+          #include <stdlib.h>
+          void valid2_func(void);
+          #endif
+          EOF
+
+          cat > ${{targets.contextdir}}/usr/include/invalid.h << 'EOF'
+          #ifndef INVALID_H
+          #define INVALID_H
+          void broken_func(void)
+          #endif
+          EOF
+    test:
+      environment:
+        contents:
+          packages:
+            - header-check
+      pipeline:
+        - name: Verify partial failure reporting
+          runs: |
+            set +e
+            output=$(header-check --packages="${{context.name}}" 2>&1)
+            result=$?
+            echo "$output"
+
+            if [ $result -ne 0 ]; then
+              echo "PASS: Correctly failed with partial failures"
+              exit 0
+            else
+              echo "FAIL: Should have failed due to invalid header"
+              exit 1
+            fi

@@ -26,5 +26,5 @@ func CheckEmptyPackage(pkg string) error {
 
 	fmt.Printf("PASS: Package [%s] is empty", pkg)
 
-    return nil
+	return nil
 }
