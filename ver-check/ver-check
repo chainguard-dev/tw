@@ -23,6 +23,8 @@ Options:
                               Match type: contains, exact, regex (default: contains)
   --verbose=BOOL, --verbose BOOL
                               Enable verbose output (true or false, default: false)
+  --timeout=SECONDS, --timeout SECONDS
+                              Timeout in seconds for each version command (default: 5)
 
 Examples:
   ver-check --bins="nginx" --version="1.24.0"
@@ -37,6 +39,7 @@ version=""
 version_flag="auto"
 match_type="contains"
 VERBOSE=false
+timeout_secs=5
 
 while [ $# -ne 0 ]; do
     case "$1" in
@@ -51,6 +54,8 @@ while [ $# -ne 0 ]; do
         --match-type) match_type="$2"; shift;;
         --verbose=*) VERBOSE="${1#*=}";;
         --verbose) VERBOSE="$2"; shift;;
+        --timeout=*) timeout_secs="${1#*=}";;
+        --timeout) timeout_secs="$2"; shift;;
         --*) error "Unknown argument '$1'";;
     esac
     shift
@@ -75,6 +80,39 @@ export LANG=C
 
 vmsg() {
   [ "$VERBOSE" = "false" ] || echo "$@"
+}
+
+# Run a command with timeout, output goes to stdout
+# Usage: run_with_timeout <timeout_secs> <cmd> [args...]
+# Returns: 0 on success, 124 on timeout, or the command's exit code
+run_with_timeout() {
+    local secs="$1"
+    shift
+    if command -v timeout >/dev/null 2>&1; then
+        timeout "$secs" "$@" 2>&1
+        return $?
+    fi
+    # Fallback for systems without timeout command (e.g., macOS)
+    local tmpfile
+    tmpfile=$(mktemp)
+    "$@" >"$tmpfile" 2>&1 &
+    local pid=$!
+    local elapsed=0
+    while [ $elapsed -lt "$secs" ]; do
+        if ! kill -0 "$pid" 2>/dev/null; then
+            wait "$pid"
+            local ret=$?
+            cat "$tmpfile"
+            rm -f "$tmpfile"
+            return $ret
+        fi
+        sleep 1
+        elapsed=$((elapsed + 1))
+    done
+    kill "$pid" 2>/dev/null
+    wait "$pid" 2>/dev/null
+    rm -f "$tmpfile"
+    return 124
 }
 
 check_binary() {
@@ -110,7 +148,13 @@ check_binary() {
         local tried_flags="" tried_outputs=""
         for flag in $ver_candidates; do
             vmsg "Trying: $fbinary $flag"
-            if output=$($binary $flag 2>&1) && [ -n "$output" ]; then
+            output=$(run_with_timeout "$timeout_secs" $binary $flag)
+            exit_code=$?
+            if [ $exit_code -eq 124 ]; then
+                vmsg "Flag $flag timed out after ${timeout_secs}s, trying next"
+                continue
+            fi
+            if [ -n "$output" ]; then
                 # Remember output for error reporting (first line only, to keep it readable)
                 tried_flags="${tried_flags}${tried_flags:+ }$flag"
                 tried_outputs="${tried_outputs}  $flag: $(echo "$output" | head -1)
@@ -150,9 +194,13 @@ check_binary() {
         fi
     else
         vmsg "Using specified version flag: $version_flag"
-        output=$($binary $detected_flag 2>&1)
+        output=$(run_with_timeout "$timeout_secs" $binary $detected_flag)
         exit_code=$?
 
+        if [ $exit_code -eq 124 ]; then
+            fail "'$binarymsg $detected_flag' timed out after ${timeout_secs}s"
+            return 1
+        fi
         if [ $exit_code -ne 0 ]; then
             fail "'$binarymsg $detected_flag' failed with exit code $exit_code"
             [ "$VERBOSE" = "true" ] && echo "$output" | sed 's/^/  /'
@@ -202,6 +250,7 @@ info "Starting version checks for: $bins"
 info "Expected version: $version"
 info "Match type: $match_type"
 info "Version flag: $version_flag"
+info "Timeout: ${timeout_secs}s"
 
 for binary in $bins; do
     check_binary "$binary" "$version" "$version_flag" "$match_type"
