@@ -41,13 +41,14 @@ sync_to_dir() {
 	local gdir="$1"
 	# we assume presence of busybox.yaml indicates wolfi, and that tw should be updated.
 	if [ -f "$gdir/busybox.yaml" ]; then
-		debug 1 "updating melange.yaml -> tw.yaml in $gdir"
-	    # search only in lines 1 to 10 for version and epoch
-	    sed -e "1,10s/^\([ ]\+version\): .*/\1: \"${tag#v}\"/" \
+		debug 1 "updating tw.yaml in $gdir"
+	    # update version, epoch, and expected-commit in-place in the existing tw.yaml
+	    # this preserves any additional fields (like resources) that exist in stereo
+	    sed -i \
+	        -e "1,10s/^\([ ]\+version\): .*/\1: \"${tag#v}\"/" \
 	        -e "1,10s,^\([ ]\+epoch\): .*,\1: 0," \
-	        -e "s,#wolfi#,," \
 	        -e "s,^\([ ]\+expected-commit\): .*$,\1: $cksum," \
-		    "melange.yaml" > "$gdir/tw.yaml"
+		    "$gdir/tw.yaml"
 	    ( cd "$gdir" && git add tw.yaml )
 	fi
 
