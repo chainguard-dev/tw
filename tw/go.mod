@@ -19,10 +19,10 @@ require (
 	golang.org/x/sys v0.40.0
 	gopkg.in/yaml.v3 v3.0.1
 	helm.sh/helm/v3 v3.19.2
-	k8s.io/api v0.34.2
+	k8s.io/api v0.35.0
 	k8s.io/apimachinery v0.35.0
-	k8s.io/cli-runtime v0.34.2
-	k8s.io/client-go v0.34.2
+	k8s.io/cli-runtime v0.35.0
+	k8s.io/client-go v0.35.0
 	k8s.io/kubectl v0.34.2
 	mvdan.cc/sh/v3 v3.12.0
 	sigs.k8s.io/yaml v1.6.0
@@ -71,7 +71,6 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
-	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.11 // indirect
