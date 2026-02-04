@@ -110,7 +110,8 @@ check_binary() {
         local tried_flags="" tried_outputs=""
         for flag in $ver_candidates; do
             vmsg "Trying: $fbinary $flag"
-            if output=$($binary $flag 2>&1) && [ -n "$output" ]; then
+            output=$($binary $flag 2>&1)
+            if [ -n "$output" ]; then
                 # Remember output for error reporting (first line only, to keep it readable)
                 tried_flags="${tried_flags}${tried_flags:+ }$flag"
                 tried_outputs="${tried_outputs}  $flag: $(echo "$output" | head -1)
