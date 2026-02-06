@@ -1,0 +1,23 @@
+name: Contains-files pipeline validation tests
+
+description: Test suite for test/tw/contains-files pipeline with multiple pipeline configurations
+
+testcases:
+  - name: Check bash contains /bin/bash
+    description: Verify bash package contains the bash binary
+    package: bash
+    pipelines:
+      - uses: test/tw/contains-files
+        with:
+          files: |
+            /bin/bash
+    expect_pass: true
+  - name: Check glibc does not contain /nonexistent
+    description: Verify contains-files fails when file doesn't exist
+    package: glibc
+    pipelines:
+      - uses: test/tw/contains-files
+        with:
+          files: |
+            /nonexistent/file/path
+    expect_pass: false
