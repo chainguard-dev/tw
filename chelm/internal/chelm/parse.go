@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	"chainguard.dev/sdk/helm/images"
 )
@@ -32,6 +33,13 @@ func Parse(r io.Reader) (*CGMeta, error) {
 
 // Validate checks the CGMeta for consistency.
 func (m *CGMeta) Validate() error {
+	// Reject image IDs with uppercase characters (OCI repository names must be lowercase)
+	for id := range m.Images {
+		if id != strings.ToLower(id) {
+			return fmt.Errorf("image ID %q contains uppercase characters (OCI repository names must be lowercase)", id)
+		}
+	}
+
 	// Validate markers via SDK (requires round-trip through images.Parse)
 	if len(m.Images) > 0 {
 		if err := validateMarkers(&images.Mapping{Images: m.Images}); err != nil {

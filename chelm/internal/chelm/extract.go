@@ -19,10 +19,18 @@ type ExtractedImage struct {
 	Original string // the original string before normalization
 }
 
+// UnparseableCandidate records an image candidate that could not be parsed as an OCI reference.
+type UnparseableCandidate struct {
+	Candidate string
+	Error     string
+	Extractor string
+}
+
 // ExtractionResult contains images found by extractors.
 type ExtractionResult struct {
 	All         []ExtractedImage
 	ByExtractor map[string][]string
+	Unparseable []UnparseableCandidate
 }
 
 // Extractor finds candidate image references.
@@ -59,6 +67,11 @@ func ExtractImages(r io.Reader, extractors map[string]Extractor) *ExtractionResu
 		for _, candidate := range ext.Extract(docs) {
 			ociRef, err := images.NewRef(candidate)
 			if err != nil {
+				result.Unparseable = append(result.Unparseable, UnparseableCandidate{
+					Candidate: candidate,
+					Error:     err.Error(),
+					Extractor: extName,
+				})
 				continue
 			}
 			normalized := ociRef.FullRef

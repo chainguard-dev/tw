@@ -1,9 +1,9 @@
-# Test fails when expected images are not all extracted
+# Verify expected and missing fields appear in JSON output on failure
 ! chelm test cg.json --chart=chart
-stdout '"passed": false'
-stdout '"missing"'
 stdout '"expected"'
-stderr 'FAIL: case "default": missing images: missing'
+stdout '"missing"'
+stderr 'FAIL: case "default": missing images: sidecar'
+stderr '2 images expected, 1 found'
 
 -- cg.json --
 {
@@ -13,15 +13,15 @@ stderr 'FAIL: case "default": missing images: missing'
         "image": "${ref}"
       }
     },
-    "missing": {
+    "sidecar": {
       "values": {
-        "notUsed": {"image": "${ref}"}
+        "sidecarImage": "${ref}"
       }
     }
   },
   "test": {
     "cases": [
-      {"name": "default", "images": ["app", "missing"]}
+      {"name": "default", "images": ["app", "sidecar"]}
     ]
   }
 }
@@ -45,5 +45,4 @@ spec:
 
 -- chart/values.yaml --
 image: nginx:latest
-notUsed:
-  image: unused:latest
+sidecarImage: envoy:latest

@@ -79,6 +79,11 @@ configReloader:
         "cgr.test/chainguard/test/config-reloader@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "cgr.test/chainguard/test/prometheus@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       ],
+      "expected": [
+        "prometheus",
+        "alertmanager",
+        "config-reloader"
+      ],
       "extractors": {
         "regex": [
           "cgr.test/chainguard/test/alertmanager@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",

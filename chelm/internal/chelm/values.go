@@ -69,7 +69,7 @@ func generateImageValues(m *images.Mapping, testRegistry string) (map[string]any
 // testResolver returns a WalkFunc that substitutes markers with test values.
 func testResolver(registry name.Registry) images.WalkFunc {
 	return func(imageID string, tokens images.TokenList) (any, error) {
-		repo := registry.Repo(DefaultTestRepository, imageID)
+		repo := registry.Repo(DefaultTestRepository, strings.ToLower(imageID))
 
 		var sb strings.Builder
 		for _, tok := range tokens {

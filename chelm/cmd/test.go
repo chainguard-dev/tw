@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"chainguard.dev/tw/chelm/internal/chelm"
@@ -24,6 +25,8 @@ type CaseOutput struct {
 	Name       string              `json:"name"`
 	Passed     bool                `json:"passed"`
 	Images     []string            `json:"images"`
+	Expected   []string            `json:"expected,omitempty"`
+	Missing    []string            `json:"missing,omitempty"`
 	Extractors map[string][]string `json:"extractors,omitempty"`
 	Error      string              `json:"error,omitempty"`
 }
@@ -114,6 +117,23 @@ Exit code is non-zero if any test case fails.`,
 			}
 		}
 
+		// Validate marker paths exist in chart values.yaml
+		valuesPath := filepath.Join(chartPath, "values.yaml")
+		vf, err := os.Open(valuesPath)
+		if err != nil {
+			return fmt.Errorf("opening chart values: %w", err)
+		}
+		var chartValues map[string]any
+		if err := yaml.NewDecoder(vf).Decode(&chartValues); err != nil {
+			vf.Close()
+			return fmt.Errorf("decoding chart values: %w", err)
+		}
+		vf.Close()
+
+		if err := chelm.ValidateValuesPaths(meta.Images, chartValues); err != nil {
+			return err
+		}
+
 		output := TestOutput{Passed: true}
 
 		// Run each test case
@@ -170,6 +190,11 @@ Exit code is non-zero if any test case fails.`,
 			// Extract images
 			extraction := chelm.ExtractImages(&rendered, extractors)
 
+			for _, u := range extraction.Unparseable {
+				fmt.Fprintf(cmd.ErrOrStderr(), "WARN: ignoring unparseable image reference %q (extractor %s): %s\n",
+					u.Candidate, u.Extractor, u.Error)
+			}
+
 			// Build ignore set - matches against original extracted strings
 			ignoreSet := make(map[string]bool)
 			for _, ig := range meta.Test.Ignore {
@@ -179,8 +204,9 @@ Exit code is non-zero if any test case fails.`,
 			// Build set of expected image IDs for this test case
 			expectedImageIDs := make(map[string]bool)
 			for _, id := range tc.Images {
-				expectedImageIDs[id] = true
+				expectedImageIDs[strings.ToLower(id)] = true
 			}
+			caseOut.Expected = tc.Images
 			foundImageIDs := make(map[string]bool)
 
 			// Validate each extracted image is fully parameterized with test markers
@@ -227,6 +253,7 @@ Exit code is non-zero if any test case fails.`,
 			// Check all expected images were found
 			for id := range expectedImageIDs {
 				if !foundImageIDs[id] {
+					caseOut.Missing = append(caseOut.Missing, id)
 					caseOut.Passed = false
 					output.Passed = false
 				}
@@ -244,6 +271,19 @@ Exit code is non-zero if any test case fails.`,
 		}
 
 		if !output.Passed {
+			for _, c := range output.Cases {
+				if !c.Passed {
+					fmt.Fprintf(cmd.ErrOrStderr(), "FAIL: case %q", c.Name)
+					if len(c.Missing) > 0 {
+						fmt.Fprintf(cmd.ErrOrStderr(), ": missing images: %s", strings.Join(c.Missing, ", "))
+					}
+					fmt.Fprintf(cmd.ErrOrStderr(), "\n")
+					if len(c.Missing) > 0 {
+						fmt.Fprintf(cmd.ErrOrStderr(), "  %d images expected, %d found\n",
+							len(c.Expected), len(c.Expected)-len(c.Missing))
+					}
+				}
+			}
 			return fmt.Errorf("validation failed")
 		}
 		return nil
