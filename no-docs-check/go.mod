@@ -2,7 +2,7 @@ module chainguard.dev/tw/no-docs-check
 
 go 1.25.0
 
-require chainguard.dev/apko v1.1.3
+require chainguard.dev/apko v1.1.4
 
 require (
 	chainguard.dev/go-grpc-kit v0.17.15 // indirect
