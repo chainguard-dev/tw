@@ -1,6 +1,6 @@
-# Values mapping references non-existent path in chart - caught by validation
+# Digest marker at a path that doesn't exist in values.yaml
 ! chelm test cg.json --chart=chart
-stderr 'image "app" sets value at path nonexistent.deeply.nested.image'
+stderr 'image "app" sets value at path image.digest'
 stderr 'no key at that path'
 
 -- cg.json --
@@ -8,7 +8,12 @@ stderr 'no key at that path'
   "images": {
     "app": {
       "values": {
-        "nonexistent": {"deeply": {"nested": {"image": "${ref}"}}}
+        "image": {
+          "registry": "${registry}",
+          "repository": "${repo}",
+          "tag": "${tag}",
+          "digest": "${digest}"
+        }
       }
     }
   },
@@ -34,7 +39,10 @@ spec:
     spec:
       containers:
         - name: app
-          image: {{ .Values.image }}
+          image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
 
 -- chart/values.yaml --
-image: nginx:latest
+image:
+  registry: docker.io
+  repository: library/nginx
+  tag: latest

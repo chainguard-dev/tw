@@ -60,6 +60,9 @@ image:
       "images": [
         "cgr.test/chainguard/test/app:v0.0.0"
       ],
+      "expected": [
+        "app"
+      ],
       "extractors": {
         "regex": [
           "cgr.test/chainguard/test/app:v0.0.0"

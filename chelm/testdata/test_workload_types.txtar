@@ -160,6 +160,14 @@ replicaset:
         "cgr.test/chainguard/test/replicaset-app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "cgr.test/chainguard/test/statefulset-app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       ],
+      "expected": [
+        "statefulset-app",
+        "daemonset-app",
+        "job-app",
+        "cronjob-app",
+        "pod-app",
+        "replicaset-app"
+      ],
       "extractors": {
         "regex": [
           "cgr.test/chainguard/test/cronjob-app@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",

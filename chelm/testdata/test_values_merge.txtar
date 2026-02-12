@@ -103,6 +103,11 @@ components:
         "cgr.test/chainguard/test/shared-parent@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "cgr.test/chainguard/test/sibling-image@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       ],
+      "expected": [
+        "deep-nested",
+        "sibling-image",
+        "shared-parent"
+      ],
       "extractors": {
         "regex": [
           "cgr.test/chainguard/test/deep-nested@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",

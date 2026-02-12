@@ -103,6 +103,15 @@ images:
         "cgr.test/chainguard/test/quay@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "cgr.test/chainguard/test/withport@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       ],
+      "expected": [
+        "gcr",
+        "artifact",
+        "ecr",
+        "quay",
+        "ghcr",
+        "dockerhub",
+        "withport"
+      ],
       "extractors": {
         "regex": [
           "cgr.test/chainguard/test/artifact@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",

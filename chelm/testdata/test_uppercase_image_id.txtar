@@ -1,27 +1,19 @@
-# Test fails when expected images are not all extracted
+# Uppercase image ID in cg.json produces a clear validation error
 ! chelm test cg.json --chart=chart
-stdout '"passed": false'
-stdout '"missing"'
-stdout '"expected"'
-stderr 'FAIL: case "default": missing images: missing'
+stderr 'image ID "defaultBackend" contains uppercase characters'
 
 -- cg.json --
 {
   "images": {
-    "app": {
+    "defaultBackend": {
       "values": {
         "image": "${ref}"
-      }
-    },
-    "missing": {
-      "values": {
-        "notUsed": {"image": "${ref}"}
       }
     }
   },
   "test": {
     "cases": [
-      {"name": "default", "images": ["app", "missing"]}
+      {"name": "default", "images": ["defaultBackend"]}
     ]
   }
 }
@@ -45,5 +37,3 @@ spec:
 
 -- chart/values.yaml --
 image: nginx:latest
-notUsed:
-  image: unused:latest
