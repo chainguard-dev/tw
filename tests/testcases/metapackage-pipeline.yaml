@@ -1,0 +1,17 @@
+name: Metapackage pipeline validation tests
+
+description: Test suite for test/tw/metapackage pipeline
+
+testcases:
+  - name: Valid metapackage - wolfi-base
+    description: Verify metapackage pipeline passes for valid metapackages
+    package: wolfi-base
+    pipelines:
+      - uses: test/tw/metapackage
+    expect_pass: true
+  - name: Invalid metapackage - bash (has files)
+    description: Verify metapackage pipeline fails for packages with files
+    package: bash
+    pipelines:
+      - uses: test/tw/metapackage
+    expect_pass: false
