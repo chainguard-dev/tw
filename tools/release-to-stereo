@@ -93,7 +93,8 @@ main() {
 	tag=v${tag#v} # chop of 'v' in v0.0.1
 	shift
 
-	local stereo_dir="$1"
+	local stereo_diri="$1"
+	stereo_dir=$(cd "${stereo_diri}" && pwd) || fail "failed cd $stereo_dir"
 
 	TEMP_D=$(mktemp -d "${TMPDIR:-/tmp}/${0##*/}.XXXXXX") ||
 		fail "failed to make tempdir"
