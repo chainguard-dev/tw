@@ -24,7 +24,7 @@ inputs:
             g++
             cpp
     required: false
-    default: "${{package.name}}"
+    default: "${{context.name}}"
   help-flag:
     description: |
       Command line flag used to get help information.

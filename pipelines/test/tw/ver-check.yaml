@@ -24,7 +24,7 @@ inputs:
             g++
             cpp
     required: false
-    default: "${{package.name}}"
+    default: "${{context.name}}"
   version:
     description: |
       Expected version string to match in the binary's version output.
