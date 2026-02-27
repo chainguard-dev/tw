@@ -15,6 +15,7 @@ inputs:
     description: |
       Binary names to check for help output, one per line.
       Can be a single binary or multiple binaries.
+      Defaults to the package name if not specified.
       Examples:
         Single: "nginx"
         Multiple:
@@ -22,7 +23,8 @@ inputs:
             gcc
             g++
             cpp
-    required: true
+    required: false
+    default: "${{package.name}}"
   help-flag:
     description: |
       Command line flag used to get help information.
