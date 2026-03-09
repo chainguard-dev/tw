@@ -23,12 +23,12 @@ jobs:
       contents: read
     runs-on: ubuntu-24.04-${{matrix.arch}}
     steps:
-      - uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
+      - uses: step-security/harden-runner@58077d3c7e43986b6b15fba718e8ea69e387dfcc # v2.15.1
         with:
           egress-policy: audit
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: chainguard-dev/actions/apt-faster@71714a76c3df10b544595a2294c16649dc3472e5 # v1.6.5
-      - uses: chainguard-dev/actions/setup-melange@71714a76c3df10b544595a2294c16649dc3472e5 # v1.6.5
+      - uses: chainguard-dev/actions/apt-faster@5e84f02889db0de213947c80a5d75b51bb899048 # v1.6.7
+      - uses: chainguard-dev/actions/setup-melange@5e84f02889db0de213947c80a5d75b51bb899048 # v1.6.7
       - name: Set up Go
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
