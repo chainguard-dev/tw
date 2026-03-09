@@ -38,3 +38,34 @@ func TestNormalizePath(t *testing.T) {
 		})
 	}
 }
+
+func TestIsHeaderFile(t *testing.T) {
+	tests := []struct {
+		name     string
+		file     string
+		expected bool
+	}{
+		{"C header", "foo.h", true},
+		{"C++ .hpp header", "foo.hpp", true},
+		{"C++ .hxx header", "foo.hxx", true},
+		{"C++ .hh header", "foo.hh", true},
+		{"C++ .h++ header", "foo.h++", true},
+		{"source file", "foo.c", false},
+		{"C++ source", "foo.cpp", false},
+		{"object file", "foo.o", false},
+		{"no extension", "foo", false},
+		{"empty string", "", false},
+		{"header in path", "/usr/include/boost/config.hpp", true},
+		{"h in middle of name", "fooher.txt", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isHeaderFile(tt.file)
+			if result != tt.expected {
+				t.Errorf("isHeaderFile(%q) = %v, want %v",
+					tt.file, result, tt.expected)
+			}
+		})
+	}
+}

@@ -199,7 +199,17 @@ func IsDevPackage(pkg string) bool {
 	return strings.HasSuffix(pkg, "-dev") || strings.HasSuffix(pkg, "-devel")
 }
 
-// HasHeaderFiles checks if package contains .h files under /usr
+// isHeaderFile checks if a filename has a C or C++ header extension.
+func isHeaderFile(file string) bool {
+	for _, ext := range []string{".h", ".hpp", ".hxx", ".hh", ".h++"} {
+		if strings.HasSuffix(file, ext) {
+			return true
+		}
+	}
+	return false
+}
+
+// HasHeaderFiles checks if package contains C/C++ header files under /usr
 func HasHeaderFiles(pkg string) (bool, error) {
 	files, err := GetPackageFiles(pkg)
 	if err != nil {
@@ -207,7 +217,7 @@ func HasHeaderFiles(pkg string) (bool, error) {
 	}
 
 	for _, file := range files {
-		if strings.HasPrefix(file, "/usr/") && strings.HasSuffix(file, ".h") {
+		if strings.HasPrefix(file, "/usr/") && isHeaderFile(file) {
 			return true, nil
 		}
 	}

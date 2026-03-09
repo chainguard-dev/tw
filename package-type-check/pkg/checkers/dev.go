@@ -25,13 +25,13 @@ func CheckDevPackage(pkg string) error {
 	}
 	fmt.Printf("PASS [2/3]: Dev package [%s] is not empty\n", pkg)
 
-	// Check 3: Package should contain .h files under /usr
+	// Check 3: Package should contain C/C++ header files under /usr
 	hasHeaders, err := utils.HasHeaderFiles(pkg)
 	if err != nil {
 		return err
 	}
 	if !hasHeaders {
-		return fmt.Errorf("FAIL [3/3]: Dev package [%s] does not contain any .h files under /usr", pkg)
+		return fmt.Errorf("FAIL [3/3]: Dev package [%s] does not contain any header files (.h, .hpp, .hxx, .hh, .h++) under /usr", pkg)
 	}
 	fmt.Printf("PASS [3/3]: Dev package [%s] contains header files under /usr\n", pkg)
 
