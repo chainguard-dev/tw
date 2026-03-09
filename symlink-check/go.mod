@@ -1,8 +1,8 @@
 module symlink-check
 
-go 1.25.0
+go 1.25.6
 
-require chainguard.dev/apko v1.1.9
+require chainguard.dev/apko v1.1.11
 
 require (
 	chainguard.dev/go-grpc-kit v0.17.15 // indirect
@@ -45,7 +45,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.40.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.39.0 // indirect
 	go.opentelemetry.io/otel/trace v1.40.0 // indirect
-	go.step.sm/crypto v0.76.0 // indirect
+	go.step.sm/crypto v0.76.2 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	golang.org/x/crypto v0.47.0 // indirect
 	golang.org/x/net v0.49.0 // indirect
@@ -54,7 +54,7 @@ require (
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/text v0.33.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
-	google.golang.org/api v0.267.0 // indirect
+	google.golang.org/api v0.268.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260128011058-8636f8732409 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260203192932-546029d2fa20 // indirect
 	google.golang.org/grpc v1.78.0 // indirect
