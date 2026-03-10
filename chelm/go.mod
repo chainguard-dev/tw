@@ -6,10 +6,11 @@ require (
 	chainguard.dev/sdk v0.1.50
 	dario.cat/mergo v1.0.2
 	github.com/google/go-containerregistry v0.20.7
+	github.com/opencontainers/go-digest v1.0.0
 	github.com/rogpeppe/go-internal v1.14.1
 	github.com/spf13/cobra v1.10.2
 	gopkg.in/yaml.v3 v3.0.1
-	k8s.io/apimachinery v0.35.1
+	k8s.io/apimachinery v0.35.2
 )
 
 require (
@@ -21,7 +22,6 @@ require (
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
-	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/palantir/pkg v1.1.0 // indirect
 	github.com/palantir/pkg/yamlpatch v1.4.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
