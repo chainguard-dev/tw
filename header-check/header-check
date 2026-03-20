@@ -14,7 +14,7 @@ error() {
 	exit 1
 }
 
-# shellcheck disable=SC2317
+# shellcheck disable=SC2317,SC2329
 cleanup() {
 	[ -n "$TEMP_D" ] || return 0
 	rm -Rf "$TEMP_D"

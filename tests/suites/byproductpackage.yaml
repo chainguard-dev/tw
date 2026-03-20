@@ -1,0 +1,17 @@
+name: Byproduct package pipeline validation tests
+
+description: Test suite for test/tw/byproductpackage pipeline
+
+testcases:
+  - name: A Valid Byproductpackage py3-altair
+    description: Verify byproductpackage pipeline pass
+    package: py3-altair
+    pipelines:
+      - uses: test/tw/byproductpackage
+    expect_pass: true
+  - name: An Invalid Byproductpackage py3.13-altair
+    description: Verify byproductpackage pipeline fails
+    package: py3.13-altair
+    pipelines:
+      - uses: test/tw/byproductpackage
+    expect_pass: false
