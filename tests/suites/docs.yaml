@@ -1,0 +1,29 @@
+name: Docs pipeline validation tests
+
+description: Test suite for test/tw/docs pipeline
+
+testcases:
+  - name: Valid docs package giflib-doc
+    description: Verify docs pipeline passes for valid giflib-doc documentation package
+    package: giflib-doc
+    pipelines:
+      - uses: test/tw/docs
+    expect_pass: true
+  - name: Valid docs package curl-doc
+    description: Verify docs pipeline passes for valid curl-doc documentation package
+    package: curl-doc
+    pipelines:
+      - uses: test/tw/docs
+    expect_pass: true
+  - name: Invalid docs package glibc (not a docs package)
+    description: Verify docs pipeline fails for non-documentation glibc packages
+    package: glibc
+    pipelines:
+      - uses: test/tw/docs
+    expect_pass: false
+  - name: Invalid docs package bash (binary package)
+    description: Verify docs pipeline fails for binary bash packages
+    package: bash
+    pipelines:
+      - uses: test/tw/docs
+    expect_pass: false

@@ -4,6 +4,7 @@ packages/*
 melange-cache/*
 local-melange.rsa*
 melange.rsa*
+tests/.out
 
 # macOS
 .DS_Store

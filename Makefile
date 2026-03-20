@@ -17,12 +17,18 @@ REPO ?= $(TOP_D)/packages
 OUT_DIR ?= $(TOP_D)/packages
 
 TEST_DIR ?= $(TOP_D)/tests
-TEST_OUT_DIR ?= $(TEST_DIR)/packages
-TEST_PIPELINE_FILES := $(wildcard $(TEST_DIR)/*-test.yaml)
+SUITE_DIR ?= $(TEST_DIR)/suites
+MANUAL_TEST_DIR ?= $(TEST_DIR)/manual
+TEST_OUT_DIR ?= $(TEST_DIR)/.out/packages
+TEST_RUNNER ?= $(TEST_DIR)/runner/pipeline-runner
+
+# Test file types
+MANUAL_TEST_FILES := $(wildcard $(MANUAL_TEST_DIR)/*.yaml)
+SUITE_TEST_FILES := $(wildcard $(SUITE_DIR)/*.yaml)
 
 BIN_TOOLS_D = $(TOP_D)/tools/bin
 
-YAM_FILES := $(shell find * .github -name "*.yaml" -type f)
+YAM_FILES := $(shell find * .github -name "*.yaml" -type f -not -path "tests/.out/*")
 
 WOLFI_REPO ?= https://packages.wolfi.dev/os
 WOLFI_KEY ?= https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
@@ -73,7 +79,11 @@ shellcheck:
 	done; exit $$rc
 
 clean:
-	rm -rf $(OUT_DIR) && rm -rf $(TEST_OUT_DIR)
+	rm -rf $(OUT_DIR) && rm -rf $(TEST_DIR)/.out
+
+# ============================================================================
+# Test Targets
+# ============================================================================
 
 # Test the main melange.yaml package
 .PHONY: test-melange
@@ -81,24 +91,27 @@ test-melange: $(KEY)
 	@echo "==> Testing melange.yaml package..."
 	$(MELANGE) test melange.yaml $(MELANGE_OPTS) $(MELANGE_TEST_OPTS)
 
-# Build pipeline test packages
-.PHONY: build-pipeline-tests
-build-pipeline-tests: $(KEY)
-	@echo "==> Building pipeline test packages..."
-	@rc=0; for test_file in $(TEST_PIPELINE_FILES); do \
+# Build the test runner
+.PHONY: build-test-runner
+build-test-runner:
+	@echo "==> Building test runner..."
+	@cd $(TEST_DIR)/runner && go build -o pipeline-runner .
+
+# Run manual tests (full melange YAML files with *-test.yaml pattern)
+.PHONY: test-manual
+test-manual: $(KEY)
+	@echo "==> Running manual tests..."
+	@if [ -z "$(MANUAL_TEST_FILES)" ]; then \
+		echo "No manual test files found"; \
+		exit 0; \
+	fi
+	@rc=0; for test_file in $(MANUAL_TEST_FILES); do \
 		echo "Building $$test_file"; \
 		$(MELANGE) build $$test_file $(MELANGE_OPTS) --signing-key=${KEY} --pipeline-dir ${TOP_D}/pipelines --out-dir=${TEST_OUT_DIR} || rc=$$?; \
 		if [ $$rc -ne 0 ]; then \
 			echo "ERROR: Build failed for $$test_file" >&2; \
 			exit $$rc; \
 		fi; \
-	done; exit $$rc
-
-# Run pipeline validation tests
-.PHONY: run-pipeline-tests
-run-pipeline-tests: $(KEY)
-	@echo "==> Running pipeline validation tests..."
-	@rc=0; for test_file in $(TEST_PIPELINE_FILES); do \
 		echo "Testing $$test_file"; \
 		$(MELANGE) test $$test_file $(MELANGE_OPTS) $(MELANGE_TEST_OPTS) || rc=$$?; \
 		if [ $$rc -ne 0 ]; then \
@@ -107,12 +120,29 @@ run-pipeline-tests: $(KEY)
 		fi; \
 	done; exit $$rc
 
-# Complete pipeline test suite (clean + build + test)
+# Run suite tests (declarative test files)
+.PHONY: test-suite
+test-suite: build $(KEY) build-test-runner
+	@echo "==> Running suite tests..."
+	@if [ -z "$(SUITE_TEST_FILES)" ]; then \
+		echo "No suite test files found"; \
+		exit 0; \
+	fi
+	@$(TEST_RUNNER) \
+		--test-dir $(SUITE_DIR) \
+		--pipeline-dir $(TOP_D)/pipelines \
+		--arch $(ARCH) \
+		--out-dir $(TEST_DIR)/.out/generated \
+		--repositories "$(OUT_DIR),$(WOLFI_REPO)" \
+		--keyrings "$(KEY).pub,$(WOLFI_KEY)" \
+		--append-packages "wolfi-base"
+
+# Run all pipeline tests (both manual and suite)
 .PHONY: test-pipelines
 test-pipelines:
-	@echo "==> Running complete pipeline test suite..."
-	$(MAKE) build-pipeline-tests
-	$(MAKE) run-pipeline-tests
+	@echo "==> Running all pipeline tests..."
+	$(MAKE) test-manual
+	$(MAKE) test-suite
 
 # Run all tests
 .PHONY: test-all
