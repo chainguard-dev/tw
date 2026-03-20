@@ -413,10 +413,25 @@ go build -ldflags="-X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +
    ./pipeline-runner --debug --test-dir ../suites --pipeline-dir ../../pipelines --out-dir ../.out/generated
    ```
 
-3. Run melange directly:
+3. Run melange directly (from the repo root):
    ```bash
-   melange test --debug ../.out/generated/pass-suite-name/package.yaml
+   melange test --debug \
+     --arch $(uname -m) \
+     --pipeline-dirs pipelines \
+     --repository-append packages \
+     --repository-append https://packages.wolfi.dev/os \
+     --keyring-append local-melange.rsa.pub \
+     --keyring-append https://packages.wolfi.dev/os/wolfi-signing.rsa.pub \
+     tests/.out/generated/pass-suite-name/package.yaml
    ```
+
+   > **Important:**
+   > - `--repository-append packages` and `--keyring-append local-melange.rsa.pub` are required
+   >   to use your locally built tools (e.g., `package-type-check`). Without them, melange pulls
+   >   the published version from Wolfi, which may not include your local fixes.
+   >   Run `make build` first to ensure local packages are up to date.
+   > - `--arch` is required — without it melange tests against all architectures,
+   >   including ones Wolfi may not have indexes for (e.g., `riscv64`), causing 404 errors.
 
 ## See Also
 

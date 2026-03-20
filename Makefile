@@ -28,7 +28,7 @@ SUITE_TEST_FILES := $(wildcard $(SUITE_DIR)/*.yaml)
 
 BIN_TOOLS_D = $(TOP_D)/tools/bin
 
-YAM_FILES := $(shell find * .github -name "*.yaml" -type f)
+YAM_FILES := $(shell find * .github -name "*.yaml" -type f -not -path "tests/.out/*")
 
 WOLFI_REPO ?= https://packages.wolfi.dev/os
 WOLFI_KEY ?= https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
