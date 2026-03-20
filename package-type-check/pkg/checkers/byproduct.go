@@ -6,7 +6,12 @@ import (
 	"strings"
 )
 
-// IsSameNamePackageInstalled checks if a package is really installed
+// IsSameNamePackageInstalled checks if a package with exactly this name is installed.
+// apk list --installed outputs lines like:
+//
+//	py3.13-altair-6.0.0-r2 aarch64 {py3-altair} (BSD-3-Clause) [installed]
+//
+// We check that the line starts with "<pkg>-" (name followed by version separator).
 func IsSameNamePackageInstalled(pkg string) (bool, error) {
 	cmd := exec.Command("apk", "list", "--installed", pkg)
 	output, err := cmd.Output()
@@ -14,13 +19,14 @@ func IsSameNamePackageInstalled(pkg string) (bool, error) {
 		return false, fmt.Errorf("failed to get installed version for package %q: %w", pkg, err)
 	}
 
-	// Split the output by lines and get the first line
-	lines := strings.Split(string(output), "\n")
-	if len(lines) == 0 || lines[0] == "" || strings.Compare(lines[0], pkg) != 0 {
-		return false, nil // Package not installed
+	prefix := pkg + "-"
+	for line := range strings.SplitSeq(strings.TrimSpace(string(output)), "\n") {
+		if line != "" && strings.HasPrefix(line, prefix) {
+			return true, nil
+		}
 	}
 
-	return true, nil
+	return false, nil
 }
 
 func CheckByProductPackage(pkg string) error {
