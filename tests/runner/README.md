@@ -22,7 +22,7 @@ go build -o pipeline-runner .
 Or via Makefile from the repository root:
 
 ```bash
-make build-pipeline-runner
+make build-test-runner
 ```
 
 ## Usage
@@ -31,12 +31,12 @@ make build-pipeline-runner
 
 ```bash
 ./pipeline-runner \
-  --test-dir ../testcases \
+  --test-dir ../suites \
   --pipeline-dir ../../pipelines \
   --arch aarch64 \
   --repositories "/path/to/packages,https://packages.wolfi.dev/os" \
   --keyrings "/path/to/key.pub,https://packages.wolfi.dev/os/wolfi-signing.rsa.pub" \
-  --out-dir ../generated \
+  --out-dir ../.out/generated \
   --append-packages "wolfi-base"
 ```
 
@@ -50,8 +50,9 @@ make build-pipeline-runner
 
 ```bash
 ./pipeline-runner \
-  --test-dir ../testcases \
+  --test-dir ../suites \
   --pipeline-dir ../../pipelines \
+  --out-dir ../.out/generated \
   --debug \
   [other flags...]
 ```
@@ -66,20 +67,22 @@ make build-pipeline-runner
 
 ```bash
 ./pipeline-runner \
-  --test-dir ../testcases \
+  --test-dir ../suites \
   --pipeline-dir ../../pipelines \
-  --test-suite docs-pipeline \
+  --out-dir ../.out/generated \
+  --test-suite docs \
   [other flags...]
 ```
 
-The test suite name comes from the filename (e.g., `docs-pipeline.yaml` → `docs-pipeline`).
+The test suite name comes from the filename (e.g., `docs.yaml` → `docs`).
 
 ### Generate Configs Only (No Testing)
 
 ```bash
 ./pipeline-runner \
-  --test-dir ../testcases \
+  --test-dir ../suites \
   --pipeline-dir ../../pipelines \
+  --out-dir ../.out/generated \
   --generate-only \
   [other flags...]
 ```
@@ -99,25 +102,52 @@ This generates all melange YAML files in the output directory without executing 
 ## Command-Line Options
 
 ### Required Flags
-- `--test-dir`: Directory containing test case YAML files (in `testcases/` subdirectory)
+- `--test-dir`: Directory containing test suite YAML files (the `suites/` directory)
 - `--pipeline-dir`: Directory containing pipeline definitions
 
 ### Optional Flags
 - `--arch`: Architecture to test (default: `x86_64`)
-- `--runner`: Runner to use - `docker`, `bubblewrap`, `qemu`, etc.
 - `--repositories`: Comma-separated list of package repositories
 - `--keyrings`: Comma-separated list of signing key paths
-- `--out-dir`: Output directory for generated files (default: `{test-dir}/generated`)
+- `--out-dir`: Output directory for generated files (default: `{test-dir}/.out/generated`)
 - `--append-packages`: Comma-separated list of packages to add to all test environments
-- `--test-suite`: Run only a specific test suite (e.g., `docs-pipeline`)
+- `--test-suite`: Run only a specific test suite (e.g., `docs`)
 - `--generate-only`: Only generate configs without running tests
 - `--debug`: Enable debug mode (shows melange output and internal details)
 - `--melange`: Path to melange binary (default: `melange`)
 - `--version`: Show version information
 
+## Directory Structure
+
+The runner operates within the following layout:
+
+```
+tests/
+├── suites/                    # Declarative test definitions (consumed by runner)
+│   ├── docs.yaml
+│   ├── contains-files.yaml
+│   ├── emptypackage.yaml
+│   └── metapackage.yaml
+├── manual/                    # Hand-written melange YAML (synthetic packages)
+│   └── header-check.yaml
+├── runner/                    # This tool (Go source)
+│   ├── main.go
+│   ├── go.mod
+│   └── go.sum
+├── .out/                      # All ephemeral artifacts (gitignored)
+│   ├── generated/             #   Auto-generated melange configs
+│   └── packages/              #   Built test packages
+├── README.md
+└── .gitignore
+```
+
+- **`suites/`** — The primary input. Each YAML file defines a test suite for one pipeline. File names match pipeline names 1:1 (e.g., `docs.yaml` tests `test/tw/docs`).
+- **`manual/`** — Hand-written melange YAML files for edge cases that need synthetic packages (e.g., creating fake headers to test `header-check`). These are run directly via `melange build` + `melange test`, not through the runner.
+- **`.out/`** — All build artifacts land here. Gitignored. `make clean` removes it entirely.
+
 ## Test Case Format
 
-Test cases are defined in YAML files under `testcases/`:
+Test cases are defined in YAML files under `suites/`:
 
 ```yaml
 name: Test suite name
@@ -159,7 +189,7 @@ Each pipeline can have:
 The runner generates configs in separate directories for positive and negative tests:
 
 ```
-generated/
+.out/generated/
 ├── pass-{sanitized-suite-name}/
 │   ├── package1.yaml
 │   └── package2.yaml
@@ -221,14 +251,14 @@ Key features:
 Shows clean, focused output:
 
 ```
-Found 6 test suite files
-Processing test suite: tests/testcases/docs-pipeline.yaml
+Found 4 test suite files
+Processing test suite: tests/suites/docs.yaml
 Test Suite: Docs pipeline validation tests
-  ✓ Generated positive test: tests/generated/pass-docs-pipeline/giflib-doc.yaml
+  ✓ Generated positive test: tests/.out/generated/pass-docs-pipeline/giflib-doc.yaml
     ✓ PASS: Valid docs package giflib-doc (correctly accepted giflib-doc)
-  ✓ Generated positive test: tests/generated/pass-docs-pipeline/curl-doc.yaml
+  ✓ Generated positive test: tests/.out/generated/pass-docs-pipeline/curl-doc.yaml
     ✓ PASS: Valid docs package curl-doc (correctly accepted curl-doc)
-  ✓ Generated negative test: tests/generated/fail-docs-pipeline/bash.yaml
+  ✓ Generated negative test: tests/.out/generated/fail-docs-pipeline/bash.yaml
     ✓ PASS: Invalid docs package bash (correctly rejected bash)
 
 ========================================
@@ -244,12 +274,12 @@ Test Results:
 Shows everything including melange output:
 
 ```
-Processing test suite: tests/testcases/docs-pipeline.yaml
-[DEBUG] Loading test suite from: tests/testcases/docs-pipeline.yaml
+Processing test suite: tests/suites/docs.yaml
+[DEBUG] Loading test suite from: tests/suites/docs.yaml
 Test Suite: Docs pipeline validation tests
 [DEBUG] Test suite has 4 test cases
 [DEBUG] Processing 2 positive test cases
-  ✓ Generated positive test: tests/generated/pass-docs-pipeline/giflib-doc.yaml
+  ✓ Generated positive test: tests/.out/generated/pass-docs-pipeline/giflib-doc.yaml
 [DEBUG]     Package: giflib-doc, Expect pass: true
 [DEBUG] Running melange command: melange test --runner docker ...
 2026/01/27 17:48:15 INFO melange 0.39.0 with runner docker is testing:
@@ -265,11 +295,11 @@ Test Suite: Docs pipeline validation tests
 
 ## Test Execution Flow
 
-1. **Discovery**: Scan test directory for YAML files
+1. **Discovery**: Scan `suites/` directory for YAML files
 2. **Loading**: Parse and validate test suites
 3. **Validation**: Check test cases for required fields and pipeline definitions
 4. **Separation**: Split tests into positive (expect pass) and negative (expect fail)
-5. **Generation**: Create Melange configs in `pass-*/` and `fail-*/` directories
+5. **Generation**: Create Melange configs in `.out/generated/pass-*/` and `.out/generated/fail-*/` directories
 6. **Execution**: Run `melange test` for each generated config
 7. **Validation**: Compare results to expectations
 8. **Reporting**: Display results and detailed failure information
@@ -294,9 +324,8 @@ When tests fail, the runner provides detailed information:
       Package: bash
       Expected: fail
       Actual:   pass
-      Config:   tests/generated/fail-docs-pipeline/bash.yaml
+      Config:   tests/.out/generated/fail-docs-pipeline/bash.yaml
       Run:      make test-pipelines-autogen/docs-pipeline
-      Error:    expected test to fail but it passed
 
 ========================================
 Test Results:
@@ -311,9 +340,8 @@ Failing Test Details:
    Package:  bash
    Expected: fail
    Actual:   pass
-   Config:   tests/generated/fail-docs-pipeline/bash.yaml
+   Config:   tests/.out/generated/fail-docs-pipeline/bash.yaml
    Run:      make test-pipelines-autogen/docs-pipeline
-   Error:    expected test to fail but it passed
 
 To debug failures:
   1. Check the generated config file listed above
@@ -347,21 +375,17 @@ Validation errors include file paths and specific issues for easy debugging.
 go build -ldflags="-X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o pipeline-runner .
 ```
 
-The Makefile automatically includes commit and date information when building via `make build-pipeline-runner`.
-
 ### Running Tests
-
-The runner itself is tested by the test cases it processes. To test:
 
 ```bash
 # Generate configs to verify correctness
-./pipeline-runner --generate-only [flags...]
+./pipeline-runner --generate-only --test-dir ../suites --pipeline-dir ../../pipelines --out-dir ../.out/generated
 
 # Run a single test suite
-./pipeline-runner --test-suite docs-pipeline [flags...]
+./pipeline-runner --test-suite docs --test-dir ../suites --pipeline-dir ../../pipelines --out-dir ../.out/generated
 
 # Run with debug mode to troubleshoot
-./pipeline-runner --debug [flags...]
+./pipeline-runner --debug --test-dir ../suites --pipeline-dir ../../pipelines --out-dir ../.out/generated
 ```
 
 ## Best Practices
@@ -380,22 +404,22 @@ The runner itself is tested by the test cases it processes. To test:
 
 1. Generate and inspect the config:
    ```bash
-   ./pipeline-runner --generate-only [flags...]
-   cat generated/pass-suite-name/package.yaml
+   ./pipeline-runner --generate-only --test-dir ../suites --pipeline-dir ../../pipelines --out-dir ../.out/generated
+   cat ../.out/generated/pass-suite-name/package.yaml
    ```
 
 2. Run in debug mode:
    ```bash
-   ./pipeline-runner --debug [flags...]
+   ./pipeline-runner --debug --test-dir ../suites --pipeline-dir ../../pipelines --out-dir ../.out/generated
    ```
 
 3. Run melange directly:
    ```bash
-   melange test --debug generated/pass-suite-name/package.yaml
+   melange test --debug ../.out/generated/pass-suite-name/package.yaml
    ```
 
 ## See Also
 
-- [AUTOGEN-TESTS.md](../AUTOGEN-TESTS.md) - Complete documentation for the autogenerated test infrastructure
-- [README.md](../README.md) - Overview of the entire test infrastructure
-- Test case examples in `tests/testcases/`
+- [tests/README.md](../README.md) - Overview of the entire test infrastructure
+- Test suite definitions in `tests/suites/`
+- Manual test definitions in `tests/manual/`

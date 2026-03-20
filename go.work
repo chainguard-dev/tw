@@ -6,6 +6,7 @@ use (
 	./no-docs-check
 	./package-type-check
 	./symlink-check
+	./tests/runner
 	./tw
 	./usrmerge-tool
 )

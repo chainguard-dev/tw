@@ -1,220 +1,208 @@
 # Pipeline Test Suite
 
-This directory contains test melange files for validating the pipeline checks located in `../pipelines/test/tw/`. for this test to work we need to run `make build` for getting the latest version of the pipeline and projects locally.
+This directory contains all pipeline validation tests for the `test/tw/` pipelines defined in `../pipelines/test/tw/`.
 
-## Purpose
+## Directory Structure
 
-These tests ensure that:
-1. Pipeline validators correctly accept valid packages (positive tests)
-2. Pipeline validators correctly reject invalid packages (negative tests)
-3. Changes to pipelines don't break existing functionality
-4. Both synthetic test packages and real Wolfi packages are validated
+```
+tests/
+├── suites/                    # Declarative test definitions (consumed by runner)
+│   ├── docs.yaml
+│   ├── contains-files.yaml
+│   ├── emptypackage.yaml
+│   └── metapackage.yaml
+├── manual/                    # Hand-written melange YAML (synthetic packages)
+│   └── header-check.yaml
+├── runner/                    # Test runner Go source (infrastructure)
+│   ├── main.go
+│   ├── go.mod
+│   └── go.sum
+├── .out/                      # ALL ephemeral artifacts (gitignored)
+│   ├── generated/             #   auto-generated melange configs
+│   └── packages/              #   built test packages
+├── README.md
+└── .gitignore
+```
 
-## Writing Pipeline Tests
+## Two Flavors of Test
 
-### File Structure
+### 1. Suite Tests (declarative, auto-generated)
 
-Each test file should follow this structure:
+Suite tests live in `suites/` and use a simple declarative YAML format. The test runner reads these definitions, auto-generates melange configs, executes them, and validates results. This is the **default and preferred way** to test pipelines.
+
+Each file maps 1:1 to a pipeline under `pipelines/test/tw/`. For example, `suites/docs.yaml` tests the `test/tw/docs` pipeline.
+
+```yaml
+name: Docs pipeline validation tests
+description: Test suite for test/tw/docs pipeline
+
+testcases:
+  - name: Valid docs package giflib-doc
+    package: giflib-doc
+    pipelines:
+      - uses: test/tw/docs
+    expect_pass: true
+
+  - name: Invalid docs package bash (binary package)
+    package: bash
+    pipelines:
+      - uses: test/tw/docs
+    expect_pass: false
+```
+
+**When to use:** For any test that validates a pipeline against a real Wolfi package. This covers the vast majority of cases.
+
+See the [runner README](runner/README.md) for full details on the test case format, CLI options, and how the runner works.
+
+### 2. Manual Tests (hand-written melange YAML)
+
+Manual tests live in `manual/` and are full melange YAML files with subpackages that create synthetic package content. These are built with `melange build` and then tested with `melange test`.
+
+**When to use:** Only when you need to create synthetic packages with specific file layouts that don't exist in Wolfi. For example, testing `header-check` with deliberately malformed headers, or testing edge cases that require precise control over package contents.
+
+See [Writing Manual Tests](#writing-manual-tests) below for the format.
+
+## Running Tests
+
+```bash
+# Run all pipeline tests (both suite and manual)
+make test-pipelines
+
+# Run only suite tests (declarative)
+make test-suite
+
+# Run only manual tests (hand-written)
+make test-manual
+
+# Run all tests (melange + projects + pipelines)
+make test-all
+```
+
+### Prerequisites
+
+Tests require:
+- `melange` binary in your PATH
+- A signing key (auto-generated via `make build` if missing)
+- A built `tw` package (`make build` handles this)
+
+## Adding a New Suite Test
+
+1. Create `suites/<pipeline-name>.yaml` matching the pipeline you're testing:
+
+```yaml
+name: <Pipeline> pipeline validation tests
+description: Test suite for test/tw/<pipeline-name> pipeline
+
+testcases:
+  - name: Positive test - <describe what should pass>
+    description: Verify pipeline passes for <reason>
+    package: <real-wolfi-package>
+    pipelines:
+      - uses: test/tw/<pipeline-name>
+    expect_pass: true
+
+  - name: Negative test - <describe what should fail>
+    description: Verify pipeline fails for <reason>
+    package: <real-wolfi-package>
+    pipelines:
+      - uses: test/tw/<pipeline-name>
+    expect_pass: false
+```
+
+2. Run `make test-suite` to verify.
+
+### Test Case Fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Descriptive name for the test case |
+| `description` | No | Detailed explanation |
+| `package` | Yes | Real Wolfi package to test against |
+| `pipelines` | Yes | List of pipelines to apply (`uses` + optional `with`) |
+| `expect_pass` | Yes | `true` for positive tests, `false` for negative tests |
+| `test-dependencies` | No | Additional packages needed at test time |
+
+### Guidelines
+
+- **Use real Wolfi packages** — tests run against actual packages, not synthetic ones
+- **One package per test case** — keeps the 1:1 mapping clear for debugging
+- **Always include both positive and negative cases** — verify accept and reject behavior
+- **Name files after the pipeline** — `suites/docs.yaml` for `test/tw/docs`
+
+## Adding a New Manual Test
+
+Only add manual tests when suite tests can't cover the scenario (e.g., you need synthetic package content).
+
+1. Create `manual/<tool-name>.yaml` as a full melange YAML file:
 
 ```yaml
 package:
-  name: <pipeline-name>-test    # Must match filename without .yaml
-  version: "0.0.0"               # Always use 0.0.0
+  name: <tool-name>-test
+  version: "0.0.0"
   epoch: 0
-  description: Test for <pipeline-name> pipeline validation
+  description: Manual tests for <tool-name> pipeline edge cases
 
 environment:
   contents:
     packages:
-      - wolfi-base     # REQUIRED: Provides /bin/sh and basic utilities
+      - busybox
+      - wolfi-base
 
 pipeline:
-  # Main package should NOT be tested - just use a log line
   - runs: |
-      echo "Test package for <pipeline-name> validation"
+      echo "Manual edge case tests for <tool-name> pipeline"
 
 subpackages:
-  # All test scenarios go here as subpackages
-  - name: test-scenario-1
-    # ... test definition
-```
-
-### Critical Configuration Rules
-
-#### 1. Always Use Version `0.0.0`
-```yaml
-package:
-  version: "0.0.0"
-  epoch: 0
-```
-
-**Why:** Using `0.0.0` ensures test packages never conflict with real packages and clearly indicates these are test-only packagese.
-
-#### 3. Don't Test the Main Package
-```yaml
-pipeline:
-  - runs: |
-      echo "Test package for docs validation"
-```
-
-**Why:** The main package is just a container for subpackages. Put all test scenarios in subpackages to keep tests organized and focused.
-
-#### 4. Use Subpackages for All Test Scenarios
-```yaml
-subpackages:
-  - name: positive-test-1
-    # Valid package that should pass
-  
-  - name: negative-test-1
-    # Invalid package that should fail
-```
-
-**Why:** Each subpackage tests one specific scenario, making it easy to identify which test failed and why.
-
-### Testing Real Wolfi Packages
-
-You can test real Wolfi packages by using their exact name as a subpackage name:
-
-```yaml
-subpackages:
-  # This tests the REAL giflib-doc package from Wolfi
-  - name: giflib-doc
-    description: Test real giflib-doc package from Wolfi
-    pipeline:
-      - runs: echo "Testing giflib-doc from Wolfi"
-    test:
-      pipeline:
-        - uses: test/tw/docs
-```
-
-**How it works:**
-1. Your test package declares a subpackage named `giflib-doc`
-2. Because of `version: 0.0.0`, Wolfi's `giflib-doc` takes precedence
-3. The pipeline test runs against the real Wolfi package
-4. Your build step (`echo ...`) is a no-op since Wolfi's package is used
-
-**Benefits:**
-- Tests pipeline validators against real-world packages
-- Catches issues with actual package structures
-- Validates that checkers work with production packages
-
-### Writing Positive Tests
-
-Positive tests validate that valid packages pass the pipeline check:
-
-```yaml
-subpackages:
-  # positive manual test contains only static libs
-  - name: contains-only-static
-    description: "Positive test: Valid static package from Wolfi (contains *.a libraries)"
+  - name: <tool-name>-test-<scenario>
+    description: "<Positive/Negative> test: <describe scenario>"
     pipeline:
       - runs: |
-          # create a directory for static libraries
-          mkdir -p ${{targets.subpkgdir}}/usr/lib/
-          # create a static libraries in the lib directory
-          touch ${{targets.subpkgdir}}/usr/lib/libexample.a
+          # Create synthetic package content
+          mkdir -p ${{targets.contextdir}}/usr/...
     test:
       pipeline:
-        - uses: test/tw/staticpackage
-
+        - uses: test/tw/<pipeline-name>
 ```
 
-**Key points:**
-- Create realistic package content
-- Use the pipeline directly with `uses: test/tw/<pipeline-name>`
-- No special test logic needed - the pipeline should succeed
+2. Run `make test-manual` to verify.
 
-### Writing Negative Tests
+### Writing Manual Tests
 
-Negative tests validate that invalid packages are correctly rejected:
+#### Critical Rules
 
-```yaml
-subpackages:
-  # negative manual test contains static + other libs
-  - name: contains-static-and-more
-    description: "Negative test: Invalid static package from Wolfi (contains *.so libraries)"
-    pipeline:
-      - runs: |
-          # create a directory for static libraries
-          mkdir -p ${{targets.subpkgdir}}/usr/lib/
-          # create a static libraries in the lib directory
-          touch ${{targets.subpkgdir}}/usr/lib/libexample.so
-          # create a shared library in the lib directory
-          touch ${{targets.subpkgdir}}/usr/lib/libexample.so.1
-    test:
-      environment:
-        contents:
-          packages:
-            - package-type-check  # Needed for manual invocation
-      pipeline:
-        - name: Verify pipeline correctly rejects invalid package
-          runs: |
-            set +e  # CRITICAL: Don't exit on command failure
-            output=$(package-type-check static "${{context.name}}" 2>&1)
-            result=$?
-            echo "=== Output from package-type-check ==="
-            echo "$output"
-            echo "=== Exit code: $result ==="
-            if [ $result -eq 0 ]; then
-              echo "FAIL: Pipeline should have rejected non-static package (glibc)" >&2
-              exit 1
-            fi
-            echo "PASS: Pipeline correctly rejected non-static Wolfi package"
-```
+1. **Always use version `0.0.0`** — ensures test packages never conflict with real packages.
 
-**Critical requirements for negative tests:**
+2. **Use subpackages for all scenarios** — the main package is just a container. Each subpackage tests one scenario.
 
-#### 1. Always Use `set +e`
+3. **For negative tests, use `set +e`** — prevents the script from exiting when the checker command fails:
+
 ```bash
-set +e  # Allow commands to fail without exiting
-```
-
-**Why:** By default, shell scripts exit immediately when a command fails. Negative tests expect the pipeline checker to fail, so `set +e` allows the script to continue and validate the failure.
-
-#### 2. Capture and Display Output
-```bash
-output=$(package-type-check docs "${{targets.subpkgname}}" 2>&1)
+set +e
+output=$(some-check --packages="${{context.name}}" 2>&1)
 result=$?
-echo "=== Output from package-type-check ==="
 echo "$output"
-echo "=== Exit code: $result ==="
-```
-
-**Why:** Displaying the checker's output helps debug when tests fail unexpectedly and documents what the checker reported.
-
-#### 3. Validate the Failure
-```bash
 if [ $result -eq 0 ]; then
-  echo "FAIL: Pipeline should have rejected this package" >&2
+  echo "FAIL: Should have been rejected" >&2
   exit 1
 fi
-echo "PASS: Pipeline correctly rejected invalid package"
+echo "PASS: Correctly rejected"
 ```
 
-**Why:** The test succeeds when the pipeline checker fails (non-zero exit code).
+4. **Add tool binaries to test environment** — negative tests invoke checkers manually:
 
-#### 4. Add tw bin used to Environment
 ```yaml
 test:
   environment:
     contents:
       packages:
-        - package-type-check # or gem-check, header-check etc
+        - header-check  # or gem-check, package-type-check, etc.
 ```
 
-**Why:** Negative tests invoke the checker manually, so it must be available in the test environment.
+## Build Artifacts
 
-## Running Tests
+All build artifacts are written to `tests/.out/` (gitignored):
 
-Run all pipeline tests:
-```bash
-make test-pipelines
-```
+- `.out/generated/` — auto-generated melange configs from suite tests
+- `.out/packages/` — built packages from manual tests
 
-## Common Mistakes to Avoid
-
-### 1. Forgetting `set +e` in Negative Tests
-**Problem:** Script exits immediately when checker fails, test never validates the failure
-
-### 2. Not Capturing Output in Negative Tests
-**Problem:** Can't debug why test failed
+Run `make clean` to remove all artifacts.

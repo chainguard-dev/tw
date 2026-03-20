@@ -25,8 +25,7 @@ const (
 	defaultVersion     = "0.0.0"
 	defaultEpoch       = 0
 	basePackage        = "wolfi-base"
-	generatedSubdir    = "generated"
-	testcasesSubdir    = "testcases"
+	generatedSubdir    = ".out/generated"
 	filePermissions    = 0644
 	dirPermissions     = 0755
 	yamlFileExtension  = ".yaml"
@@ -238,27 +237,43 @@ type FailureInfo struct {
 func run(ctx context.Context, opts options, logger *Logger) error {
 	// Find all test case YAML files
 	var testFiles []string
-	var err error
 
 	if opts.testSuite != "" {
 		// Run only a specific test suite
-		testFile := filepath.Join(opts.testDir, testcasesSubdir, opts.testSuite+yamlFileExtension)
+		testFile := filepath.Join(opts.testDir, opts.testSuite+yamlFileExtension)
 		if _, err := os.Stat(testFile); os.IsNotExist(err) {
 			return fmt.Errorf("test suite not found: %s", testFile)
 		}
 		testFiles = []string{testFile}
 		logger.Info("Running single test suite: %s", opts.testSuite)
 	} else {
-		// Find all test case YAML files
-		testFiles, err = filepath.Glob(filepath.Join(opts.testDir, testcasesSubdir, "*"+yamlFileExtension))
+		// Find all test suite YAML files in test directory (excludes manual/ subdirectory)
+		allFiles, err := filepath.Glob(filepath.Join(opts.testDir, "*"+yamlFileExtension))
 		if err != nil {
 			return fmt.Errorf("failed to find test files: %w", err)
+		}
+
+		// Filter to only include valid test suite files
+		for _, file := range allFiles {
+			// Try to parse as test suite to verify it has testcases
+			data, err := os.ReadFile(file)
+			if err != nil {
+				continue
+			}
+			var suite TestSuite
+			if err := yaml.Unmarshal(data, &suite); err != nil {
+				continue
+			}
+			// Only include files with testcases field
+			if len(suite.TestCases) > 0 {
+				testFiles = append(testFiles, file)
+			}
 		}
 		logger.Info("Found %d test suite files", len(testFiles))
 	}
 
 	if len(testFiles) == 0 {
-		return fmt.Errorf("no test files found in %s", filepath.Join(opts.testDir, testcasesSubdir))
+		return fmt.Errorf("no test suite files found in %s", opts.testDir)
 	}
 
 	var totalPassed, totalFailed int

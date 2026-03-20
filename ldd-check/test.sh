@@ -71,4 +71,4 @@ main() {
   cleanup
 }
 
-main "${@}"
+main ${@+"$@"}
