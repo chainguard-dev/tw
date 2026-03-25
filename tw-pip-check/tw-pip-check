@@ -13,14 +13,18 @@ Tool to check for missing shared library dependencies.
 Options:
   -h, --help                    Show this help message and exit
   --python=PATH, --python PATH  Python interpreter to use
+  --venv=PATH, --venv PATH      Virtual environment to use
 
-Example:
+Examples:
+  $cmd
   $cmd --python=python3.13
+  $cmd --venv=/opt/chainguard/foo
 EOF
   exit 0
 }
 
 py=""
+venv=""
 
 while [ $# -ne 0 ]; do
     case "$1" in
@@ -28,12 +32,28 @@ while [ $# -ne 0 ]; do
         --python=*) py="${1#*=}";;
         --python) py="$2"
             shift;;
+        --venv=*) venv="${1#*=}";;
+        --venv) venv="$2"
+            shift;;
         --*) error "Unknown argument '$1'";;
     esac
     shift
 done
 
 set +x
+
+if [ -n "$venv" ] && [ -n "$py" ]; then
+    echo "ERROR: --venv and --python are mutually exclusive"
+    exit 1
+fi
+
+if [ -n "$venv" ]; then
+    if ! . "$venv/bin/activate"; then
+        echo "ERROR: Not a valid virtual environment: $venv"
+        exit 1
+    fi
+    py="$venv/bin/python3"
+fi
 
 if [ -z "$py" ]; then
     glob="/usr/bin/python3.[0-9][0-9] /usr/bin/python3.[789]"
