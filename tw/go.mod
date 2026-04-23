@@ -3,7 +3,7 @@ module github.com/chainguard-dev/tw
 go 1.25.7
 
 require (
-	chainguard.dev/apko v1.2.6
+	chainguard.dev/apko v1.2.7
 	github.com/aquasecurity/go-pep440-version v0.0.1
 	github.com/armon/go-radix v1.0.0
 	github.com/avast/retry-go/v4 v4.7.0
@@ -82,6 +82,7 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.8 // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
