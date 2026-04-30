@@ -21,7 +21,9 @@ inputs:
   files:
     description: |
       Space-separated list of file paths to check for existence.
-      If present, parameters 'dir', 'name' and 'type' will be ignored.
+      If present, parameters 'name' and 'type' will be ignored.
+      Absolute paths (starting with '/') are checked as-is.
+      Relative paths are joined with 'dir' as a shared prefix.
     required: false
     default: ""
 
@@ -49,6 +51,13 @@ inputs:
 #          /usr/lib/ruby/gems/3.3.0/gems/webrick-1.9.2/Gemfile
 #          /usr/lib/ruby/gems/3.3.0/gems/webrick-1.9.2/sig/cgi.rbs
 #
+#    - uses: test/tw/contains-files
+#      with:
+#        dir: "/usr/lib/ruby/gems/3.3.0/gems/webrick-1.9.2/"
+#        files: |
+#          Gemfile
+#          sig/cgi.rbs
+#
 pipeline:
   - name: "check the specified dir for file names"
     runs: |
@@ -74,6 +83,7 @@ pipeline:
 
   - name: "check the speficied files paths"
     runs: |
+      dir="${{inputs.dir}}"
       files="${{inputs.files}}"
       if [ -z "${files}" ] ; then
         # NOOP: the other run mode was requested
@@ -81,8 +91,12 @@ pipeline:
       fi
 
       for file in $files ; do
-        if [ ! -e "$file" ] ; then
-          echo "FAIL: file [${file}] is not in the package. This is unexpected." >&2
+        case "$file" in
+          /*) path="$file" ;;
+          *)  path="${dir%/}/$file" ;;
+        esac
+        if [ ! -e "$path" ] ; then
+          echo "FAIL: file [${path}] is not in the package. This is unexpected." >&2
           exit 1
         fi
       done
