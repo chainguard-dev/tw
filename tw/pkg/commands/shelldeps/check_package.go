@@ -36,11 +36,11 @@ func (c *cfg) checkPackageCommand() *cobra.Command {
 		Long: `Analyze shell scripts installed by a package and check for dependency issues.
 
 This command:
-  - Gets the list of files installed by the package (using apk info -L)
+  - Gets the list of files installed by the package (using apk info --installed -L)
   - Identifies shell scripts among the installed files
   - Extracts dependencies from each shell script
   - Checks if dependencies are available in the search path
-  - Checks runtime dependencies (using apk info -R) to detect GNU/busybox compatibility issues
+  - Checks runtime dependencies (using apk info --installed -R) to detect GNU/busybox compatibility issues
   - Detects GNU-specific flags that don't work with busybox
   - Exits with non-zero status if any issues are found
 
@@ -141,10 +141,10 @@ type scriptSource struct {
 
 // getInstalledFiles returns the list of files installed by a package
 func (c *checkPackageCfg) getInstalledFiles(packageName string) ([]string, error) {
-	cmd := exec.Command("apk", "info", "-L", packageName)
+	cmd := exec.Command("apk", "info", "--installed", "-L", packageName)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("apk info -L failed: %w (output: %s)", err, string(output))
+		return nil, fmt.Errorf("apk info --installed -L failed: %w (output: %s)", err, string(output))
 	}
 
 	lines := strings.Split(string(output), "\n")
@@ -172,7 +172,7 @@ func (c *checkPackageCfg) getInstalledFiles(packageName string) ([]string, error
 // getRuntimeDeps returns runtime dependencies for a package
 func (c *checkPackageCfg) getRuntimeDeps(packageName string) (runtimeDepsInfo, error) {
 	// Get dependencies from apk
-	cmd := exec.Command("apk", "info", "-R", packageName)
+	cmd := exec.Command("apk", "info", "--installed", "-R", packageName)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return runtimeDepsInfo{}, fmt.Errorf("could not get deps from apk: %w (output: %s)", err, string(output))
