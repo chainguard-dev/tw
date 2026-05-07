@@ -9,7 +9,7 @@ import (
 
 // IsPackageInstalled checks if the package is installed
 func IsPackageInstalled(pkg string) error {
-	cmd := exec.Command("apk", "info", "-eq", pkg)
+	cmd := exec.Command("apk", "info", "--installed", "-q", pkg)
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 	if err := cmd.Run(); err != nil {
@@ -20,7 +20,7 @@ func IsPackageInstalled(pkg string) error {
 
 // GetTotalApkCount retrieves the total count of installed APK packages in the environment
 func GetTotalApkCount() int {
-	cmd := exec.Command("apk", "info", "-L")
+	cmd := exec.Command("apk", "info", "--installed", "-L")
 	output, err := cmd.Output()
 	if err != nil {
 		return 0
@@ -44,7 +44,7 @@ func GetPackageFiles(pkg string) ([]string, error) {
 		return nil, err
 	}
 
-	cmd := exec.Command("apk", "info", "-qL", pkg)
+	cmd := exec.Command("apk", "info", "--installed", "-qL", pkg)
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get files for package %q: %w", pkg, err)
