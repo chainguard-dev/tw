@@ -241,7 +241,17 @@ Exit code is non-zero if any test case fails.`,
 
 				// Check tag/digest matches per-imageID test values
 				expectedDigest := chelm.TestDigest(imageID).String()
-				if ref.Digest != "" && ref.Digest != expectedDigest {
+				// If cg.json declares a digest-bearing marker for this image,
+				// require the rendered ref to actually carry that digest.
+				// Catches template bugs that drop the digest entirely or
+				// produce a malformed digest tail the regex extractor
+				// silently truncates.
+				if chelm.DeclaresDigest(meta.Images[imageID]) {
+					if ref.Digest != expectedDigest {
+						caseOut.Passed = false
+						output.Passed = false
+					}
+				} else if ref.Digest != "" && ref.Digest != expectedDigest {
 					caseOut.Passed = false
 					output.Passed = false
 				}

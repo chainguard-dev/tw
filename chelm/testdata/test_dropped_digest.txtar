@@ -1,0 +1,50 @@
+# cg.json declares ${digest} for the image but the chart template ignores it
+# and renders only :tag. Today the digest equality check is skipped when the
+# extracted ref has no digest, so the test passes silently. chelm test must
+# fail when a declared digest is missing from the rendered ref.
+! chelm test cg.json --chart=chart
+stdout '"passed": false'
+
+-- cg.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": {
+          "repository": "${registry_repo}",
+          "tag": "${tag}",
+          "digest": "${digest}"
+        }
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "default", "images": ["app"]}
+    ]
+  }
+}
+
+-- chart/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- chart/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          # Buggy template: declared digest is never written into the ref.
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+
+-- chart/values.yaml --
+image:
+  repository: nginx
+  tag: latest
+  digest: ""

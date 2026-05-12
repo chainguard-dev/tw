@@ -200,6 +200,12 @@ func (RegexExtractor) Extract(docs []map[string]any) []string {
 	var all []match
 	for _, p := range imagePatterns {
 		for _, loc := range p.FindAllIndex(raw, -1) {
+			// If the optional digest suffix failed to match and an '@' follows,
+			// the source has a malformed digest tail (e.g. @sha256:sha256:...).
+			// Skip rather than silently accept the truncated prefix as clean.
+			if loc[1] < len(raw) && raw[loc[1]] == '@' {
+				continue
+			}
 			all = append(all, match{
 				value: string(raw[loc[0]:loc[1]]),
 				start: loc[0],

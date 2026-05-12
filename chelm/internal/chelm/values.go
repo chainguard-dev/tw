@@ -25,6 +25,33 @@ func TestDigest(imageID string) digest.Digest {
 	return digest.NewDigestFromBytes(digest.SHA256, h[:])
 }
 
+// DeclaresDigest reports whether img's values reference a marker whose
+// resolved value contains a digest: ${digest}, ${pseudo_tag} (tag@digest in
+// a tag-shaped slot), or ${ref} (repo@digest).
+func DeclaresDigest(img *images.Image) bool {
+	if img == nil || img.Values == nil {
+		return false
+	}
+	var found bool
+	m := &images.Mapping{Images: map[string]*images.Image{"_": img}}
+	// Abuse Walk for lexing: the SDK's lexer is unexported, but Walk recurses
+	// through values and hands us the TokenList for each string. The return
+	// value and any walk error are discarded — we only want the side effect.
+	_, _ = m.Walk(func(_ string, tokens images.TokenList) (any, error) {
+		for _, tok := range tokens {
+			f, ok := tok.(images.RefField)
+			if !ok {
+				continue
+			}
+			if f == images.Digest || f == images.PseudoTag || f == images.Ref {
+				found = true
+			}
+		}
+		return "", nil
+	})
+	return found
+}
+
 // GenerateValues creates Helm values for a test case.
 // Merges in order: image values < global test values < case values < extra values
 func GenerateValues(meta *CGMeta, caseName, testRegistry string, extra map[string]any) (map[string]any, error) {
