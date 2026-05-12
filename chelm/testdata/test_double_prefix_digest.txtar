@@ -1,0 +1,48 @@
+# Chart template double-prefixes the digest, producing @sha256:sha256:<hex>.
+# Kubelet rejects this as InvalidImageName. The CR kind isn't in the
+# StructuredExtractor rule list, so only the regex extractor sees the ref.
+# chelm test must fail rather than silently truncate the malformed digest tail.
+! chelm test cg.json --chart=chart
+stdout '"passed": false'
+
+-- cg.json --
+{
+  "images": {
+    "prometheus": {
+      "values": {
+        "prometheus": {
+          "image": {
+            "repository": "${registry_repo}",
+            "tag": "${tag}",
+            "sha": "${digest}"
+          }
+        }
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "default", "images": ["prometheus"]}
+    ]
+  }
+}
+
+-- chart/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- chart/templates/prometheus.yaml --
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: prometheus
+spec:
+  image: {{ .Values.prometheus.image.repository }}:{{ .Values.prometheus.image.tag }}@sha256:{{ .Values.prometheus.image.sha }}
+
+-- chart/values.yaml --
+prometheus:
+  image:
+    repository: quay.io/prometheus/prometheus
+    tag: v2.48.0
+    sha: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
