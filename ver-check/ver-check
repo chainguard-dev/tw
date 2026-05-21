@@ -108,6 +108,11 @@ check_binary() {
         vmsg "Auto-detecting version flag for $fbinary..."
         # Track all flags that produced output, to show if auto-detection fails
         local tried_flags="" tried_outputs=""
+        # Also track flags whose output contained a version-shaped string
+        # (e.g. matching 'v?N.N') but did NOT match the expected version.
+        # These strongly suggest the expected version (typically the yaml's
+        # package.version) has drifted from what the binary actually reports.
+        local version_shaped_flags=""
         for flag in $ver_candidates; do
             vmsg "Trying: $fbinary $flag"
             output=$($binary $flag 2>&1)
@@ -134,9 +139,12 @@ check_binary() {
                     detected_flag="$flag"
                     vmsg "Success with: $flag (version found in output)"
                     break
-                else
-                    vmsg "Flag $flag produced output but expected version not found, trying next"
                 fi
+                # Did this flag emit a version-shaped string, just not the expected one?
+                if echo "$output" | grep -qE 'v?[0-9]+\.[0-9]+'; then
+                    version_shaped_flags="${version_shaped_flags}${version_shaped_flags:+ }$flag"
+                fi
+                vmsg "Flag $flag produced output but expected version not found, trying next"
             fi
         done
 
@@ -146,6 +154,19 @@ check_binary() {
             if [ -n "$tried_outputs" ]; then
                 echo "  Hint: expected version '$expected_version' not found in any output:"
                 printf "%s" "$tried_outputs"
+            fi
+            # When at least one tried flag emitted a version-shaped string that
+            # didn't match expected, that's almost always version drift between
+            # the yaml's 'package.version' and what the binary actually reports
+            # — not a missing/wrong flag. Call this out explicitly so the next
+            # operator doesn't waste time hunting for a different flag.
+            if [ -n "$version_shaped_flags" ]; then
+                echo "  Note: flag(s) [$version_shaped_flags] produced output containing"
+                echo "        a version-shaped string that did not match expected '$expected_version'."
+                echo "        This usually means the package's 'version:' field has drifted from"
+                echo "        what the binary actually reports. Either bump 'package.version' to"
+                echo "        match the binary, or pin 'version-flag: <flag>' in the ver-check"
+                echo "        usage to make this test fail loudly on drift instead of silently."
             fi
             return 1
         fi
