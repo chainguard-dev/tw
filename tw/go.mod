@@ -18,7 +18,7 @@ require (
 	golang.org/x/sync v0.20.0
 	golang.org/x/sys v0.43.0
 	gopkg.in/yaml.v3 v3.0.1
-	helm.sh/helm/v3 v3.20.0
+	helm.sh/helm/v3 v3.20.2
 	k8s.io/api v0.35.1
 	k8s.io/apimachinery v0.35.4
 	k8s.io/cli-runtime v0.35.1
@@ -142,7 +142,7 @@ require (
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.1 // indirect
-	k8s.io/apiextensions-apiserver v0.35.0 // indirect
+	k8s.io/apiextensions-apiserver v0.35.1 // indirect
 	k8s.io/component-base v0.35.1 // indirect
 	k8s.io/component-helpers v0.35.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
