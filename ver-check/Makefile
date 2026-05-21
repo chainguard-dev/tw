@@ -8,6 +8,7 @@ build:
 	chmod +x ver-check
 
 test:
+	@./test.sh
 
 melange-install: build
 	echo $@
