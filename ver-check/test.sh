@@ -12,7 +12,6 @@ trap 'rm -rf "$TMP" "$LOG"' EXIT
 
 pass() { echo "  [PASS] $*"; }
 fail() { echo "  [FAIL] $*"; exit_code=1; }
-info() { echo "  $*"; }
 
 file_contains() {
   needle="$1"; file="$2"
