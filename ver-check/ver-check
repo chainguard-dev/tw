@@ -149,24 +149,22 @@ check_binary() {
         done
 
         if [ "$detected_flag" = "auto" ]; then
-            fail "Could not auto-detect version flag for $binarymsg (tried: $ver_candidates)"
-            # Show what was found to help diagnose wrong expected version
+            # When at least one tried flag emitted a version-shaped string that
+            # didn't match expected, the diagnosis is almost always version
+            # drift between the yaml's 'package.version' and what the binary
+            # actually reports — not a missing/wrong flag. Say so directly in
+            # the FAIL line instead of layering a separate hint on top.
+            if [ -n "$version_shaped_flags" ]; then
+                fail "$binarymsg version drift — flag(s) [$version_shaped_flags] reported a version-shaped string that did not match expected '$expected_version' (tried: $ver_candidates)"
+            else
+                fail "Could not auto-detect version flag for $binarymsg (tried: $ver_candidates)"
+            fi
             if [ -n "$tried_outputs" ]; then
                 echo "  Hint: expected version '$expected_version' not found in any output:"
                 printf "%s" "$tried_outputs"
             fi
-            # When at least one tried flag emitted a version-shaped string that
-            # didn't match expected, that's almost always version drift between
-            # the yaml's 'package.version' and what the binary actually reports
-            # — not a missing/wrong flag. Call this out explicitly so the next
-            # operator doesn't waste time hunting for a different flag.
             if [ -n "$version_shaped_flags" ]; then
-                echo "  Note: flag(s) [$version_shaped_flags] produced output containing"
-                echo "        a version-shaped string that did not match expected '$expected_version'."
-                echo "        This usually means the package's 'version:' field has drifted from"
-                echo "        what the binary actually reports. Either bump 'package.version' to"
-                echo "        match the binary, or pin 'version-flag: <flag>' in the ver-check"
-                echo "        usage to make this test fail loudly on drift instead of silently."
+                echo "  Either bump 'package.version' to match, or pin 'version-flag: <flag>' in the ver-check usage."
             fi
             return 1
         fi

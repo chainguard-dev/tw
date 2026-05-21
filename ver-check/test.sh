@@ -48,26 +48,26 @@ else
   cat "$LOG"
 fi
 
-# 2) drift hint fires when binary emits a version-shaped string that doesn't match expected
+# 2) drift case: FAIL line says "version drift" and bump/pin suggestion appears
 make_fake_bin foo-drift "foo v1.2.4" "version"
 $VER_CHECK --bins=foo-drift --version=1.2.3 >"$LOG" 2>&1 || true
-if file_contains "Could not auto-detect" "$LOG" \
-   && file_contains "version-shaped" "$LOG" \
+if file_contains "version drift" "$LOG" \
    && file_contains "package.version" "$LOG"; then
-  pass "drift hint fires when binary reports different version"
+  pass "drift diagnosis fires when binary reports different version"
 else
-  fail "drift hint not emitted; log:"
+  fail "drift diagnosis not emitted; log:"
   cat "$LOG"
 fi
 
-# 3) no drift hint when no flag produced version-shaped output
+# 3) non-drift case: default FAIL line and no drift suggestion
 make_fake_bin foo-noversion "garbage" "version"
 $VER_CHECK --bins=foo-noversion --version=1.2.3 >"$LOG" 2>&1 || true
 if file_contains "Could not auto-detect" "$LOG" \
-   && ! file_contains "version-shaped" "$LOG"; then
-  pass "drift hint correctly absent when no version-shaped output"
+   && ! file_contains "version drift" "$LOG" \
+   && ! file_contains "bump 'package.version'" "$LOG"; then
+  pass "drift diagnosis correctly absent when no version-shaped output"
 else
-  fail "drift hint fired incorrectly for non-version output; log:"
+  fail "drift diagnosis fired incorrectly for non-version output; log:"
   cat "$LOG"
 fi
 
