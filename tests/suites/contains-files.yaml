@@ -21,3 +21,13 @@ testcases:
           files: |
             /nonexistent/file/path
     expect_pass: false
+  - name: Check bash with shared dir prefix
+    description: Verify dir + relative files works as a shared prefix
+    package: bash
+    pipelines:
+      - uses: test/tw/contains-files
+        with:
+          dir: /bin/
+          files: |
+            bash
+    expect_pass: true
