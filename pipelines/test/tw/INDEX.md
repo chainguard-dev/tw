@@ -14,6 +14,7 @@ This directory contains test pipelines for validating Wolfi packages. Use this i
 | `emptypackage` | Validate empty packages | none |
 | `gem-check` | Verify Ruby gems load correctly | none |
 | `gem-installed` | Verify gem is installed and has content | none |
+| `gen-tls-cert` | Generate a self-signed TLS cert for test setup | `cn` |
 | `header-check` | Verify C/C++ headers compile | none |
 | `help-check` | Verify binaries respond to --help | `bins` |
 | `ldd-check` | Check for missing shared libraries | none |
@@ -318,6 +319,31 @@ Validates systemd service/unit files for proper formatting and best practices.
 - `man` (optional, default: `false`) - Include documentation tests
 
 **Dependencies:** verify-service
+
+---
+
+## Test Setup Helpers
+
+Pipelines that fabricate test fixtures (not validators — they never assert on
+package contents).
+
+### `gen-tls-cert`
+Generates a self-signed RSA X.509 certificate and private key on disk. Use it
+to replace inline `openssl req -x509 ...` boilerplate in `test/daemon-check-output`
+`setup:` blocks (webhook serving certs, dummy TLS for exporters, etc.).
+
+**When to use:** Whenever a test needs a throwaway cert/key on disk before the
+daemon under test starts.
+
+**Inputs:**
+- `cn` (required) - Subject Common Name
+- `san` (optional) - subjectAltName value, e.g. `DNS:foo.svc,IP:127.0.0.1`
+- `key-out` (optional, default: `/tmp/tls.key`) - Private key output path
+- `cert-out` (optional, default: `/tmp/tls.crt`) - Certificate output path
+- `days` (optional, default: `365`) - Validity in days
+- `key-bits` (optional, default: `2048`) - RSA key size
+
+**Dependencies:** openssl
 
 ---
 

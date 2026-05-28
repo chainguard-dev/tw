@@ -1,0 +1,109 @@
+name: TLS test certificate generator
+
+description: |
+  Generates a self-signed RSA X.509 certificate and private key suitable for
+  test setups (e.g. webhook/admission-controller serving certs in
+  `test/daemon-check-output` blocks). This is a setup helper, not a validator
+  — it never fails the test on content; it only fails if openssl cannot
+  produce the requested key/cert.
+
+needs:
+  packages:
+    - openssl
+
+inputs:
+  cn:
+    description: |
+      Subject Common Name to embed in the certificate.
+      Example: "webhook.azure-workload-identity-test.svc"
+    required: true
+  san:
+    description: |
+      Optional subjectAltName extension value, passed verbatim to
+      `openssl req -addext "subjectAltName=..."`.
+      Example: "DNS:webhook.svc,DNS:webhook.svc.cluster.local,IP:127.0.0.1"
+      If empty, no SAN extension is added.
+    required: false
+    default: ""
+  key-out:
+    description: |
+      Output path for the generated private key (PEM).
+      Parent directories are created if missing.
+    required: false
+    default: "/tmp/tls.key"
+  cert-out:
+    description: |
+      Output path for the generated certificate (PEM).
+      Parent directories are created if missing.
+    required: false
+    default: "/tmp/tls.crt"
+  days:
+    description: |
+      Certificate validity in days.
+    required: false
+    default: "365"
+  key-bits:
+    description: |
+      RSA key size in bits.
+    required: false
+    default: "2048"
+
+# USAGE EXAMPLES:
+#
+# Minimal serving cert at the default /tmp/tls.{key,crt} paths:
+#   - uses: test/tw/gen-tls-cert
+#     with:
+#       cn: webhook.svc
+#
+# Cert with SAN, custom output paths, short validity:
+#   - uses: test/tw/gen-tls-cert
+#     with:
+#       cn: actions-runner-controller-webhook-service.default.svc
+#       san: "DNS:actions-runner-controller-webhook-service.default.svc"
+#       key-out: /tmp/k8s-webhook-server/serving-certs/tls.key
+#       cert-out: /tmp/k8s-webhook-server/serving-certs/tls.crt
+#       days: "1"
+#
+pipeline:
+  - name: "generate self-signed TLS certificate"
+    runs: |
+      set -e
+
+      cn="${{inputs.cn}}"
+      san="${{inputs.san}}"
+      key_out="${{inputs.key-out}}"
+      cert_out="${{inputs.cert-out}}"
+      days="${{inputs.days}}"
+      key_bits="${{inputs.key-bits}}"
+
+      if [ -z "${cn}" ] ; then
+        echo "FAIL: 'cn' input is required" >&2
+        exit 1
+      fi
+
+      mkdir -p "$(dirname "${key_out}")" "$(dirname "${cert_out}")"
+
+      addext_args=""
+      if [ -n "${san}" ] ; then
+        addext_args="-addext subjectAltName=${san}"
+      fi
+
+      # shellcheck disable=SC2086  # we want addext_args to split.
+      openssl req -x509 \
+        -newkey "rsa:${key_bits}" \
+        -nodes \
+        -days "${days}" \
+        -keyout "${key_out}" \
+        -out "${cert_out}" \
+        -subj "/CN=${cn}" \
+        ${addext_args}
+
+      # Sanity check: the cert must be parseable and carry the requested CN.
+      subject=$(openssl x509 -in "${cert_out}" -noout -subject)
+      echo "${subject}"
+      if ! echo "${subject}" | grep -qF "CN=${cn}" ; then
+        echo "FAIL: generated cert subject [${subject}] does not contain CN=${cn}" >&2
+        exit 1
+      fi
+
+      echo "PASS: TLS test cert generated at ${cert_out} (key: ${key_out})"
