@@ -39,9 +39,11 @@ inputs:
     default: "/tmp/tls.crt"
   days:
     description: |
-      Certificate validity in days.
+      Certificate validity in days. Defaults to 1 because this pipeline is
+      only for throwaway test certs — override if your test legitimately
+      needs a longer-lived cert (e.g. clock-skew exercises).
     required: false
-    default: "365"
+    default: "1"
   key-bits:
     description: |
       RSA key size in bits.
@@ -55,14 +57,13 @@ inputs:
 #     with:
 #       cn: webhook.svc
 #
-# Cert with SAN, custom output paths, short validity:
+# Cert with SAN and custom output paths:
 #   - uses: test/tw/gen-tls-cert
 #     with:
 #       cn: actions-runner-controller-webhook-service.default.svc
 #       san: "DNS:actions-runner-controller-webhook-service.default.svc"
 #       key-out: /tmp/k8s-webhook-server/serving-certs/tls.key
 #       cert-out: /tmp/k8s-webhook-server/serving-certs/tls.crt
-#       days: "1"
 #
 pipeline:
   - name: "generate self-signed TLS certificate"

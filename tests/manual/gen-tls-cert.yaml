@@ -43,9 +43,9 @@ subpackages:
             [ "${cert_mod}" = "${key_mod}" ]
             echo "PASS: minimal gen-tls-cert produced a usable key+cert pair"
 
-  # Positive case 2: SAN, custom output paths, short validity.
+  # Positive case 2: SAN, custom output paths, non-default validity.
   - name: gen-tls-cert-test-san
-    description: "Positive: SAN extension, custom paths, days=1"
+    description: "Positive: SAN extension, custom paths, days override"
     pipeline:
       - runs: |
           mkdir -p ${{targets.contextdir}}/usr/share/doc/${{context.name}}
@@ -62,7 +62,7 @@ subpackages:
             san: "DNS:webhook.svc,DNS:webhook.svc.cluster.local"
             key-out: /tmp/serving/tls.key
             cert-out: /tmp/serving/tls.crt
-            days: "1"
+            days: "7"
         - name: Verify SAN and custom paths
           runs: |
             set -e
