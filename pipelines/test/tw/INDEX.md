@@ -340,7 +340,7 @@ daemon under test starts.
 - `san` (optional) - subjectAltName value, e.g. `DNS:foo.svc,IP:127.0.0.1`
 - `key-out` (optional, default: `/tmp/tls.key`) - Private key output path
 - `cert-out` (optional, default: `/tmp/tls.crt`) - Certificate output path
-- `days` (optional, default: `1`) - Validity in days (these are throwaway test certs)
+- `days` (optional, default: `7`) - Validity in days (these are throwaway test certs)
 - `key-bits` (optional, default: `2048`) - RSA key size
 
 **Dependencies:** openssl

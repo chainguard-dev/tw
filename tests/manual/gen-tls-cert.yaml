@@ -62,7 +62,7 @@ subpackages:
             san: "DNS:webhook.svc,DNS:webhook.svc.cluster.local"
             key-out: /tmp/serving/tls.key
             cert-out: /tmp/serving/tls.crt
-            days: "7"
+            days: "30"
         - name: Verify SAN and custom paths
           runs: |
             set -e

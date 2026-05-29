@@ -39,11 +39,11 @@ inputs:
     default: "/tmp/tls.crt"
   days:
     description: |
-      Certificate validity in days. Defaults to 1 because this pipeline is
+      Certificate validity in days. Defaults to 7 because this pipeline is
       only for throwaway test certs — override if your test legitimately
       needs a longer-lived cert (e.g. clock-skew exercises).
     required: false
-    default: "1"
+    default: "7"
   key-bits:
     description: |
       RSA key size in bits.
