@@ -1,0 +1,40 @@
+name: Dev package pipeline validation tests
+
+description: Test suite for test/tw/devpackage pipeline
+
+testcases:
+  - name: Valid dev package zlib-dev with default prefix
+    description: Verify devpackage pipeline passes for zlib-dev with headers under /usr
+    package: zlib-dev
+    pipelines:
+      - uses: test/tw/devpackage
+    expect_pass: true
+  - name: Valid dev package ncurses-dev with default prefix
+    description: Verify devpackage pipeline passes for ncurses-dev with headers under /usr
+    package: ncurses-dev
+    pipelines:
+      - uses: test/tw/devpackage
+    expect_pass: true
+  # TODO: Uncomment once eco-python-openssl-4-pyca-dev is added to Wolfi
+  # This test validates the custom prefix functionality for packages with headers
+  # installed in non-standard locations like /opt/pyca/cryptography/openssl
+  # - name: Valid dev package with custom prefix
+  #   description: Verify devpackage pipeline passes for eco-python-openssl-4-pyca-dev with custom prefix
+  #   package: eco-python-openssl-4-pyca-dev
+  #   pipelines:
+  #     - uses: test/tw/devpackage
+  #       with:
+  #         prefix: /opt/pyca/cryptography/openssl
+  #   expect_pass: true
+  - name: Invalid dev package bash (not a dev package)
+    description: Verify devpackage pipeline fails for bash which is not a dev package
+    package: bash
+    pipelines:
+      - uses: test/tw/devpackage
+    expect_pass: false
+  - name: Invalid dev package glibc (not a dev package)
+    description: Verify devpackage pipeline fails for glibc which is not a dev package
+    package: glibc
+    pipelines:
+      - uses: test/tw/devpackage
+    expect_pass: false
