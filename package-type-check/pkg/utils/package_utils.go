@@ -209,15 +209,16 @@ func isHeaderFile(file string) bool {
 	return false
 }
 
-// HasHeaderFiles checks if package contains C/C++ header files under /usr
-func HasHeaderFiles(pkg string) (bool, error) {
+// HasHeaderFiles checks if package contains C/C++ header files under the specified prefix
+func HasHeaderFiles(pkg string, prefix string) (bool, error) {
 	files, err := GetPackageFiles(pkg)
 	if err != nil {
 		return false, err
 	}
 
+	normalizedPrefix := NormalizePath(prefix)
 	for _, file := range files {
-		if strings.HasPrefix(file, "/usr/") && isHeaderFile(file) {
+		if strings.HasPrefix(file, normalizedPrefix) && isHeaderFile(file) {
 			return true, nil
 		}
 	}

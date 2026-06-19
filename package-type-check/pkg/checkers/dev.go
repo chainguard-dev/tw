@@ -6,7 +6,7 @@ import (
 	"github.com/chainguard-dev/cg-tw/package-type-check/pkg/utils"
 )
 
-func CheckDevPackage(pkg string) error {
+func CheckDevPackage(pkg string, prefix string) error {
 	fmt.Printf("Checking if package %s is a valid dev package\n", pkg)
 
 	// Check 1: Package name must end with -dev or -devel
@@ -25,15 +25,15 @@ func CheckDevPackage(pkg string) error {
 	}
 	fmt.Printf("PASS [2/3]: Dev package [%s] is not empty\n", pkg)
 
-	// Check 3: Package should contain C/C++ header files under /usr
-	hasHeaders, err := utils.HasHeaderFiles(pkg)
+	// Check 3: Package should contain C/C++ header files under the specified prefix
+	hasHeaders, err := utils.HasHeaderFiles(pkg, prefix)
 	if err != nil {
 		return err
 	}
 	if !hasHeaders {
-		return fmt.Errorf("FAIL [3/3]: Dev package [%s] does not contain any header files (.h, .hpp, .hxx, .hh, .h++) under /usr", pkg)
+		return fmt.Errorf("FAIL [3/3]: Dev package [%s] does not contain any header files (.h, .hpp, .hxx, .hh, .h++) under %s", pkg, prefix)
 	}
-	fmt.Printf("PASS [3/3]: Dev package [%s] contains header files under /usr\n", pkg)
+	fmt.Printf("PASS [3/3]: Dev package [%s] contains header files under %s\n", pkg, prefix)
 
 	return nil
 }

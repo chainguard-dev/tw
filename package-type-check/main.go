@@ -109,14 +109,19 @@ func CheckByProductCommand() *cobra.Command {
 }
 
 func CheckDevCommand() *cobra.Command {
-	return &cobra.Command{
+	var prefix string
+
+	cmd := &cobra.Command{
 		Use:   "dev <PACKAGE>",
 		Short: "Check and verify the package is a dev package",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return checkers.CheckDevPackage(args[0])
+			return checkers.CheckDevPackage(args[0], prefix)
 		},
 	}
+
+	cmd.Flags().StringVar(&prefix, "prefix", "/usr", "Specify the prefix path for header files")
+	return cmd
 }
 
 func CheckDebugCommand() *cobra.Command {
