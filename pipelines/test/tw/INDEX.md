@@ -1,6 +1,7 @@
 # Test Pipelines Index
 
-This directory contains test pipelines for validating Wolfi packages. Use this index to find the appropriate pipeline for your testing needs.
+This directory contains test pipelines for validating Wolfi packages. Use this index to find the appropriate
+pipeline for your testing needs.
 
 ## Quick Reference
 

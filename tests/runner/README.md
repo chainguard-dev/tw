@@ -1,10 +1,12 @@
 # Pipeline Test Runner
 
-A Go-based test runner that automatically generates Melange test configurations from declarative test case definitions and executes them via the Melange CLI.
+A Go-based test runner that automatically generates Melange test configurations from declarative test case
+definitions and executes them via the Melange CLI.
 
 ## Overview
 
-This tool eliminates the need to manually write duplicate Melange YAML files for testing pipelines. Instead, you define test cases in a simple YAML format, and the runner:
+This tool eliminates the need to manually write duplicate Melange YAML files for testing pipelines. Instead,
+you define test cases in a simple YAML format, and the runner:
 
 1. Parses test case definitions from YAML files
 2. Validates test suites and test cases
@@ -146,8 +148,11 @@ tests/
 └── .gitignore
 ```
 
-- **`suites/`** — The primary input. Each YAML file defines a test suite for one pipeline. File names match pipeline names 1:1 (e.g., `docs.yaml` tests `test/tw/docs`).
-- **`manual/`** — Hand-written melange YAML files for edge cases that need synthetic packages (e.g., creating fake headers to test `header-check`). These are run directly via `melange build` + `melange test`, not through the runner.
+- **`suites/`** — The primary input. Each YAML file defines a test suite for one pipeline. File names match
+pipeline names 1:1 (e.g., `docs.yaml` tests `test/tw/docs`).
+- **`manual/`** — Hand-written melange YAML files for edge cases that need synthetic packages (e.g., creating
+fake headers to test `header-check`). These are run directly via `melange build` + `melange test`, not through
+the runner.
 - **`.out/`** — All build artifacts land here. Gitignored. `make clean` removes it entirely.
 
 ## Test Case Format
@@ -383,7 +388,8 @@ Validation errors include file paths and specific issues for easy debugging.
 ### Building with Version Info
 
 ```bash
-go build -ldflags="-X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o pipeline-runner .
+go build -ldflags="-X main.commit=$(git rev-parse HEAD) \
+-X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o pipeline-runner .
 ```
 
 ### Running Tests

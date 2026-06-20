@@ -1,6 +1,7 @@
 # shell-deps
 
-The `shell-deps` command analyzes shell scripts (bash, dash, or sh) and lists external programs (dependencies) that the shell script may invoke. It can also detect GNU coreutils-specific flags that don't work with busybox.
+The `shell-deps` command analyzes shell scripts (bash, dash, or sh) and lists external programs (dependencies) that
+the shell script may invoke. It can also detect GNU coreutils-specific flags that don't work with busybox.
 
 ## Key Features
 
@@ -13,7 +14,8 @@ The `shell-deps` command analyzes shell scripts (bash, dash, or sh) and lists ex
 
 ## Overview
 
-`shell-deps` uses the [mvdan.cc/sh/v3](https://github.com/mvdan/sh) parser to analyze shell scripts and identify external command dependencies. It correctly excludes:
+`shell-deps` uses the [mvdan.cc/sh/v3](https://github.com/mvdan/sh) parser to analyze shell scripts and identify
+external command dependencies. It correctly excludes:
 
 - Shell built-in commands (e.g., `echo`, `cd`, `test`, `[`)
 - Functions defined within the script
@@ -90,7 +92,8 @@ tw shell-deps scan [flags] search-dir
 **Flags:**
 
 - `--missing=path/` - Path to directory containing available executables
-- `--match=regex` - Regular expression pattern to match additional files as shell scripts (e.g., `\.makefile$` to include files ending in `.makefile`)
+- `--match=regex` - Regular expression pattern to match additional files as shell scripts (e.g., `\.makefile$` to
+include files ending in `.makefile`)
 - `-x, --executable` - Only consider executable files as shell scripts
 
 **Shell Script Detection:**
@@ -147,7 +150,8 @@ This command performs two types of checks:
 1. **Missing dependencies** - Commands that don't exist in the specified PATH
 2. **GNU compatibility** - Detects GNU coreutils-specific flags that won't work with busybox
 
-The GNU compatibility check automatically determines whether commands are provided by busybox or coreutils by examining symlinks in the PATH.
+The GNU compatibility check automatically determines whether commands are provided by busybox or coreutils by
+examining symlinks in the PATH.
 
 **Key Feature:** The output shows ALL dependencies found, categorized as:
 
@@ -282,7 +286,8 @@ The parser identifies external commands from:
 
 ### Wrapper Function Detection
 
-The parser automatically identifies "wrapper functions" - functions that execute their arguments. This is a common pattern for logging or error handling:
+The parser automatically identifies "wrapper functions" - functions that execute their arguments. This is a common
+pattern for logging or error handling:
 
 ```bash
 #!/bin/sh
@@ -295,7 +300,8 @@ vr ls /etc        # 'ls' is detected as a dependency
 vr grep foo bar   # 'grep' is detected as a dependency
 ```
 
-A function is identified as a wrapper if it contains `"$@"` or `$@` in command position. The first argument passed to such functions is analyzed as a potential external command.
+A function is identified as a wrapper if it contains `"$@"` or `$@` in command position. The first argument
+passed to such functions is analyzed as a potential external command.
 
 ### What is Excluded
 
@@ -303,8 +309,10 @@ The following are **not** considered external dependencies:
 
 **Shell Built-ins:**
 
-- POSIX special built-ins: `break`, `:`, `continue`, `.`, `eval`, `exec`, `exit`, `export`, `readonly`, `return`, `set`, `shift`, `times`, `trap`, `unset`
-- POSIX regular built-ins: `alias`, `bg`, `cd`, `command`, `false`, `fc`, `fg`, `getopts`, `jobs`, `kill`, `pwd`, `read`, `true`, `umask`, `unalias`, `wait`, `hash`, `type`, `ulimit`, `[`, `test`, `echo`, `printf`
+- POSIX special built-ins: `break`, `:`, `continue`, `.`, `eval`, `exec`, `exit`, `export`, `readonly`, `return`,
+`set`, `shift`, `times`, `trap`, `unset`
+- POSIX regular built-ins: `alias`, `bg`, `cd`, `command`, `false`, `fc`, `fg`, `getopts`, `jobs`, `kill`, `pwd`,
+`read`, `true`, `umask`, `unalias`, `wait`, `hash`, `type`, `ulimit`, `[`, `test`, `echo`, `printf`
 - Bash/dash additional built-ins: `source`, `local`, `declare`, `typeset`, `let`, `enable`, `builtin`, and others
 
 **Script-defined entities:**
@@ -318,7 +326,8 @@ The following are **not** considered external dependencies:
 
 ## GNU Coreutils Compatibility
 
-The `check` and `check-package` commands detect GNU coreutils-specific flags that don't work with busybox. This is critical for Wolfi/Chainguard packages where busybox is often used instead of full coreutils.
+The `check` and `check-package` commands detect GNU coreutils-specific flags that don't work with busybox. This is
+critical for Wolfi/Chainguard packages where busybox is often used instead of full coreutils.
 
 ### Detected GNU-only Flags
 
@@ -346,7 +355,9 @@ The `check` and `check-package` commands detect GNU coreutils-specific flags tha
 
 ### Auto-detection of Providers
 
-The `check` command automatically determines whether a command is provided by busybox or coreutils by examining symlinks in the PATH. If a command (e.g., `/usr/bin/chmod`) is a symlink to busybox, GNU-specific flags will be flagged. If it points to a real coreutils binary, no warning is issued.
+The `check` command automatically determines whether a command is provided by busybox or coreutils by examining
+symlinks in the PATH. If a command (e.g., `/usr/bin/chmod`) is a symlink to busybox, GNU-specific flags will be
+flagged. If it points to a real coreutils binary, no warning is issued.
 
 ## Example Script Analysis
 
@@ -374,7 +385,8 @@ script.sh:
   shell: /bin/sh
 ```
 
-**Note:** `stderr` is excluded (it's a function), `echo`, `test`, and `[` are excluded (built-ins), but `grep`, `awk`, `bobob`, and `/sbin/sudo` are included as external dependencies.
+**Note:** `stderr` is excluded (it's a function), `echo`, `test`, and `[` are excluded (built-ins), but `grep`,
+`awk`, `bobob`, and `/sbin/sudo` are included as external dependencies.
 
 ## JSON Output Format
 
@@ -429,7 +441,8 @@ Fields:
 - `0` - Success (all scripts parsed successfully, no issues in strict mode)
 - `1` - Errors occurred while processing one or more files, or issues found in `--strict` mode
 
-When errors occur, the error messages are included in the output, and the command exits with code 1 after processing all files.
+When errors occur, the error messages are included in the output, and the command exits with code 1 after
+processing all files.
 
 ## Use Cases
 
@@ -444,5 +457,6 @@ When errors occur, the error messages are included in the output, and the comman
 
 - **Parser:** Uses `mvdan.cc/sh/v3` for robust shell script parsing
 - **Language Support:** Supports POSIX sh, bash, and dash syntax
-- **Performance:** Scripts are parsed once; dependencies are extracted in two passes (first to identify functions/aliases/wrappers, second to identify commands)
+- **Performance:** Scripts are parsed once; dependencies are extracted in two passes (first to identify
+functions/aliases/wrappers, second to identify commands)
 - **GNU Detection:** Uses symlink analysis to determine if commands are provided by busybox or coreutils
