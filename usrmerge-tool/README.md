@@ -6,4 +6,6 @@ This is function for a usrMerge tool.
 
 At this point we would call
 
-    ./usrmerge --sbin ${{targets.contextdir}}
+```bash
+./usrmerge --sbin ${{targets.contextdir}}
+```

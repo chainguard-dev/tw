@@ -7,9 +7,11 @@ tools or helpers.
 
 To release a version of tw to stereo, run tools/release-to-stereo.
 
-    git tag vX.Y.Z
-    git push origin vX.Y.Z
-    ./tools/release-to-stereo vX.Y.Z ~/git/cg/chainguard-dev/stereo/
+```bash
+git tag vX.Y.Z
+git push origin vX.Y.Z
+./tools/release-to-stereo vX.Y.Z ~/git/cg/chainguard-dev/stereo/
+```
 
 This takes care of updating the `tw.yaml` file from `melange.yaml`,
 and syncs the pipeline files for other dirs.
