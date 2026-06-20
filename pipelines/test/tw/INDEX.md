@@ -5,7 +5,7 @@ This directory contains test pipelines for validating Wolfi packages. Use this i
 ## Quick Reference
 
 | Pipeline | Purpose | Required Inputs |
-|----------|---------|-----------------|
+| -------- | ------- | --------------- |
 | `configpackage` | Validate configuration packages contain config files | none |
 | `contains-files` | Verify package contains expected files | `files` or `dir`+`name` |
 | `debugpackage` | Validate debug symbol packages | none |

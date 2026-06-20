@@ -115,7 +115,7 @@ testcases:
 ### Test Case Fields
 
 | Field | Required | Description |
-|-------|----------|-------------|
+| ----- | -------- | ----------- |
 | `name` | Yes | Descriptive name for the test case |
 | `description` | No | Detailed explanation |
 | `package` | Yes | Real Wolfi package to test against |
