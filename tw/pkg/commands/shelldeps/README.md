@@ -322,27 +322,27 @@ The `check` and `check-package` commands detect GNU coreutils-specific flags tha
 
 ### Detected GNU-only Flags
 
-| Command    | GNU-only Flags                                           |
-|------------|----------------------------------------------------------|
+| Command | GNU-only Flags |
+| ------- | -------------- |
 | `realpath` | `--no-symlinks`, `--relative-base`, `--relative-to`, `-q`, `--quiet` |
-| `stat`     | `--format`, `--printf`                                   |
-| `cp`       | `--reflink`, `--sparse`                                  |
-| `date`     | `--iso-8601`, `-I`                                       |
-| `mktemp`   | `--suffix`                                               |
-| `sort`     | `-h`, `--human-numeric-sort`                             |
-| `ls`       | `--time-style`                                           |
-| `df`       | `--output`                                               |
+| `stat` | `--format`, `--printf` |
+| `cp` | `--reflink`, `--sparse` |
+| `date` | `--iso-8601`, `-I` |
+| `mktemp` | `--suffix` |
+| `sort` | `-h`, `--human-numeric-sort` |
+| `ls` | `--time-style` |
+| `df` | `--output` |
 | `readlink` | `-e`, `--canonicalize-existing`, `-m`, `--canonicalize-missing` |
-| `tail`     | `--pid`                                                  |
-| `touch`    | `--date`                                                 |
-| `head`     | `--bytes`                                                |
-| `du`       | `--apparent-size`                                        |
-| `chmod`    | `--reference`                                            |
-| `chown`    | `--reference`                                            |
-| `install`  | `-D` (creates parent directories)                        |
-| `tr`       | `--complement`                                           |
-| `wc`       | `--total`                                                |
-| `seq`      | `--equal-width`                                          |
+| `tail` | `--pid` |
+| `touch` | `--date` |
+| `head` | `--bytes` |
+| `du` | `--apparent-size` |
+| `chmod` | `--reference` |
+| `chown` | `--reference` |
+| `install` | `-D` (creates parent directories) |
+| `tr` | `--complement` |
+| `wc` | `--total` |
+| `seq` | `--equal-width` |
 
 ### Auto-detection of Providers
 
