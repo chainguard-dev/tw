@@ -4,7 +4,7 @@ This directory contains all pipeline validation tests for the `test/tw/` pipelin
 
 ## Directory Structure
 
-```
+```text
 tests/
 ├── suites/                    # Declarative test definitions (consumed by runner)
 │   ├── docs.yaml

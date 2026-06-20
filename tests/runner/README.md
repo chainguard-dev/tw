@@ -126,7 +126,7 @@ This generates all melange YAML files in the output directory without executing 
 
 The runner operates within the following layout:
 
-```
+```text
 tests/
 ├── suites/                    # Declarative test definitions (consumed by runner)
 │   ├── docs.yaml
@@ -194,7 +194,7 @@ Each pipeline can have:
 
 The runner generates configs in separate directories for positive and negative tests:
 
-```
+```text
 .out/generated/
 ├── pass-{sanitized-suite-name}/
 │   ├── package1.yaml
@@ -258,7 +258,7 @@ Key features:
 
 Shows clean, focused output:
 
-```
+```console
 Found 4 test suite files
 Processing test suite: tests/suites/docs.yaml
 Test Suite: Docs pipeline validation tests
@@ -281,7 +281,7 @@ Test Results:
 
 Shows everything including melange output:
 
-```
+```console
 Processing test suite: tests/suites/docs.yaml
 [DEBUG] Loading test suite from: tests/suites/docs.yaml
 Test Suite: Docs pipeline validation tests
@@ -328,7 +328,7 @@ In normal mode, the runner captures melange output. In debug mode, stdout/stderr
 
 When tests fail, the runner provides detailed information:
 
-```
+```console
     ✗ FAIL: Invalid docs package bash
       Package: bash
       Expected: fail

@@ -101,7 +101,7 @@ Most likely, you need to tell the melange build in the stereo repository to use 
 
 A complete example:
 
-```
+```console
 user@debian:~git/tw $ make build
 user@debian:~git/tw $ cp pipelines/test/tw/something.yaml ~/git/stereo/os/pipelines/test/tw/
 user@debian:~git/tw $ cd ~/git/stereo/enterprise-packages/

@@ -64,7 +64,7 @@ tw shell-deps show --json script.sh
 
 **Example Output:**
 
-```
+```yaml
 script.sh:
   deps: awk grep sed
   shell: /bin/sh
@@ -72,7 +72,7 @@ script.sh:
 
 With `--path=/usr/bin`:
 
-```
+```yaml
 script.sh:
   deps: awk bobob grep
   shell: /bin/bash
@@ -170,7 +170,7 @@ tw shell-deps check --path=/usr/bin:/usr/local/bin /opt/scripts/*.sh
 
 **Example Output:**
 
-```
+```console
 Dependency Check Results
 ========================
 Analyzed: 2 shell script(s)
@@ -242,7 +242,7 @@ tw shell-deps check-package --json nginx
 
 **Example Output:**
 
-```
+```console
 Package: vim
 Found 2034 installed file(s)
 Runtime dependencies: []
@@ -368,7 +368,7 @@ fi
 
 Output:
 
-```
+```yaml
 script.sh:
   deps: /sbin/sudo awk bobob grep
   shell: /bin/sh
