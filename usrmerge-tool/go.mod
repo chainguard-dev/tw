@@ -1,3 +1,3 @@
 module github.com/chainguard-dev/usrmerge-tool
 
-go 1.24
+go 1.26.0
