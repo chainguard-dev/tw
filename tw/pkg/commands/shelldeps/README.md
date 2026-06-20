@@ -43,6 +43,7 @@ tw shell-deps show [flags] file [file...]
 ```
 
 **Flags:**
+
 - `--path=PATH` - PATH-like colon-separated directories to check for missing commands (e.g., `/usr/bin:/usr/local/bin`)
 
 **Examples:**
@@ -70,6 +71,7 @@ script.sh:
 ```
 
 With `--path=/usr/bin`:
+
 ```
 script.sh:
   deps: awk bobob grep
@@ -86,6 +88,7 @@ tw shell-deps scan [flags] search-dir
 ```
 
 **Flags:**
+
 - `--missing=path/` - Path to directory containing available executables
 - `--match=regex` - Regular expression pattern to match additional files as shell scripts (e.g., `\.makefile$` to include files ending in `.makefile`)
 - `-x, --executable` - Only consider executable files as shell scripts
@@ -93,6 +96,7 @@ tw shell-deps scan [flags] search-dir
 **Shell Script Detection:**
 
 By default, `scan` identifies shell scripts by checking for these shebangs:
+
 - `#!/bin/sh`
 - `#!/bin/dash`
 - `#!/bin/bash`
@@ -100,7 +104,7 @@ By default, `scan` identifies shell scripts by checking for these shebangs:
 - `#!/usr/bin/env dash`
 - `#!/usr/bin/env bash`
 
-Both `#!` and `#! ` (with space) variations are supported.
+Both `#!` and `#!` (with space) variations are supported.
 
 **Examples:**
 
@@ -134,16 +138,19 @@ tw shell-deps check [flags] file [file...]
 ```
 
 **Flags:**
+
 - `--path=PATH` - PATH-like colon-separated directories to search for commands (default: `/usr/bin:/usr/local/bin`)
 - `--strict` - Exit with non-zero status if any issues are found (default: `true`)
 
 This command performs two types of checks:
+
 1. **Missing dependencies** - Commands that don't exist in the specified PATH
 2. **GNU compatibility** - Detects GNU coreutils-specific flags that won't work with busybox
 
 The GNU compatibility check automatically determines whether commands are provided by busybox or coreutils by examining symlinks in the PATH.
 
 **Key Feature:** The output shows ALL dependencies found, categorized as:
+
 - ✓ **available** - Commands found in PATH
 - ✗ **missing** - Commands not found in PATH
 - ⚠ **gnu-required** - Commands that need GNU coreutils (not busybox)
@@ -204,11 +211,13 @@ tw shell-deps check-package [flags] <package-name>
 ```
 
 **Flags:**
+
 - `--path=PATH` - PATH-like colon-separated directories to search for commands (default: `/usr/bin:/bin`)
 - `--strict` - Exit with non-zero status if any issues are found (default: `true`)
 - `--package-dir=DIR` - Directory to search for package YAML files for runtime dependency lookup (default: `.`)
 
 This command:
+
 1. Gets the list of files installed by the package using `apk info -L`
 2. Filters for shell scripts among the installed files
 3. Analyzes each script's dependencies
@@ -263,6 +272,7 @@ Checked 5 script(s)
 ### What is Detected
 
 The parser identifies external commands from:
+
 - Direct command invocations: `grep pattern file.txt`
 - Command substitutions: `out=$(awk '{print $1}' file)`
 - Pipes: `cat file | grep pattern | awk '{print $1}'`
@@ -292,15 +302,18 @@ A function is identified as a wrapper if it contains `"$@"` or `$@` in command p
 The following are **not** considered external dependencies:
 
 **Shell Built-ins:**
+
 - POSIX special built-ins: `break`, `:`, `continue`, `.`, `eval`, `exec`, `exit`, `export`, `readonly`, `return`, `set`, `shift`, `times`, `trap`, `unset`
 - POSIX regular built-ins: `alias`, `bg`, `cd`, `command`, `false`, `fc`, `fg`, `getopts`, `jobs`, `kill`, `pwd`, `read`, `true`, `umask`, `unalias`, `wait`, `hash`, `type`, `ulimit`, `[`, `test`, `echo`, `printf`
 - Bash/dash additional built-ins: `source`, `local`, `declare`, `typeset`, `let`, `enable`, `builtin`, and others
 
 **Script-defined entities:**
+
 - Functions defined in the script
 - Aliases defined in the script
 
 **Control structures:**
+
 - `if`, `then`, `else`, `elif`, `fi`, `while`, `do`, `done`, `for`, `in`, `case`, `esac`, `until`, `select`
 
 ## GNU Coreutils Compatibility
@@ -354,6 +367,7 @@ fi
 ```
 
 Output:
+
 ```
 script.sh:
   deps: /sbin/sudo awk bobob grep
@@ -402,6 +416,7 @@ When using `--json`, the output is structured as follows:
 ```
 
 Fields:
+
 - `file` - Path to the script
 - `deps` - List of external dependencies (sorted alphabetically)
 - `shell` - The shell interpreter from the shebang (e.g., `/bin/bash`, `bash`)

@@ -81,6 +81,7 @@ make test-all
 ### Prerequisites
 
 Tests require:
+
 - `melange` binary in your PATH
 - A signing key (auto-generated via `make build` if missing)
 - A built `tw` package (`make build` handles this)
@@ -109,7 +110,7 @@ testcases:
     expect_pass: false
 ```
 
-2. Run `make test-suite` to verify.
+1. Run `make test-suite` to verify.
 
 ### Test Case Fields
 
@@ -164,7 +165,7 @@ subpackages:
         - uses: test/tw/<pipeline-name>
 ```
 
-2. Run `make test-manual` to verify.
+1. Run `make test-manual` to verify.
 
 ### Writing Manual Tests
 
@@ -188,7 +189,7 @@ fi
 echo "PASS: Correctly rejected"
 ```
 
-4. **Add tool binaries to test environment** — negative tests invoke checkers manually:
+1. **Add tool binaries to test environment** — negative tests invoke checkers manually:
 
 ```yaml
 test:

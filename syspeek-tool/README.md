@@ -9,6 +9,7 @@ The only application type supported are ones compiled. Script and application th
 ## Requirements
 
 Runtime requirements:
+
 - binutils (`objdump` tool)
 - syscall table file (`/usr/include/asm/unistd_64.h` by default)
 - `objdump` compiled for the same architecture of the target executable
