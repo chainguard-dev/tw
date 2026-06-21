@@ -11,8 +11,6 @@ updates:
           - "minor"
           - "patch"
   - package-ecosystem: "gomod"
-    directories:
-      - "/*"
-      - "/*/*"
+    directory: "/"
     schedule:
       interval: "daily"
