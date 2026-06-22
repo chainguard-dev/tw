@@ -11,7 +11,7 @@ require (
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.21.5
-	github.com/mattn/go-isatty v0.0.20
+	github.com/mattn/go-isatty v0.0.22
 	github.com/rogpeppe/go-internal v1.14.1
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
