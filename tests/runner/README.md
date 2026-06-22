@@ -1,10 +1,12 @@
 # Pipeline Test Runner
 
-A Go-based test runner that automatically generates Melange test configurations from declarative test case definitions and executes them via the Melange CLI.
+A Go-based test runner that automatically generates Melange test configurations from declarative test case
+definitions and executes them via the Melange CLI.
 
 ## Overview
 
-This tool eliminates the need to manually write duplicate Melange YAML files for testing pipelines. Instead, you define test cases in a simple YAML format, and the runner:
+This tool eliminates the need to manually write duplicate Melange YAML files for testing pipelines. Instead,
+you define test cases in a simple YAML format, and the runner:
 
 1. Parses test case definitions from YAML files
 2. Validates test suites and test cases
@@ -41,6 +43,7 @@ make build-test-runner
 ```
 
 **Normal mode output:**
+
 - Shows test suite progress
 - Shows test pass/fail results
 - Hides melange command output (clean logs)
@@ -58,6 +61,7 @@ make build-test-runner
 ```
 
 **Debug mode output:**
+
 - Shows all normal mode output
 - Shows [DEBUG] messages with internal details
 - Shows full melange command output in real-time
@@ -88,6 +92,7 @@ The test suite name comes from the filename (e.g., `docs.yaml` → `docs`).
 ```
 
 This generates all melange YAML files in the output directory without executing tests. Useful for:
+
 - Inspecting generated configurations
 - Debugging test definitions
 - Understanding what will be tested
@@ -102,10 +107,12 @@ This generates all melange YAML files in the output directory without executing 
 ## Command-Line Options
 
 ### Required Flags
+
 - `--test-dir`: Directory containing test suite YAML files (the `suites/` directory)
 - `--pipeline-dir`: Directory containing pipeline definitions
 
 ### Optional Flags
+
 - `--arch`: Architecture to test (default: `x86_64`)
 - `--repositories`: Comma-separated list of package repositories
 - `--keyrings`: Comma-separated list of signing key paths
@@ -121,7 +128,7 @@ This generates all melange YAML files in the output directory without executing 
 
 The runner operates within the following layout:
 
-```
+```text
 tests/
 ├── suites/                    # Declarative test definitions (consumed by runner)
 │   ├── docs.yaml
@@ -141,8 +148,11 @@ tests/
 └── .gitignore
 ```
 
-- **`suites/`** — The primary input. Each YAML file defines a test suite for one pipeline. File names match pipeline names 1:1 (e.g., `docs.yaml` tests `test/tw/docs`).
-- **`manual/`** — Hand-written melange YAML files for edge cases that need synthetic packages (e.g., creating fake headers to test `header-check`). These are run directly via `melange build` + `melange test`, not through the runner.
+- **`suites/`** — The primary input. Each YAML file defines a test suite for one pipeline. File names match
+pipeline names 1:1 (e.g., `docs.yaml` tests `test/tw/docs`).
+- **`manual/`** — Hand-written melange YAML files for edge cases that need synthetic packages (e.g., creating
+fake headers to test `header-check`). These are run directly via `melange build` + `melange test`, not through
+the runner.
 - **`.out/`** — All build artifacts land here. Gitignored. `make clean` removes it entirely.
 
 ## Test Case Format
@@ -181,6 +191,7 @@ testcases:
 ### Pipeline Configuration
 
 Each pipeline can have:
+
 - **uses** (required): Path to the pipeline (e.g., `test/tw/docs`)
 - **with** (optional): Parameters to pass to the pipeline
 
@@ -188,7 +199,7 @@ Each pipeline can have:
 
 The runner generates configs in separate directories for positive and negative tests:
 
-```
+```text
 .out/generated/
 ├── pass-{sanitized-suite-name}/
 │   ├── package1.yaml
@@ -199,6 +210,7 @@ The runner generates configs in separate directories for positive and negative t
 ```
 
 Suite names are sanitized for directory names:
+
 - "Docs Pipeline Tests" → `docs-pipeline-tests`
 - Lowercase, spaces to hyphens, special chars removed
 
@@ -237,6 +249,7 @@ test:
 ```
 
 Key features:
+
 - **Auto-generated header**: Clearly marked as generated
 - **Package name**: Matches the package being tested (1:1 mapping)
 - **Version**: Always `0.0.0` (not built, only tested)
@@ -250,7 +263,7 @@ Key features:
 
 Shows clean, focused output:
 
-```
+```console
 Found 4 test suite files
 Processing test suite: tests/suites/docs.yaml
 Test Suite: Docs pipeline validation tests
@@ -273,7 +286,7 @@ Test Results:
 
 Shows everything including melange output:
 
-```
+```console
 Processing test suite: tests/suites/docs.yaml
 [DEBUG] Loading test suite from: tests/suites/docs.yaml
 Test Suite: Docs pipeline validation tests
@@ -307,6 +320,7 @@ Test Suite: Docs pipeline validation tests
 ## Integration with Melange
 
 This runner executes the `melange` CLI binary as a subprocess. This approach:
+
 - Uses the same melange binary as the rest of the build system
 - Ensures consistent behavior with manual melange invocations
 - Avoids dependency management complexity
@@ -319,7 +333,7 @@ In normal mode, the runner captures melange output. In debug mode, stdout/stderr
 
 When tests fail, the runner provides detailed information:
 
-```
+```console
     ✗ FAIL: Invalid docs package bash
       Package: bash
       Expected: fail
@@ -353,6 +367,7 @@ To debug failures:
 ## Context Cancellation
 
 The runner supports graceful cancellation:
+
 - Responds to `Ctrl+C` interrupts
 - Checks for context cancellation in loops
 - Cleans up properly on interruption
@@ -360,6 +375,7 @@ The runner supports graceful cancellation:
 ## Validation
 
 The runner validates:
+
 - **Test suites**: Must have name and test cases
 - **Test cases**: Must have name, package, and pipelines
 - **Pipelines**: Must have `uses` field defined
@@ -372,7 +388,8 @@ Validation errors include file paths and specific issues for easy debugging.
 ### Building with Version Info
 
 ```bash
-go build -ldflags="-X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o pipeline-runner .
+go build -ldflags="-X main.commit=$(git rev-parse HEAD) \
+-X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o pipeline-runner .
 ```
 
 ### Running Tests
@@ -403,17 +420,20 @@ go build -ldflags="-X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +
 ### Test fails unexpectedly
 
 1. Generate and inspect the config:
+
    ```bash
    ./pipeline-runner --generate-only --test-dir ../suites --pipeline-dir ../../pipelines --out-dir ../.out/generated
    cat ../.out/generated/pass-suite-name/package.yaml
    ```
 
 2. Run in debug mode:
+
    ```bash
    ./pipeline-runner --debug --test-dir ../suites --pipeline-dir ../../pipelines --out-dir ../.out/generated
    ```
 
 3. Run melange directly (from the repo root):
+
    ```bash
    melange test --debug \
      --arch $(uname -m) \

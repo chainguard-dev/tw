@@ -1,4 +1,5 @@
 version: 2
+
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -9,10 +10,7 @@ updates:
         update-types:
           - "minor"
           - "patch"
-
   - package-ecosystem: "gomod"
-    directories:
-      - "/*"
-      - "/*/*"
+    directory: "/"
     schedule:
       interval: "daily"

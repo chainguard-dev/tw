@@ -4,7 +4,7 @@ This directory contains all pipeline validation tests for the `test/tw/` pipelin
 
 ## Directory Structure
 
-```
+```text
 tests/
 ├── suites/                    # Declarative test definitions (consumed by runner)
 │   ├── docs.yaml
@@ -28,7 +28,9 @@ tests/
 
 ### 1. Suite Tests (declarative, auto-generated)
 
-Suite tests live in `suites/` and use a simple declarative YAML format. The test runner reads these definitions, auto-generates melange configs, executes them, and validates results. This is the **default and preferred way** to test pipelines.
+Suite tests live in `suites/` and use a simple declarative YAML format. The test runner reads these
+definitions, auto-generates melange configs, executes them, and validates results. This is the
+**default and preferred way** to test pipelines.
 
 Each file maps 1:1 to a pipeline under `pipelines/test/tw/`. For example, `suites/docs.yaml` tests the `test/tw/docs` pipeline.
 
@@ -56,9 +58,12 @@ See the [runner README](runner/README.md) for full details on the test case form
 
 ### 2. Manual Tests (hand-written melange YAML)
 
-Manual tests live in `manual/` and are full melange YAML files with subpackages that create synthetic package content. These are built with `melange build` and then tested with `melange test`.
+Manual tests live in `manual/` and are full melange YAML files with subpackages that create synthetic package
+content. These are built with `melange build` and then tested with `melange test`.
 
-**When to use:** Only when you need to create synthetic packages with specific file layouts that don't exist in Wolfi. For example, testing `header-check` with deliberately malformed headers, or testing edge cases that require precise control over package contents.
+**When to use:** Only when you need to create synthetic packages with specific file layouts that don't exist in
+Wolfi. For example, testing `header-check` with deliberately malformed headers, or testing edge cases that
+require precise control over package contents.
 
 See [Writing Manual Tests](#writing-manual-tests) below for the format.
 
@@ -81,6 +86,7 @@ make test-all
 ### Prerequisites
 
 Tests require:
+
 - `melange` binary in your PATH
 - A signing key (auto-generated via `make build` if missing)
 - A built `tw` package (`make build` handles this)
@@ -109,12 +115,12 @@ testcases:
     expect_pass: false
 ```
 
-2. Run `make test-suite` to verify.
+1. Run `make test-suite` to verify.
 
 ### Test Case Fields
 
 | Field | Required | Description |
-|-------|----------|-------------|
+| ----- | -------- | ----------- |
 | `name` | Yes | Descriptive name for the test case |
 | `description` | No | Detailed explanation |
 | `package` | Yes | Real Wolfi package to test against |
@@ -164,7 +170,7 @@ subpackages:
         - uses: test/tw/<pipeline-name>
 ```
 
-2. Run `make test-manual` to verify.
+1. Run `make test-manual` to verify.
 
 ### Writing Manual Tests
 
@@ -188,7 +194,7 @@ fi
 echo "PASS: Correctly rejected"
 ```
 
-4. **Add tool binaries to test environment** — negative tests invoke checkers manually:
+1. **Add tool binaries to test environment** — negative tests invoke checkers manually:
 
 ```yaml
 test:
