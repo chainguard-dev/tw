@@ -7,7 +7,7 @@ require (
 	dario.cat/mergo v1.0.2
 	github.com/google/go-containerregistry v0.21.5
 	github.com/opencontainers/go-digest v1.0.0
-	github.com/rogpeppe/go-internal v1.14.1
+	github.com/rogpeppe/go-internal v1.15.0
 	github.com/spf13/cobra v1.10.2
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/apimachinery v0.36.1
