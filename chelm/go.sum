@@ -1,5 +1,5 @@
-chainguard.dev/sdk v0.1.76 h1:ijjE6xC8MSt76Gv44r571E8E8rwoIyUlIRj2N6FZGH0=
-chainguard.dev/sdk v0.1.76/go.mod h1:t8m9wn52ylTmEaOCQWUkfxvXOIQe5xD3UsvYn1CP7Bo=
+chainguard.dev/sdk v0.1.81 h1:FElMVVjrenVOaKt625LPG795QTgbbPmpll17OzRHTJ8=
+chainguard.dev/sdk v0.1.81/go.mod h1:t8m9wn52ylTmEaOCQWUkfxvXOIQe5xD3UsvYn1CP7Bo=
 dario.cat/mergo v1.0.2 h1:85+piFYR1tMbRrLcDwR18y4UKJ3aH1Tbzi24VRW1TK8=
 dario.cat/mergo v1.0.2/go.mod h1:E/hbnu0NxMFBjpMIE34DRGLWqDy0g5FuKDhCb31ngxA=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
