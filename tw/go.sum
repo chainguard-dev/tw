@@ -1,9 +1,9 @@
-chainguard.dev/apko v1.2.17 h1:/mIW439i8wONJfU1E8mqVpThjfd5nin52XQi4/hr3Iw=
-chainguard.dev/apko v1.2.17/go.mod h1:1L1UuLB3MMGriXbw5pHcMTGXbqM3FJeZ98ZFZ/jmnt8=
+chainguard.dev/apko v1.2.18 h1:CFZ0YG7t6U0k2mDYs22l67SF7ukHtkyXVJFj/qhf8+c=
+chainguard.dev/apko v1.2.18/go.mod h1:G/xIzbXWAeBNWJKtcVbJpTSrmgb1ElL382XlqVLh95Q=
 chainguard.dev/go-grpc-kit v0.17.17 h1:Jwhc0zyUwQbC2hNcsi+YMeUX/JUnM+dXVCkTw6wtPzs=
 chainguard.dev/go-grpc-kit v0.17.17/go.mod h1:qn0meP6RtrbLicE1bgBZnnVU9dvX95eLs0x0T6kZ+b4=
-chainguard.dev/sdk v0.1.76 h1:ijjE6xC8MSt76Gv44r571E8E8rwoIyUlIRj2N6FZGH0=
-chainguard.dev/sdk v0.1.76/go.mod h1:t8m9wn52ylTmEaOCQWUkfxvXOIQe5xD3UsvYn1CP7Bo=
+chainguard.dev/sdk v0.1.84 h1:GqsOcZb7xHHy/Mg1bIX2eEbD2HJgM8/iAQQ1kWCYeuA=
+chainguard.dev/sdk v0.1.84/go.mod h1:VQ7UkdhbYpwvzapYJcHixIGE7okay8HNwKPmI1Gk8ok=
 cloud.google.com/go/auth v0.20.0 h1:kXTssoVb4azsVDoUiF8KvxAqrsQcQtB53DcSgta74CA=
 cloud.google.com/go/auth v0.20.0/go.mod h1:942/yi/itH1SsmpyrbnTMDgGfdy2BUqIKyd0cyYLc5Q=
 cloud.google.com/go/auth/oauth2adapt v0.2.8 h1:keo8NaayQZ6wimpNSmW5OPc283g65QNIiLpZnkHRbnc=
@@ -288,8 +288,8 @@ go.opentelemetry.io/contrib/exporters/autoexport v0.67.0 h1:4fnRcNpc6YFtG3zsFw9a
 go.opentelemetry.io/contrib/exporters/autoexport v0.67.0/go.mod h1:qTvIHMFKoxW7HXg02gm6/Wofhq5p3Ib/A/NNt1EoBSQ=
 go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.67.0 h1:yI1/OhfEPy7J9eoa6Sj051C7n5dvpj0QX8g4sRchg04=
 go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.67.0/go.mod h1:NoUCKYWK+3ecatC4HjkRktREheMeEtrXoQxrqYFeHSc=
-go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0 h1:CqXxU8VOmDefoh0+ztfGaymYbhdB/tT3zs79QaZTNGY=
-go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0/go.mod h1:BuhAPThV8PBHBvg8ZzZ/Ok3idOdhWIodywz2xEcRbJo=
+go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0 h1:8tvICD4vSTOOsNrsI4Ljf6C+6UKvpTEH5XY3JMoyPoo=
+go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0/go.mod h1:z9+yiacE0IHRqM4qFfkbt/JYlmYXgss8GY/jXoNuPJI=
 go.opentelemetry.io/otel v1.44.0 h1:JjwHmHpA4iZ3wBxluu2fbbE7j4kqlE8jXyAyPXH7HqU=
 go.opentelemetry.io/otel v1.44.0/go.mod h1:BMgjTHL9WPRlRjL2oZCBTL4whCGtXch2H4BhOPIAyYc=
 go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.19.0 h1:Dn8rkudDzY6KV9dr/D/bTUuWgqDf9xe0rr4G2elrn0Y=
