@@ -13,7 +13,7 @@ require (
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/chainguard-dev/clog v1.8.0 // indirect
+	github.com/chainguard-dev/clog v1.8.1 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-jose/go-jose/v3 v3.0.5 // indirect
