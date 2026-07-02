@@ -3,7 +3,7 @@ module github.com/chainguard-dev/tw
 go 1.26.0
 
 require (
-	chainguard.dev/apko v1.2.19
+	chainguard.dev/apko v1.2.21
 	github.com/aquasecurity/go-pep440-version v0.0.1
 	github.com/armon/go-radix v1.0.0
 	github.com/avast/retry-go/v4 v4.7.0
