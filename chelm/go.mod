@@ -3,7 +3,7 @@ module chainguard.dev/tw/chelm
 go 1.26.0
 
 require (
-	chainguard.dev/sdk v0.1.111
+	chainguard.dev/sdk v0.1.119
 	dario.cat/mergo v1.0.2
 	github.com/google/go-containerregistry v0.21.7
 	github.com/opencontainers/go-digest v1.0.0
