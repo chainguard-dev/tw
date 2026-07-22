@@ -26,11 +26,11 @@ jobs:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: chainguard-dev/actions/apt-faster@f0be69916b439d0fcced2451b23d0f27cd46d545 # v1.6.26
-      - uses: chainguard-dev/actions/setup-melange@f0be69916b439d0fcced2451b23d0f27cd46d545 # v1.6.26
+      - uses: chainguard-dev/actions/apt-faster@fabe4ed3f66ceb5f8ec86ed7ae6d0c945ca362fb # v1.6.28
+      - uses: chainguard-dev/actions/setup-melange@fabe4ed3f66ceb5f8ec86ed7ae6d0c945ca362fb # v1.6.28
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
