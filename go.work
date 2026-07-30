@@ -2,6 +2,7 @@ go 1.26.0
 
 use (
 	./chelm
+	./daemon-check-output
 	./gosh
 	./no-docs-check
 	./package-type-check
