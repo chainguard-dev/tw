@@ -1,0 +1,102 @@
+package:
+  name: gen-tls-cert-test
+  version: "0.0.0"
+  epoch: 0
+  description: Manual tests for the test/tw/gen-tls-cert pipeline
+
+environment:
+  contents:
+    packages:
+      - busybox
+      - wolfi-base
+
+pipeline:
+  - runs: |
+      echo "Manual tests for gen-tls-cert pipeline"
+
+subpackages:
+  # Positive case 1: minimal invocation, default paths.
+  - name: gen-tls-cert-test-minimal
+    description: "Positive: cn only, default /tmp/tls.{key,crt} paths"
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.contextdir}}/usr/share/doc/${{context.name}}
+          echo "placeholder" > ${{targets.contextdir}}/usr/share/doc/${{context.name}}/README
+    test:
+      environment:
+        contents:
+          packages:
+            - openssl
+      pipeline:
+        - uses: test/tw/gen-tls-cert
+          with:
+            cn: test.example.com
+        - name: Verify default key and cert exist and match
+          runs: |
+            set -e
+            test -s /tmp/tls.key
+            test -s /tmp/tls.crt
+            openssl x509 -in /tmp/tls.crt -noout -subject | grep -qF "CN=test.example.com"
+            # Ensure the cert and key actually correspond.
+            cert_mod=$(openssl x509 -noout -modulus -in /tmp/tls.crt | openssl md5)
+            key_mod=$(openssl rsa  -noout -modulus -in /tmp/tls.key | openssl md5)
+            [ "${cert_mod}" = "${key_mod}" ]
+            echo "PASS: minimal gen-tls-cert produced a usable key+cert pair"
+
+  # Positive case 2: SAN, custom output paths, non-default validity.
+  - name: gen-tls-cert-test-san
+    description: "Positive: SAN extension, custom paths, days override"
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.contextdir}}/usr/share/doc/${{context.name}}
+          echo "placeholder" > ${{targets.contextdir}}/usr/share/doc/${{context.name}}/README
+    test:
+      environment:
+        contents:
+          packages:
+            - openssl
+      pipeline:
+        - uses: test/tw/gen-tls-cert
+          with:
+            cn: webhook.svc
+            san: "DNS:webhook.svc,DNS:webhook.svc.cluster.local"
+            key-out: /tmp/serving/tls.key
+            cert-out: /tmp/serving/tls.crt
+            days: "30"
+        - name: Verify SAN and custom paths
+          runs: |
+            set -e
+            test -s /tmp/serving/tls.key
+            test -s /tmp/serving/tls.crt
+            text=$(openssl x509 -in /tmp/serving/tls.crt -noout -text)
+            echo "${text}" | grep -qF "CN=webhook.svc"
+            echo "${text}" | grep -qF "DNS:webhook.svc"
+            echo "${text}" | grep -qF "DNS:webhook.svc.cluster.local"
+            echo "PASS: gen-tls-cert wrote SAN cert at custom path"
+
+  # Positive case 3: custom key size.
+  - name: gen-tls-cert-test-4096
+    description: "Positive: non-default key-bits=4096"
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.contextdir}}/usr/share/doc/${{context.name}}
+          echo "placeholder" > ${{targets.contextdir}}/usr/share/doc/${{context.name}}/README
+    test:
+      environment:
+        contents:
+          packages:
+            - openssl
+      pipeline:
+        - uses: test/tw/gen-tls-cert
+          with:
+            cn: bigkey.example.com
+            key-bits: "4096"
+        - name: Verify key size honors key-bits input
+          runs: |
+            set -e
+            # `openssl pkey -text` prints something like
+            #   "Private-Key: (4096 bit, 2 primes)" on OpenSSL 3,
+            #   "Private-Key: (4096 bit)"           on OpenSSL 1.1.
+            # Grepping for the literal "4096 bit" covers both.
+            openssl pkey -in /tmp/tls.key -noout -text | grep -q "4096 bit"
+            echo "PASS: key-bits=4096 produced a 4096-bit key"
