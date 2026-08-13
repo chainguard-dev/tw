@@ -20,6 +20,13 @@ inputs:
       Defaults to the current package being built.
     required: false
     default: "${{context.name}}"
+  list:
+    description: |
+      Exact gem name(s) to check with 'gem list -i' (space-separated).
+      Overrides the auto-detected name from the package.
+      Use 'none' to skip the list check entirely.
+    required: false
+    default: ""
   require:
     description: |
       Exact gem name(s) to test requiring (comma or space-separated).
@@ -43,7 +50,23 @@ inputs:
 #     with:
 #       require: "rails activerecord actionpack"
 #
+# Meta-package that bundles multiple gems whose names don't match the apk:
+#   - uses: test/tw/gem-check
+#     with:
+#       list: |
+#         fluent-plugin-oss
+#         fluent-plugin-foo
+#       require: |
+#         fluent/plugin/out_oss
+#         fluent/plugin/out_foo
+#
+# Meta-package, skipping the list check entirely:
+#   - uses: test/tw/gem-check
+#     with:
+#       list: none
+#       require: "fluent/plugin/out_oss"
+#
 pipeline:
   - name: check a ruby gem installation
     runs: |
-      gem-check --package "${{inputs.package}}" --require "${{inputs.require}}"
+      gem-check --package "${{inputs.package}}" --list "${{inputs.list}}" --require "${{inputs.require}}"

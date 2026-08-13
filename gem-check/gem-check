@@ -70,6 +70,7 @@ exit 9
 }
 
 package=""
+list=""
 require=""
 
 while [ $# -ne 0 ]; do
@@ -87,6 +88,13 @@ while [ $# -ne 0 ]; do
 			else
 				package="$2"
 			fi
+			shift
+		;;
+		-l=*|--list=*)
+			list="${1#*=}"
+		;;
+		-l|--list)
+			list="$2"
 			shift
 		;;
 		-r=*|--require=*)
@@ -111,7 +119,8 @@ while [ $# -ne 0 ]; do
 	shift
 done
 package=${package# }
-require=${require# }
+list=$(echo "${list# }" | tr ',' ' ')
+require=$(echo "${require# }" | tr ',' ' ')
 
 [ -n "${package}" ] || error "No package specified"
 
@@ -138,13 +147,27 @@ PASSES=0
 #   PASS[gem-check]: Success requiring gem [zip]
 #   INFO[gem-check]: tested [2] files with gem-check.  [2] passes. [0] fails.
 #
+# For meta-packages that bundle multiple gems, or where the apk name isn't
+# itself a gem, override or skip the list check with --list:
+#   $ gem-check --package=ruby3.2-foo --list="bar baz"
+#   $ gem-check --package=ruby3.2-foo --list=none --require=bar
+#
 gem_dash=$(echo "$package" | sed -e "s/^ruby[0-9\.]\+-//")
 gem_slash=$(echo "$package" | sed -e "s/^ruby[0-9\.]\+-//" -e "s:\-:/:g")
-# Test listing the gem
-if gem_list "$gem_dash" ; then
-	pass "Success listing gem [$gem_dash]"
+# Test listing the gem(s)
+if [ -z "$list" ]; then
+	list="$gem_dash"
+fi
+if [ "$list" = "none" ]; then
+	info "Skipping gem list check"
 else
-	fail "Failed listing gem [$gem_dash]"
+	for g in $list; do
+		if gem_list "$g" ; then
+			pass "Success listing gem [$g]"
+		else
+			fail "Failed listing gem [$g]"
+		fi
+	done
 fi
 # Test requiring the gem in ruby code
 if [ -z "$require" ]; then
@@ -158,7 +181,7 @@ for req in $require; do
 	fi
 done
 
-info "Tested [package='$package', require='$require'] with [$PROG].  [$PASSES/$((PASSES+FAILS))] passed."
+info "Tested [package='$package', list='$list', require='$require'] with [$PROG].  [$PASSES/$((PASSES+FAILS))] passed."
 if [ "$FAILS" = "0" ]; then
 	exit 0
 else
