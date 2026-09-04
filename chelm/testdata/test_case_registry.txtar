@@ -1,0 +1,232 @@
+# A case that engages a chart's registry override names the host it expects,
+# so the override has to actually take effect.
+chelm test cg.json --chart=chart --test-repository=chainguard/test
+cmp stdout expected.json
+
+# An override the chart accepts but never reads renders the same refs as the
+# case without it, which only the expected registry catches.
+! chelm test ignored.json --chart=ignored --test-repository=chainguard/test
+stdout '"passed": false'
+stderr 'FAIL: case "relocated"'
+
+# An override that prepends instead of replacing the host it already carries
+# is caught by the repository prefix, which stays fixed across cases.
+! chelm test stacked.json --chart=stacked --test-repository=chainguard/test
+stdout 'other.test/cgr.test/chainguard/test/app:v0.0.0'
+stderr 'FAIL: case "relocated"'
+
+# A malformed registry fails when cg.json is parsed, not as a mismatch later.
+! chelm test bad.json --chart=chart
+stderr 'test case "relocated": invalid registry'
+
+-- cg.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": {
+          "registry": "${registry}",
+          "repository": "${repo}",
+          "tag": "${tag}"
+        }
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "default", "images": ["app"]},
+      {
+        "name": "relocated",
+        "images": ["app"],
+        "registry": "other.test",
+        "values": {"global": {"imageRegistry": "other.test"}}
+      }
+    ]
+  }
+}
+
+-- bad.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": {
+          "registry": "${registry}",
+          "repository": "${repo}",
+          "tag": "${tag}"
+        }
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "relocated", "images": ["app"], "registry": "not a registry"}
+    ]
+  }
+}
+
+-- ignored.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": {
+          "registry": "${registry}",
+          "repository": "${repo}",
+          "tag": "${tag}"
+        }
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {
+        "name": "relocated",
+        "images": ["app"],
+        "registry": "other.test",
+        "values": {"global": {"imageRegistry": "other.test"}}
+      }
+    ]
+  }
+}
+
+-- stacked.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": {
+          "repository": "${registry_repo}",
+          "tag": "${tag}"
+        }
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {
+        "name": "relocated",
+        "images": ["app"],
+        "registry": "other.test",
+        "values": {"global": {"imageRegistry": "other.test"}}
+      }
+    ]
+  }
+}
+
+-- chart/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- chart/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: {{ .Values.global.imageRegistry | default .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}
+
+-- chart/values.yaml --
+global:
+  imageRegistry: ""
+image:
+  registry: docker.io
+  repository: library/nginx
+  tag: latest
+
+-- ignored/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- ignored/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: {{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}
+
+-- ignored/values.yaml --
+global:
+  imageRegistry: ""
+image:
+  registry: docker.io
+  repository: library/nginx
+  tag: latest
+
+-- stacked/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- stacked/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: {{ with .Values.global.imageRegistry }}{{ . }}/{{ end }}{{ .Values.image.repository }}:{{ .Values.image.tag }}
+
+-- stacked/values.yaml --
+global:
+  imageRegistry: ""
+image:
+  repository: docker.io/library/nginx
+  tag: latest
+
+-- expected.json --
+{
+  "passed": true,
+  "cases": [
+    {
+      "name": "default",
+      "passed": true,
+      "images": [
+        "cgr.test/chainguard/test/app:v0.0.0"
+      ],
+      "expected": [
+        "app"
+      ],
+      "extractors": {
+        "regex": [
+          "cgr.test/chainguard/test/app:v0.0.0"
+        ],
+        "structured": [
+          "cgr.test/chainguard/test/app:v0.0.0"
+        ]
+      }
+    },
+    {
+      "name": "relocated",
+      "passed": true,
+      "images": [
+        "other.test/chainguard/test/app:v0.0.0"
+      ],
+      "expected": [
+        "app"
+      ],
+      "extractors": {
+        "regex": [
+          "other.test/chainguard/test/app:v0.0.0"
+        ],
+        "structured": [
+          "other.test/chainguard/test/app:v0.0.0"
+        ]
+      }
+    }
+  ]
+}

@@ -52,9 +52,15 @@ func DeclaresDigest(img *images.Image) bool {
 	return found
 }
 
+// TestParams are the base values that ${...} markers resolve against.
+type TestParams struct {
+	Registry   string // registry hostname, e.g. "cgr.test"
+	Repository string // org path every image ID hangs off, e.g. "chainguard/test"
+}
+
 // GenerateValues creates Helm values for a test case.
 // Merges in order: image values < global test values < case values < extra values
-func GenerateValues(meta *CGMeta, caseName, testRegistry string, extra map[string]any) (map[string]any, error) {
+func GenerateValues(meta *CGMeta, caseName string, p TestParams, extra map[string]any) (map[string]any, error) {
 	// Find the test case
 	var tc *TestCase
 	for i := range meta.Test.Cases {
@@ -68,7 +74,7 @@ func GenerateValues(meta *CGMeta, caseName, testRegistry string, extra map[strin
 	}
 
 	// Generate image values with test markers
-	imageVals, err := generateImageValues(&images.Mapping{Images: meta.Images}, testRegistry)
+	imageVals, err := generateImageValues(&images.Mapping{Images: meta.Images}, p)
 	if err != nil {
 		return nil, fmt.Errorf("generating image values: %w", err)
 	}
@@ -82,17 +88,20 @@ func GenerateValues(meta *CGMeta, caseName, testRegistry string, extra map[strin
 	return result, nil
 }
 
-func generateImageValues(m *images.Mapping, testRegistry string) (map[string]any, error) {
+func generateImageValues(m *images.Mapping, p TestParams) (map[string]any, error) {
 	if m == nil {
 		return nil, nil
 	}
 
-	registry, err := name.NewRegistry(testRegistry)
+	registry, err := name.NewRegistry(p.Registry)
 	if err != nil {
-		return nil, fmt.Errorf("invalid marker base %q: %w", testRegistry, err)
+		return nil, fmt.Errorf("invalid marker base %q: %w", p.Registry, err)
+	}
+	if _, err := name.NewRepository(registry.Name() + "/" + p.Repository); err != nil {
+		return nil, fmt.Errorf("invalid test repository %q: %w", p.Repository, err)
 	}
 
-	vals, err := m.Walk(testResolver(registry))
+	vals, err := m.Walk(testResolver(registry, p.Repository))
 	if err != nil {
 		return nil, err
 	}
@@ -100,9 +109,9 @@ func generateImageValues(m *images.Mapping, testRegistry string) (map[string]any
 }
 
 // testResolver returns a WalkFunc that substitutes markers with test values.
-func testResolver(registry name.Registry) images.WalkFunc {
+func testResolver(registry name.Registry, repository string) images.WalkFunc {
 	return func(imageID string, tokens images.TokenList) (any, error) {
-		repo := registry.Repo(DefaultTestRepository, strings.ToLower(imageID))
+		repo := registry.Repo(repository, strings.ToLower(imageID))
 
 		var sb strings.Builder
 		for _, tok := range tokens {
