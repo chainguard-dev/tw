@@ -96,6 +96,7 @@ Exit code is non-zero if any test case fails.`,
 		extraValuesStr, _ := cmd.Flags().GetString("extra-values")
 		setFlags, _ := cmd.Flags().GetStringSlice("set")
 		testRegistry, _ := cmd.Flags().GetString("test-registry")
+		testRepository, _ := cmd.Flags().GetString("test-repository")
 
 		// Load cg.json
 		f, err := os.Open(args[0])
@@ -140,8 +141,14 @@ Exit code is non-zero if any test case fails.`,
 		for _, tc := range meta.Test.Cases {
 			caseOut := CaseOutput{Name: tc.Name, Passed: true}
 
+			expectedRegistry := tc.Registry
+			if expectedRegistry == "" {
+				expectedRegistry = testRegistry
+			}
+
 			// Generate values
-			values, err := chelm.GenerateValues(meta, tc.Name, testRegistry, extraValues)
+			values, err := chelm.GenerateValues(meta, tc.Name,
+				chelm.TestParams{Registry: testRegistry, Repository: testRepository}, extraValues)
 			if err != nil {
 				caseOut.Error = fmt.Sprintf("generating values: %v", err)
 				caseOut.Passed = false
@@ -218,14 +225,17 @@ Exit code is non-zero if any test case fails.`,
 				}
 
 				// Check registry (case-insensitive per OCI spec)
-				if !strings.EqualFold(ref.Registry, testRegistry) {
+				if !strings.EqualFold(ref.Registry, expectedRegistry) {
 					caseOut.Passed = false
 					output.Passed = false
 					continue
 				}
 
-				// Check repository: must be {DefaultTestRepository}/{imageID}
-				repoPrefix := chelm.DefaultTestRepository + "/"
+				// Check repository: must be {testRepository}/{imageID}. The
+				// prefix holds even for a case that relocates the registry, so
+				// an override that stacks onto the existing host or swallows
+				// the first segment of the org path along with it is rejected.
+				repoPrefix := testRepository + "/"
 				if !strings.HasPrefix(ref.Repo, repoPrefix) {
 					caseOut.Passed = false
 					output.Passed = false
@@ -307,4 +317,5 @@ func init() {
 	testCmd.Flags().String("extra-values", "", "Extra values YAML to merge")
 	testCmd.Flags().StringSlice("set", nil, "Set values (passed to helm --set)")
 	testCmd.Flags().String("test-registry", chelm.DefaultTestRegistry, "Registry for test marker images")
+	testCmd.Flags().String("test-repository", chelm.DefaultTestRepository, "Org path for test marker images")
 }

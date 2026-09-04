@@ -1,0 +1,67 @@
+# A chart that treats a dotted first path segment as a registry hostname drops
+# the registry for real org names, which are domains. The dot-free org path
+# hides this entirely.
+chelm test cg.json --chart=chart --test-repository=chainguard/test
+stdout '"passed": true'
+stdout 'cgr.test/chainguard/test/app:v0.0.0'
+
+! chelm test cg.json --chart=chart --test-repository=chainguard.test/org
+stdout '"passed": false'
+stdout '"chainguard.test/org/app:v0.0.0"'
+stderr 'FAIL: case "default"'
+
+-- cg.json --
+{
+  "images": {
+    "app": {
+      "values": {
+        "image": {
+          "registry": "${registry}",
+          "repository": "${repo}",
+          "tag": "${tag}"
+        }
+      }
+    }
+  },
+  "test": {
+    "cases": [
+      {"name": "default", "images": ["app"]}
+    ]
+  }
+}
+
+-- chart/Chart.yaml --
+apiVersion: v2
+name: test-chart
+version: 0.1.0
+
+-- chart/templates/_helpers.tpl --
+{{/* Prepend the registry only when repository does not already look like it
+carries a hostname, detected by a dot in the first segment. */}}
+{{- define "test-chart.image" -}}
+{{- $repository := .Values.image.repository -}}
+{{- $first := (split "/" $repository)._0 -}}
+{{- $prefix := "" -}}
+{{- if and .Values.image.registry (not (contains "." $first)) -}}
+{{- $prefix = printf "%s/" .Values.image.registry -}}
+{{- end -}}
+{{- printf "%s%s:%s" $prefix $repository .Values.image.tag -}}
+{{- end -}}
+
+-- chart/templates/deployment.yaml --
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: {{ include "test-chart.image" . }}
+
+-- chart/values.yaml --
+image:
+  registry: docker.io
+  repository: library/nginx
+  tag: latest

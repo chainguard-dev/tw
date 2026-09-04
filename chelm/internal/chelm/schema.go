@@ -22,4 +22,9 @@ type TestCase struct {
 	Name   string         `json:"name"`
 	Images []string       `json:"images,omitempty"` // Image IDs to include in this case
 	Values map[string]any `json:"values,omitempty"` // Case-specific values
+	// Registry every image must resolve under, defaulting to the test
+	// registry. A case that sets a chart's registry override in Values names
+	// the host it expects here, so an override the chart ignores fails instead
+	// of rendering the same refs as the case without it.
+	Registry string `json:"registry,omitempty"`
 }

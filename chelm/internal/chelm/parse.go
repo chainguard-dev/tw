@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"chainguard.dev/sdk/helm/images"
+	"github.com/google/go-containerregistry/pkg/name"
 )
 
 // Parse parses and validates a cg.json from the given reader.
@@ -55,6 +56,11 @@ func (m *CGMeta) Validate() error {
 		for _, imgID := range tc.Images {
 			if _, ok := m.Images[imgID]; !ok {
 				return fmt.Errorf("test case %q references unknown image %q", tc.Name, imgID)
+			}
+		}
+		if tc.Registry != "" {
+			if _, err := name.NewRegistry(tc.Registry); err != nil {
+				return fmt.Errorf("test case %q: invalid registry: %w", tc.Name, err)
 			}
 		}
 	}
