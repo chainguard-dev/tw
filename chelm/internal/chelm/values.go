@@ -143,6 +143,14 @@ func resolveField(f images.RefField, imageID string, repo name.Repository) strin
 		return DefaultTestTag + "@" + d.String()
 	case images.Ref:
 		return repo.Digest(d.String()).Name()
+	case images.ImageName:
+		return strings.ToLower(imageID)
+	case images.RegistryRepoPrefix:
+		full := repo.Name()
+		if idx := strings.LastIndex(full, "/"); idx >= 0 {
+			return full[:idx]
+		}
+		return full
 	default:
 		return ""
 	}
