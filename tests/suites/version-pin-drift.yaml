@@ -1,0 +1,93 @@
+name: version-pin-drift pipeline validation tests
+
+description: Test suite for the test/tw/version-pin-drift pipeline across python and nodejs, using pinned upstream refs.
+
+testcases:
+  - name: python exact match (.python-version)
+    description: mlrun v1.10.2 ships .python-version=3.11; pin 3.11 is consistent
+    package: bash
+    pipelines:
+      - uses: test/tw/version-pin-drift
+        with:
+          ecosystem: python
+          repository: https://github.com/mlrun/mlrun
+          ref: v1.10.2
+          pin: "3.11"
+    expect_pass: true
+  - name: python drift (.python-version mismatch)
+    description: mlrun v1.10.2 targets 3.11; a 3.12 pin must be flagged
+    package: bash
+    pipelines:
+      - uses: test/tw/version-pin-drift
+        with:
+          ecosystem: python
+          repository: https://github.com/mlrun/mlrun
+          ref: v1.10.2
+          pin: "3.12"
+    expect_pass: false
+  - name: python range (requires-python)
+    description: fastapi 0.115.0 declares requires-python >=3.8; pin 3.11 satisfies it
+    package: bash
+    pipelines:
+      - uses: test/tw/version-pin-drift
+        with:
+          ecosystem: python
+          repository: https://github.com/fastapi/fastapi
+          ref: 0.115.0
+          pin: "3.11"
+    expect_pass: true
+  - name: nodejs exact match (.node-version)
+    description: next.js v14.2.0 ships .node-version=18; pin 18 is consistent
+    package: bash
+    pipelines:
+      - uses: test/tw/version-pin-drift
+        with:
+          ecosystem: nodejs
+          repository: https://github.com/vercel/next.js
+          ref: v14.2.0
+          pin: "18"
+    expect_pass: true
+  - name: nodejs drift (.node-version mismatch)
+    description: next.js v14.2.0 targets node 18; a node 16 pin must be flagged
+    package: bash
+    pipelines:
+      - uses: test/tw/version-pin-drift
+        with:
+          ecosystem: nodejs
+          repository: https://github.com/vercel/next.js
+          ref: v14.2.0
+          pin: "16"
+    expect_pass: false
+  - name: go minimum satisfied (go.mod directive)
+    description: cosign v2.4.1 go.mod needs go 1.22; a 1.23 pin is >= the minimum
+    package: bash
+    pipelines:
+      - uses: test/tw/version-pin-drift
+        with:
+          ecosystem: go
+          repository: https://github.com/sigstore/cosign
+          ref: v2.4.1
+          pin: "1.23"
+    expect_pass: true
+  - name: go below minimum (go.mod directive)
+    description: cosign v2.4.1 go.mod needs go 1.22; a 1.19 pin is below the minimum
+    package: bash
+    pipelines:
+      - uses: test/tw/version-pin-drift
+        with:
+          ecosystem: go
+          repository: https://github.com/sigstore/cosign
+          ref: v2.4.1
+          pin: "1.19"
+    expect_pass: false
+  - name: ruby exact match (.ruby-version)
+    description: mastodon v4.2.0 ships .ruby-version=3.2.2; pin 3.2 is consistent
+    package: bash
+    pipelines:
+      - uses: test/tw/version-pin-drift
+        with:
+          ecosystem: ruby
+          repository: https://github.com/mastodon/mastodon
+          ref: v4.2.0
+          pin: "3.2"
+    expect_pass: true
