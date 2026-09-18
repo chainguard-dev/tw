@@ -281,6 +281,22 @@ subpackages:
         - runs: |
             chelm --help
 
+  - name: daemon-check-output
+    options:
+      no-provides: true
+    dependencies:
+      runtime:
+        - busybox
+    pipeline:
+      - runs: |
+          make -C daemon-check-output MELANGE_CONTEXTDIR=${{targets.contextdir}} melange-install
+      - uses: strip
+    test:
+      pipeline:
+        - runs: |
+            [ -f /usr/bin/daemon-check-output ]
+            [ -x /usr/bin/daemon-check-output ]
+
 # TODO: I'd like to do this, but until we can dynamically generate the dependencies, we need to manually set them
 # data:
 #   - name: bins
