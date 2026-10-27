@@ -1,0 +1,141 @@
+#!/bin/bash
+# Compares the entrypoint, cmd and working directory of images with the newest
+# release of their upstream images. See show_help.
+set -euo pipefail
+
+info() { echo "INFO[image-config-check]:" "$@"; }
+error() { echo "ERROR[image-config-check]:" "$@" >&2; exit 2; }
+fail() { echo "FAIL[image-config-check]:" "$@"; failed=1; }
+pass() { echo "PASS[image-config-check]:" "$@"; }
+
+show_help() {
+  cat << EOF
+Usage: image-config-check --image REF [--image REF ...] --alias REF [--alias REF ...]
+
+Compares the entrypoint, cmd and working directory of each image with the
+newest release of its upstream image, and fails when they differ.
+
+Options:
+  -h, --help                Show this help message and exit
+  --image=REF, --image REF  Image to check. Repeat for a module that builds
+                            several images.
+  --alias=REF, --alias REF  Upstream image the images replace, for example
+                            nginx:latest. Repeat for several components.
+
+Pairing:
+  A single image is compared with the first alias. Several images are each
+  compared with the alias of the same repository name, ignoring -fips;
+  images without one are not compared.
+
+Upstream release:
+  The alias's own tag is ignored in favour of the newest release tag in its
+  repository (X.Y or X.Y.Z, with or without a v), since that tag may be a
+  stale latest. The alias is used when its image is newer than that release,
+  as when newer releases carry suffixes, or when there are no release tags.
+
+Comparison:
+  Entrypoint, Cmd and WorkingDir are read with crane config and must be
+  identical. A missing Entrypoint or Cmd counts as empty, and a missing
+  WorkingDir counts as /, as a container runtime treats them.
+
+Exit status:
+  0 when every compared image matches, 1 when one differs or cannot be read,
+  2 on a usage error.
+
+Examples:
+  image-config-check --image cgr.dev/chainguard/nginx:latest --alias nginx:latest
+  image-config-check --image example.com/amazon-k8s-cni:latest \\
+    --image example.com/amazon-k8s-cni-init:latest \\
+    --alias public.ecr.aws/eks/amazon-k8s-cni:latest \\
+    --alias public.ecr.aws/eks/amazon-k8s-cni-init:latest
+EOF
+  exit 0
+}
+
+images=()
+aliases=()
+while [ $# -ne 0 ]; do
+  case "$1" in
+    -h|--help) show_help;;
+    --image=*) images+=("${1#*=}");;
+    --image) [ $# -ge 2 ] || error "--image needs a value"; images+=("$2"); shift;;
+    --alias=*) aliases+=("${1#*=}");;
+    --alias) [ $# -ge 2 ] || error "--alias needs a value"; aliases+=("$2"); shift;;
+    *) error "Unknown argument '$1'";;
+  esac
+  shift
+done
+
+[ ${#images[@]} -gt 0 ] || error "at least one --image is required"
+[ ${#aliases[@]} -gt 0 ] || error "at least one --alias is required"
+
+# Prints an image reference without its tag or digest.
+repository() {
+  local repo="${1%%@*}"
+  if [[ "${repo##*/}" == *:* ]]; then
+    repo="${repo%:*}"
+  fi
+  echo "$repo"
+}
+
+created() {
+  crane config "$1" 2>/dev/null | jq -r '(.created // "")[0:19]' || true
+}
+
+# Prints the upstream image to compare with an alias.
+upstream_of() {
+  local alias="$1" repo release
+  repo="$(repository "$alias")"
+  release="$(crane ls "$repo" 2>/dev/null | grep -E '^v?[0-9]+(\.[0-9]+)+$' \
+    | awk '{ v = $0; sub(/^v/, "", v); print v, $0 }' | sort -V -k1,1 | tail -n 1 | cut -d' ' -f2 || true)"
+  if [[ -n "$release" && ! "$(created "$repo:$release")" < "$(created "$alias")" ]]; then
+    echo "$repo:$release"
+  else
+    echo "$alias"
+  fi
+}
+
+image_config() {
+  crane config "$1" | jq -c '.config | {
+    entrypoint: (.Entrypoint // []),
+    cmd: (.Cmd // []),
+    work_dir: (if (.WorkingDir // "") == "" then "/" else .WorkingDir end)
+  }'
+}
+
+failed=0
+for image in "${images[@]}"; do
+  alias="${aliases[0]}"
+  if [ ${#images[@]} -gt 1 ]; then
+    name="$(basename "$(repository "$image")")"
+    alias=""
+    for candidate in "${aliases[@]}"; do
+      if [ "$(basename "$(repository "$candidate")")" = "${name%-fips}" ]; then
+        alias="$candidate"
+        break
+      fi
+    done
+    if [ -z "$alias" ]; then
+      info "no alias for $image; not compared"
+      continue
+    fi
+  fi
+
+  upstream="$(upstream_of "$alias")"
+  if ! upstream_config="$(image_config "$upstream")"; then
+    fail "cannot read the config of $upstream"
+    continue
+  fi
+  if ! our_config="$(image_config "$image")"; then
+    fail "cannot read the config of $image"
+    continue
+  fi
+  info "upstream $upstream: $upstream_config"
+  info "ours $image: $our_config"
+  if [ "$our_config" = "$upstream_config" ]; then
+    pass "$image matches $upstream"
+  else
+    fail "$image does not match $upstream"
+  fi
+done
+exit "$failed"
