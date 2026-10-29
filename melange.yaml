@@ -254,6 +254,21 @@ subpackages:
             [ -f /usr/bin/symlink-check ]
             [ -x /usr/bin/symlink-check ]
 
+  - name: soversion-check
+    options:
+      no-provides: true
+    dependencies:
+      runtime:
+        - busybox
+    pipeline:
+      - runs: |
+          make -C soversion-check MELANGE_CONTEXTDIR=${{targets.contextdir}} melange-install
+    test:
+      pipeline:
+        - runs: |
+            [ -f /usr/bin/soversion-check ]
+            [ -x /usr/bin/soversion-check ]
+
   - name: no-docs-check
     options:
       no-provides: true

@@ -17,6 +17,7 @@ This directory contains test pipelines for validating Wolfi packages. Use this i
 | `header-check` | Verify C/C++ headers compile | none |
 | `help-check` | Verify binaries respond to --help | `bins` |
 | `ldd-check` | Check for missing shared libraries | none |
+| `soversion-check` | Check library SONAMEs match the package name | none |
 | `lua-syntax-check` | Find and compile all installed Lua files with LuaJIT | none |
 | `metapackage` | Validate meta-packages (deps only) | none |
 | `no-docs` | Ensure package has no documentation | none |
@@ -201,6 +202,18 @@ Checks binaries for missing runtime library dependencies using `ldd`.
 - `verbose` (optional) - Enable verbose output
 
 **Dependencies:** ldd-check
+
+---
+
+### `soversion-check`
+Checks that each shared library in a package has a SONAME version matching the soversion the package name ends in (`libfoo2` and `libfoo-2` must ship `libfoo.so.2`).
+
+**When to use:** For soname-versioned library subpackages, especially ones named from a fixed `vars.soversion`. On a mismatch it prints the `vars.soversion` value to set.
+
+**Inputs:**
+- `packages` (optional, default: `${{context.name}}`) - Packages to check
+
+**Dependencies:** soversion-check
 
 ---
 
