@@ -88,13 +88,32 @@ func isLibraryName(path string) bool {
 	return strings.HasSuffix(base, ".so") || strings.Contains(base, ".so.")
 }
 
+// soProvides returns the so: entries of an APK provides list as a map from
+// soname to provided version, for example "so:libfoo.so.2=2" gives
+// libfoo.so.2 -> "2". Other provides, such as so-ver: and cmd:, are ignored.
+func soProvides(provides []string) map[string]string {
+	sonames := map[string]string{}
+	for _, p := range provides {
+		rest, ok := strings.CutPrefix(p, "so:")
+		if !ok {
+			continue
+		}
+		soname, ver, _ := strings.Cut(rest, "=")
+		sonames[soname] = ver
+	}
+	return sonames
+}
+
 // checker checks the files of one package name and remembers the soversions
-// that did not match, so it can suggest a remedy.
+// that did not match, so it can suggest a remedy. With provides set, it also
+// checks the so: provides that melange SCA generated for the package.
 type checker struct {
 	name     string
 	result   *Result
 	checked  int
 	mismatch map[string]bool
+	provides map[string]string
+	seen     map[string]bool
 }
 
 // checkFile checks one file. With insist set, files that are not regular or
@@ -116,19 +135,65 @@ func (c *checker) checkFile(path string, insist bool) {
 		return
 	}
 	c.checked++
+	c.seen[soname] = true
 
 	ver, ok := soversionOf(soname)
 	if !ok {
 		c.result.AddFail(fmt.Sprintf("%s: SONAME %s is unversioned, so it cannot match %s", path, soname, c.name))
 		return
 	}
-	if !nameMatches(c.name, ver) {
+	if nameMatches(c.name, ver) {
+		c.result.AddPass(fmt.Sprintf("%s: SONAME %s matches %s", path, soname, c.name))
+	} else {
 		c.result.AddFail(fmt.Sprintf("%s: SONAME %s has soversion %s, but the package name %s does not end in %s",
 			path, soname, ver, c.name, ver))
 		c.mismatch[ver] = true
-		return
 	}
-	c.result.AddPass(fmt.Sprintf("%s: SONAME %s matches %s", path, soname, c.name))
+	if c.provides != nil {
+		c.checkProvide(soname, ver)
+	}
+}
+
+// checkProvide checks that the package provides so:<soname>=<ver> for a
+// library it ships.
+func (c *checker) checkProvide(soname, ver string) {
+	got, ok := c.provides[soname]
+	switch {
+	case !ok:
+		c.result.AddFail(fmt.Sprintf("%s: ships %s but does not provide so:%s; "+
+			"check that the subpackage does not set options.no-provides", c.name, soname, soname))
+	case got != ver:
+		c.result.AddFail(fmt.Sprintf("%s: provides so:%s=%s, want so:%s=%s", c.name, soname, got, soname, ver))
+	default:
+		c.result.AddPass(fmt.Sprintf("%s: provides so:%s=%s", c.name, soname, got))
+	}
+}
+
+// checkOtherProvides checks so: provides for sonames the package does not
+// ship, such as hand-written provides entries, against the package name.
+func (c *checker) checkOtherProvides() {
+	sonames := make([]string, 0, len(c.provides))
+	for soname := range c.provides {
+		if !c.seen[soname] {
+			sonames = append(sonames, soname)
+		}
+	}
+	sort.Strings(sonames)
+	for _, soname := range sonames {
+		ver := c.provides[soname]
+		if ver == "" {
+			ver, _ = soversionOf(soname)
+		}
+		if ver != "" && nameMatches(c.name, ver) {
+			c.result.AddPass(fmt.Sprintf("%s: provides so:%s=%s", c.name, soname, c.provides[soname]))
+			continue
+		}
+		c.result.AddFail(fmt.Sprintf("%s: provides so:%s=%s, which does not match the package name",
+			c.name, soname, c.provides[soname]))
+		if ver != "" {
+			c.mismatch[ver] = true
+		}
+	}
 }
 
 // remedy returns the fix for the soversions that did not match, or an empty
@@ -152,7 +217,7 @@ func (c *checker) remedy() string {
 }
 
 func newChecker(name string, result *Result) *checker {
-	return &checker{name: name, result: result, mismatch: map[string]bool{}}
+	return &checker{name: name, result: result, mismatch: map[string]bool{}, seen: map[string]bool{}}
 }
 
 // checkFiles checks the files given on the command line against Name.
@@ -194,6 +259,7 @@ func (c *Config) checkPackages(result *Result) []string {
 		}
 		info(fmt.Sprintf("Testing shared libraries in package %s", name))
 		ch := newChecker(name, result)
+		ch.provides = soProvides(pkg.Provides)
 		for _, f := range pkg.Files {
 			if isLibraryName(f.Name) {
 				ch.checkFile("/"+f.Name, false)
@@ -202,6 +268,7 @@ func (c *Config) checkPackages(result *Result) []string {
 		if ch.checked == 0 {
 			result.AddFail(fmt.Sprintf("%s: contains no shared libraries with a SONAME", name))
 		}
+		ch.checkOtherProvides()
 		if fix := ch.remedy(); fix != "" {
 			fixes = append(fixes, fix)
 		}
@@ -214,7 +281,9 @@ func showHelp() {
 
 Check that the shared libraries in a soname-versioned package carry the
 soversion that the package name ends in. For example, libfoo2 and libfoo-2
-must only ship libraries whose SONAME is libfoo.so.2.
+must only ship libraries whose SONAME is libfoo.so.2. With --packages, the
+package must also provide so:libfoo.so.2=2, and every so: provide it has must
+match its name.
 
 Options:
   -h, --help                    Show this help message and exit
@@ -289,7 +358,7 @@ func main() {
 	}
 
 	total := result.Passes + result.Fails
-	info(fmt.Sprintf("Tested [%d] files with [%s]. [%d/%d] passed.", total, progName, result.Passes, total))
+	info(fmt.Sprintf("Ran [%d] checks with [%s]. [%d/%d] passed.", total, progName, result.Passes, total))
 
 	if result.Fails > 0 {
 		fmt.Println()

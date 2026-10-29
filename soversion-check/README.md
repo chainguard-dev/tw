@@ -30,5 +30,10 @@ soversion-check --packages=libjemalloc2
 soversion-check --files=/usr/lib/libfoo.so.2.0.0 --name=libfoo2
 ```
 
+In `--packages` mode it also checks the package's provides. Each shipped
+library must have a matching `so:` provide from melange SCA (`libfoo2` must
+provide `so:libfoo.so.2=2`), and every `so:` provide on the package must match
+its name, including hand-written `provides` entries.
+
 In `--packages` mode, files that are symlinks, are not ELF, or have no SONAME
 are skipped, but a package with no shared library that has a SONAME fails.

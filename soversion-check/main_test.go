@@ -172,3 +172,66 @@ func TestParseArgs(t *testing.T) {
 		t.Error("--packages=none alone: want error")
 	}
 }
+
+func TestSoProvides(t *testing.T) {
+	got := soProvides([]string{
+		"so:libX11.so.6=6",
+		"so:libX11-xcb.so.1=1",
+		"so-ver:libX11.so.6=1.8.14-r3",
+		"cmd:foo=1.0-r0",
+		"so:libbare.so.3",
+	})
+	want := map[string]string{"libX11.so.6": "6", "libX11-xcb.so.1": "1", "libbare.so.3": ""}
+	if len(got) != len(want) {
+		t.Fatalf("soProvides = %v, want %v", got, want)
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("soProvides[%q] = %q, want %q", k, got[k], v)
+		}
+	}
+}
+
+func TestCheckProvides(t *testing.T) {
+	if _, err := exec.LookPath("cc"); err != nil {
+		t.Skip("cc not available to build fixture libraries")
+	}
+	dir := t.TempDir()
+	libfoo := buildLib(t, dir, "libfoo.so.2.0.0", "libfoo.so.2")
+
+	tests := []struct {
+		desc     string
+		pkg      string
+		provides []string
+		passes   int
+		fails    int
+		fix      string
+	}{
+		{"SCA provides match", "libfoo2", []string{"so:libfoo.so.2=2", "so-ver:libfoo.so.2=2.0.0-r0"}, 2, 0, ""},
+		{"no so: provide", "libfoo2", []string{"so-ver:libfoo.so.2=2.0.0-r0"}, 1, 1, ""},
+		{"wrong provided version", "libfoo2", []string{"so:libfoo.so.2=3"}, 1, 1, ""},
+		{"stale name with matching provides", "libfoo3", []string{"so:libfoo.so.2=2"}, 1, 1, `set vars.soversion to "2"`},
+		{"extra provide matching name", "libfoo2", []string{"so:libfoo.so.2=2", "so:libfoo-extra.so.2=2"}, 3, 0, ""},
+		{"extra provide not matching name", "libfoo2", []string{"so:libfoo.so.2=2", "so:libbar.so.5=5"}, 2, 1, `set vars.soversion to "5"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			result := &Result{}
+			ch := newChecker(tt.pkg, result)
+			ch.provides = soProvides(tt.provides)
+			ch.checkFile(libfoo, false)
+			ch.checkOtherProvides()
+			if result.Passes != tt.passes || result.Fails != tt.fails {
+				t.Errorf("passes/fails = %d/%d, want %d/%d: %v",
+					result.Passes, result.Fails, tt.passes, tt.fails, result.FailMessages)
+			}
+			fix := ch.remedy()
+			if tt.fix == "" && fix != "" {
+				t.Errorf("unexpected remedy %q", fix)
+			}
+			if tt.fix != "" && !strings.Contains(fix, tt.fix) {
+				t.Errorf("remedy %q does not contain %q", fix, tt.fix)
+			}
+		})
+	}
+}

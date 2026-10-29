@@ -206,7 +206,7 @@ Checks binaries for missing runtime library dependencies using `ldd`.
 ---
 
 ### `soversion-check`
-Checks that each shared library in a package has a SONAME version matching the soversion the package name ends in (`libfoo2` and `libfoo-2` must ship `libfoo.so.2`).
+Checks that each shared library in a package has a SONAME version matching the soversion the package name ends in (`libfoo2` and `libfoo-2` must ship `libfoo.so.2`). It also checks that each library has a matching `so:` provide from melange SCA (`so:libfoo.so.2=2`) and that every `so:` provide on the package matches its name.
 
 **When to use:** For soname-versioned library subpackages, especially ones named from a fixed `vars.soversion`. On a mismatch it prints the `vars.soversion` value to set.
 

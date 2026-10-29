@@ -6,8 +6,10 @@ description: |
   libfoo2 and libfoo-2 must ship libfoo.so.2. Use this on library subpackages
   named from a fixed vars.soversion, so a version bump that changes the
   upstream SONAME fails the build instead of shipping the new library under
-  the old package name. On a mismatch, the output names the vars.soversion
-  value to set.
+  the old package name. It also checks that melange SCA generated a matching
+  so: provide for each library (libfoo2 must provide so:libfoo.so.2=2) and
+  that every so: provide on the package matches its name. On a mismatch, the
+  output names the vars.soversion value to set.
 
 needs:
   packages:
