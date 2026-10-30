@@ -81,6 +81,7 @@ for py in "$@"; do
   run_case "$py" pass 0
   has "UPSTREAM-TESTS demo: duration="
   has " netns="
+  case "$out" in *"netns=isolated"*) isolated=yes ;; *) isolated=no ;; esac
   has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=1"
   has "fixture: always skipped"
   hasnt "FAILED"
@@ -105,6 +106,18 @@ for py in "$@"; do
   has "UPSTREAM-TESTS-FAIL demo: tests/test_net.py::test_needs_network_by_ip"
   has "upstream-tests: network disabled"
   has "UPSTREAM-TESTS demo: pass=1 fail=2 skip=0"
+
+  # The namespace itself, not the in-process guard: a child that never
+  # loads the plugin must have no route out. Only meaningful where the
+  # namespace can be created (root with CAP_SYS_ADMIN, as in melange's VM).
+  if [ "$isolated" = yes ]; then
+    run_case "$py" netchild 0
+    has "UPSTREAM-TESTS demo: duration="
+    has "netns=isolated"
+    has "UPSTREAM-TESTS demo: pass=1 fail=0 skip=0"
+  else
+    echo "  [SKIP] netchild ($py): no network namespace here (netns=unavailable), so a non-Python child is not isolated; run as root with CAP_SYS_ADMIN to cover it"
+  fi
 
   run_case "$py" allskip 1
   has "UPSTREAM-TESTS demo: pass=0 fail=0 skip=2"
@@ -137,6 +150,10 @@ for py in "$@"; do
   # Usage errors: exit 1 before running anything.
   run_case "$py" pass 1 --stage test
   has "stage must be build (got 'test')"
+  run_case "$py" pass 1 --extensions requried
+  has "extensions must be auto, required or none (got 'requried')"
+  run_case "$py" pass 1 --network allow
+  has "network must be none; the network guard cannot be turned off (got 'allow')"
   run_case "$py" pass 1 --runner nose
   has "runner must be pytest or unittest (got 'nose')"
   run_case "$py" pass 1 --package py3-foo

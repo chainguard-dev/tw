@@ -53,7 +53,8 @@ Options (each takes --opt VALUE or --opt=VALUE; one per pipeline input):
   --extensions auto|required|none
   --min-run-percent N     fail when fewer than N% of the selected tests
                           ran (default 5)
-  --network none|allow    none (default): the network guard is on
+  --network none          the network guard is always on; 'none' is the
+                          only accepted value (kept for compatibility)
   --envpkgs TEXT          where callers add test requirements, named in
                           messages (default: by stage)
   --origin NAME           origin package (package.name); the test stage's
@@ -141,8 +142,12 @@ if [ -n "$upkg" ] || [ -n "$test_tree" ] || [ "$import_from" != installed ] || [
   echo "$me: --package, --test-tree, --import-from and --isolate are reserved; contract $CONTRACT supports only their defaults" >&2
   exit 1
 fi
-case "$network" in none|allow) ;; *)
-  echo "$me: network must be none or allow (got '$network')" >&2
+case "$network" in none) ;; *)
+  echo "$me: network must be none; the network guard cannot be turned off (got '$network')" >&2
+  exit 1 ;;
+esac
+case "$extensions" in auto|required|none) ;; *)
+  echo "$me: extensions must be auto, required or none (got '$extensions')" >&2
   exit 1 ;;
 esac
 if [ -z "$dest" ]; then
@@ -302,7 +307,6 @@ fi
 set +f
 
 nonet=1
-[ "$network" = allow ] && nonet=0
 export UT_OUT="$scratch/out" UT_FROM="$from" UT_NONET=$nonet UT_SRC="$src"
 # No bytecode next to the sources (the destdir must not change).
 # PYTHONPYCACHEPREFIX would keep sys.dont_write_bytecode False for
