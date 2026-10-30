@@ -15,3 +15,21 @@ testcases:
     pipelines:
       - uses: test/tw/shell-syntax-check
     expect_pass: false
+  - name: No shell files in giflib-doc
+    description: A package with no shell files fails, even though the test environment has some
+    package: giflib-doc
+    pipelines:
+      - uses: test/tw/shell-syntax-check
+    expect_pass: false
+  - name: Bash completion in bubblewrap-bash-completion
+    description: A real Wolfi package with a bash completion passes
+    package: bubblewrap-bash-completion
+    pipelines:
+      - uses: test/tw/shell-syntax-check
+    expect_pass: true
+  - name: Shell script in hollywood
+    description: A real Wolfi package with a shell script in usr/bin passes
+    package: hollywood
+    pipelines:
+      - uses: test/tw/shell-syntax-check
+    expect_pass: true
