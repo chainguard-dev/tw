@@ -5,8 +5,8 @@
 #
 # SYNC POINT: this script is a port of the `runs:` block of stereo's
 # os/pipelines/upstream-tests/pytest-core.yaml at
-#   chainguard-dev/stereo PR #410387, commit 024a1a627d76,
-#   pytest-core.yaml sha256 02e917b5e4cf1fc8a71c6aac4e865c46a2d538ce977c94d5c96e83ba92a51a62
+#   chainguard-dev/stereo PR #410387, commit 87239accdf8c,
+#   pytest-core.yaml sha256 ee8b493f5a4b89dce5bb3cd34b6133116bddbe73d3acd0b7e9d764ff5de1dbc1
 # with ${{inputs.X}} replaced by the matching option and the heredocs moved
 # to $UT_LIB (lib/ in the source tree; ./sync-from-stereo extracts them).
 # Messages, exit codes and the UPSTREAM-TESTS lines are unchanged.
@@ -17,7 +17,7 @@ set -e
 cmd=tw-upstream-pytest
 # Interface version. Bump it when an option is added or its meaning
 # changes, so that stereo pipelines can require a minimum.
-CONTRACT=1
+CONTRACT=2
 UT_LIB=${UT_LIB:-/usr/libexec/tw/upstream-pytest}
 
 show_help() {
@@ -51,12 +51,16 @@ Options (each takes --opt VALUE or --opt=VALUE; one per pipeline input):
   --overall-timeout SECS  wall-clock limit (default 3600)
   --runner pytest|unittest
   --extensions auto|required|none
+  --min-run-percent N     fail when fewer than N% of the selected tests
+                          ran (default 5)
   --network none|allow    none (default): the network guard is on
   --envpkgs TEXT          where callers add test requirements, named in
                           messages (default: by stage)
+  --origin NAME           origin package (package.name); the test stage's
+                          default test tree is named after it
   Reserved for the test stage and newer gates (only the defaults work in
-  contract $CONTRACT): --package, --test-tree, --origin, --import-from
-  installed, --isolate true, --min-run-percent ''.
+  contract $CONTRACT): --package, --test-tree, --import-from installed,
+  --isolate true.
   --version               print the interface version and exit
   -h, --help              show this help and exit
 EOF
@@ -68,7 +72,7 @@ name="" stage="" caller="$cmd" dest="" ws="$PWD" py=DEFAULT dir=. paths=""
 args="" markers="" ignore="" ignore_files="" import_mode=auto
 clear_addopts=false jobs=1 timeout=600 overall_timeout=3600 runner=pytest
 extensions=auto network=none envpkgs="" upkg="" test_tree="" origin=""
-import_from=installed isolate=true min_run_percent=""
+import_from=installed isolate=true minrun=5
 
 while [ $# -ne 0 ]; do
   opt="$1"
@@ -108,14 +112,14 @@ while [ $# -ne 0 ]; do
     --origin) origin="$val" ;;
     --import-from) import_from="$val" ;;
     --isolate) isolate="$val" ;;
-    --min-run-percent) min_run_percent="$val" ;;
+    --min-run-percent) minrun="$val" ;;
     *) die_usage "unknown option '$opt' (see --help)" ;;
   esac
   shift
 done
 
 [ -n "$name" ] || die_usage "--name is required"
-for f in upstream_tests_pytest.py run_pytest.py run_unittest.py ini.py report.py snapshot.py; do
+for f in upstream_tests_pytest.py run_pytest.py run_unittest.py ini.py report.py snapshot.py ut_netns.py; do
   [ -f "$UT_LIB/$f" ] || die_usage "missing $UT_LIB/$f (set UT_LIB to the lib/ directory)"
 done
 
@@ -131,8 +135,10 @@ if [ "$stage" != build ]; then
   exit 1
 fi
 # Not in pytest-core.yaml yet: options reserved for the test stage port.
-if [ -n "$upkg" ] || [ -n "$test_tree" ] || [ -n "$origin" ] || [ "$import_from" != installed ] || [ "$isolate" != true ] || [ -n "$min_run_percent" ]; then
-  echo "$me: --package, --test-tree, --origin, --import-from, --isolate and --min-run-percent are reserved; contract $CONTRACT supports only their defaults" >&2
+# (--origin is accepted and unused until then.)
+: "$origin"
+if [ -n "$upkg" ] || [ -n "$test_tree" ] || [ "$import_from" != installed ] || [ "$isolate" != true ]; then
+  echo "$me: --package, --test-tree, --import-from and --isolate are reserved; contract $CONTRACT supports only their defaults" >&2
   exit 1
 fi
 case "$network" in none|allow) ;; *)
@@ -167,6 +173,10 @@ if ! command -v "$py" >/dev/null 2>&1; then
 fi
 if [ ! -d "$dir" ]; then
   echo "$me: dir '$dir' does not exist" >&2
+  exit 1
+fi
+if ! printf '%s\n' "$minrun" | grep -Eq '^([0-9]+([.][0-9]*)?|[.][0-9]+)$' || ! awk -v m="$minrun" 'BEGIN { exit !(m <= 100) }'; then
+  echo "$me: min-run-percent must be a number from 0 to 100 (got '$minrun')" >&2
   exit 1
 fi
 case "$runner" in pytest|unittest) ;; *)
@@ -244,7 +254,7 @@ fi
 # The plugin: result recording, network guard, sys.path ordering and
 # the import-origin record. Loaded with -p in the pytest process and
 # (through the same command line) in xdist workers.
-cp "$UT_LIB/upstream_tests_pytest.py" "$UT_LIB/run_pytest.py" "$UT_LIB/run_unittest.py" "$scratch/plugin/"
+cp "$UT_LIB/upstream_tests_pytest.py" "$UT_LIB/run_pytest.py" "$UT_LIB/run_unittest.py" "$UT_LIB/ut_netns.py" "$scratch/plugin/"
 
 set -f
 # --continue-on-collection-errors: a module that fails to import is
@@ -340,6 +350,22 @@ if [ "$from" = installed ]; then
   export PYTHONPATH="$dsp:$scratch/plugin${PYTHONPATH:+:$PYTHONPATH}"
   export PATH="$dest/usr/bin:$PATH"
 fi
+# A new, empty network namespace with only loopback up, for the whole
+# test process tree: children that ignore the proxy variables (raw
+# sockets, nc, ssh, c-ares, -I/-E interpreters) cannot reach anything
+# either. Plain Python (unshare(2) and the SIOCSIFFLAGS ioctl), so no
+# util-linux or iproute2 in the build environment; it needs
+# CAP_SYS_ADMIN (the build runs as root in melange's VM). `probe`
+# checks it in a throwaway process; `exec` enters it and runs argv.
+netns=unavailable
+ns=""
+if why=$("$py" -I "$scratch/plugin/ut_netns.py" probe 2>&1); then
+  netns=isolated
+  ns="$py -I $scratch/plugin/ut_netns.py exec"
+  netns_note=isolated
+else
+  netns_note="unavailable ($(printf '%s\n' "$why" | tail -n 1); the in-process guard and proxy variables only)"
+fi
 # `-p pytest_cov` in upstream addopts fails before any plugin hook can
 # help; without pytest-cov, an empty stand-in module (on PYTHONPATH after
 # everything else) lets it load, and its --cov* options are ignored as above.
@@ -353,7 +379,7 @@ fi
 "$py" -I "$UT_LIB/snapshot.py" "$dest" | sort > "$scratch/before"
 wrap=""
 command -v timeout >/dev/null 2>&1 && wrap="timeout $overall_timeout"
-echo "$me: $("$py" -c 'import sys, pytest; print("python", sys.version.split()[0], "pytest", pytest.__version__)') import-from=$from import-mode=$mode jobs=$jobs cwd=$src"
+echo "$me: $("$py" -c 'import sys, pytest; print("python", sys.version.split()[0], "pytest", pytest.__version__)') import-from=$from import-mode=$mode jobs=$jobs netns=$netns_note cwd=$src"
 # The inline pipeline pasted args into this echo too (eval: same output).
 eval "echo \"\$me: pytest \$* $args \$paths\""
 start=$(date +%s)
@@ -376,12 +402,12 @@ if [ "$runner" = unittest ]; then
   [ -f "$ustart/__init__.py" ] && top="-t $src"
   eval "echo \"\$me: python -m unittest discover -s \$ustart \$top $args\""
   eval "set -- discover -s \"\$ustart\" \$top $args"
-  $grp $wrap "$py" "$scratch/plugin/run_unittest.py" "$@" </dev/null &
+  $grp $wrap $ns "$py" "$scratch/plugin/run_unittest.py" "$@" </dev/null &
 else
   # --args: the inline pipeline pasted the input into the script, so the
   # shell parsed its quotes (-k "not slow"); eval does the same here.
   eval "set -- \"\$@\" $args"
-  $grp $wrap "$py" "$scratch/plugin/run_pytest.py" "$@" $paths </dev/null &
+  $grp $wrap $ns "$py" "$scratch/plugin/run_pytest.py" "$@" $paths </dev/null &
 fi
 pid=$!
 wait $pid || rc=$?
@@ -394,12 +420,12 @@ set +f
 end=$(date +%s)
 "$py" -I "$UT_LIB/snapshot.py" "$dest" | sort > "$scratch/after"
 
-echo "UPSTREAM-TESTS ${PKG}: duration=$((end - start))s"
+echo "UPSTREAM-TESTS ${PKG}: duration=$((end - start))s netns=$netns"
 
 set +e
 UT_PKG="$PKG" UT_RC="$rc" UT_ME="$me" UT_IGNORE="$ignore" UT_SRC="$src" \
 UT_SNAP="$scratch" UT_DEST="$dest" UT_LIMIT="$overall_timeout" UT_EXT="$extensions" \
-UT_ENVPKGS="$envpkgs" \
+UT_ENVPKGS="$envpkgs" UT_MINRUN="$minrun" \
   "$py" -I "$UT_LIB/report.py"
 status=$?
 set -e

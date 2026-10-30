@@ -72,6 +72,18 @@ if collected == 0 or rc == 5:
     why.append("no tests collected; the suite did not run (check dir, paths, markers, ignore)")
 elif c["passed"] == 0:
     why.append("no test passed (everything skipped, xfailed or deselected); the suite did not really run")
+else:
+    # min-run-percent: the share of the selected tests that actually
+    # executed. ran = passed (including non-strict XPASS) + xfailed +
+    # failed + errored; selected = ran + skipped, i.e. every test that
+    # was collected and not deselected (ignore, markers, -k in args).
+    # ignore-files are never collected, so named exceptions do not
+    # count against the package.
+    ran = c["passed"] + c["xfailed"] + c["failed"] + c["error"]
+    sel = ran + c["skipped"]
+    if sel and ran * 100 < float(E["UT_MINRUN"]) * sel:
+        why.append("only %d of %d collected tests ran (%.1f%%), below min-run-percent=%s; the rest were skipped (reasons above). If that is upstream's default, set min-run-percent lower in the caller with a comment and a TODO(upstream-tests)" % (
+            ran, sel, 100.0 * ran / sel, E["UT_MINRUN"]))
 if rc not in (0, 1, 5, 124) and rc < 128:
     why.append("pytest exited %d (2 interrupted, 3 internal error, 4 usage error)" % rc)
 if rc == 1 and not fail:

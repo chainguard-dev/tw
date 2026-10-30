@@ -99,7 +99,7 @@ subpackages:
         - name: files and interface version
           runs: |
             [ -x /usr/bin/tw-upstream-pytest ]
-            for f in upstream_tests_pytest.py run_pytest.py run_unittest.py ini.py report.py snapshot.py; do
+            for f in upstream_tests_pytest.py run_pytest.py run_unittest.py ini.py report.py snapshot.py ut_netns.py; do
               [ -f /usr/libexec/tw/upstream-pytest/$f ]
             done
             tw-upstream-pytest --help

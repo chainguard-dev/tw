@@ -80,6 +80,7 @@ for py in "$@"; do
 
   run_case "$py" pass 0
   has "UPSTREAM-TESTS demo: duration="
+  has " netns="
   has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=1"
   has "fixture: always skipped"
   hasnt "FAILED"
@@ -109,6 +110,14 @@ for py in "$@"; do
   has "UPSTREAM-TESTS demo: pass=0 fail=0 skip=2"
   has "no test passed (everything skipped, xfailed or deselected)"
 
+  run_case "$py" mostlyskip 1
+  has "UPSTREAM-TESTS demo: pass=1 fail=0 skip=24"
+  has "only 1 of 25 collected tests ran (4.0%), below min-run-percent=5"
+
+  run_case "$py" mostlyskip 0 --min-run-percent 0
+  has "UPSTREAM-TESTS demo: pass=1 fail=0 skip=24"
+  hasnt "FAILED"
+
   run_case "$py" empty 1
   has "no tests collected; the suite did not run"
 
@@ -130,8 +139,10 @@ for py in "$@"; do
   has "stage must be build (got 'test')"
   run_case "$py" pass 1 --runner nose
   has "runner must be pytest or unittest (got 'nose')"
-  run_case "$py" pass 1 --min-run-percent 50
+  run_case "$py" pass 1 --package py3-foo
   has "reserved"
+  run_case "$py" pass 1 --min-run-percent 150
+  has "min-run-percent must be a number from 0 to 100 (got '150')"
   run_case "$py" pass 1 --dir nonexistent
   has "dir 'nonexistent' does not exist"
   run_case "$py" pass 1 --bogus x

@@ -280,6 +280,21 @@ if FROM == "installed":
     _PinInstalled.setup()
     _SourceTests.setup()
 
+_names = []
+
+def _local_names():
+    # The local hostname and FQDN, looked up once with the real functions
+    # before the guard replaces them (getfqdn calls gethostbyaddr).
+    if not _names:
+        n = set()
+        for f in (socket.gethostname, socket.getfqdn):
+            try:
+                n.add(f())
+            except Exception:
+                pass
+        _names.append(n)
+    return _names[0]
+
 def _local(host):
     if host in (None, "", "localhost", "localhost.localdomain", "ip6-localhost"):
         return True
@@ -288,19 +303,20 @@ def _local(host):
     h = str(host).split("%")[0]
     if h.startswith("127.") or h in ("::1", "0.0.0.0", "::"):
         return True
-    try:
-        return h in (socket.gethostname(), socket.getfqdn())
-    except Exception:
-        return False
+    return h in _local_names()
 
 def _guard():
     if os.environ.get("UT_NONET") != "1":
         return
     import weakref
+    _local_names()
     real_connect = socket.socket.connect
     real_connect_ex = socket.socket.connect_ex
     real_gai = socket.getaddrinfo
+    real_ghbn, real_ghbn_ex = socket.gethostbyname, socket.gethostbyname_ex
+    real_ghba, real_gni = socket.gethostbyaddr, socket.getnameinfo
     real_send, real_sendto = socket.socket.send, socket.socket.sendto
+    real_sendall, real_sendmsg = socket.socket.sendall, getattr(socket.socket, "sendmsg", None)
     remote_dgram = weakref.WeakSet()
 
     def is_ip(h):
@@ -354,16 +370,63 @@ def _guard():
             raise OSError(errno.ENETUNREACH, "upstream-tests: network disabled (%r)" % (addr,))
         return real_sendto(self, data, *a)
 
+    def sendall(self, data, *a):
+        if self in remote_dgram:
+            raise OSError(errno.ENETUNREACH, "upstream-tests: network disabled (UDP sendall)")
+        return real_sendall(self, data, *a)
+
+    def sendmsg(self, buffers, *a):
+        addr = a[2] if len(a) > 2 else None
+        if self in remote_dgram or (addr is not None and check(self, addr) is not None):
+            raise OSError(errno.ENETUNREACH, "upstream-tests: network disabled (%r)" % (addr,))
+        return real_sendmsg(self, buffers, *a)
+
+    def noname(host):
+        return socket.gaierror(socket.EAI_NONAME, "upstream-tests: network disabled (%r)" % (host,))
+
+    # Every resolver entry point of the socket module refuses names and
+    # addresses other than loopback and the local hostname, as a host
+    # without network would (gaierror EAI_NONAME; herror HOST_NOT_FOUND
+    # for gethostbyaddr), so well-behaved suites skip.
     def getaddrinfo(host, *a, **k):
         if not _local(host):
-            raise socket.gaierror(socket.EAI_NONAME, "upstream-tests: network disabled (%r)" % (host,))
+            raise noname(host)
         return real_gai(host, *a, **k)
+
+    def gethostbyname(host):
+        if not _local(host):
+            raise noname(host)
+        return real_ghbn(host)
+
+    def gethostbyname_ex(host):
+        if not _local(host):
+            raise noname(host)
+        return real_ghbn_ex(host)
+
+    def gethostbyaddr(host):
+        if not _local(host):
+            raise socket.herror(1, "upstream-tests: network disabled (%r)" % (host,))
+        return real_ghba(host)
+
+    def getnameinfo(sockaddr, flags):
+        # NI_NUMERICHOST only formats the address (no lookup).
+        host = sockaddr[0] if isinstance(sockaddr, tuple) and sockaddr else None
+        if not _local(host) and not flags & socket.NI_NUMERICHOST:
+            raise noname(host)
+        return real_gni(sockaddr, flags)
 
     socket.socket.connect = connect
     socket.socket.connect_ex = connect_ex
     socket.socket.send = send
     socket.socket.sendto = sendto
+    socket.socket.sendall = sendall
+    if real_sendmsg is not None:
+        socket.socket.sendmsg = sendmsg
     socket.getaddrinfo = getaddrinfo
+    socket.gethostbyname = gethostbyname
+    socket.gethostbyname_ex = gethostbyname_ex
+    socket.gethostbyaddr = gethostbyaddr
+    socket.getnameinfo = getnameinfo
 
 # Options that upstream addopts commonly pass to plugins a build gate does
 # not need (coverage, benchmarks, linters, reporting) or that this step

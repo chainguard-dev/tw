@@ -26,6 +26,7 @@ HEREDOCS = {
     "UT_UNITTEST": "run_unittest.py",
     "UT_INI": "ini.py",
     "UT_REPORT": "report.py",
+    "UT_NETNS": "ut_netns.py",
     # test stage (teststage-v2); absent from the build-stage-only core.
     "UT_MODES": "modes.py",
     "UT_ROOTS": "roots.py",
@@ -74,7 +75,7 @@ def extract(path):
             body[-1] = (last_n, last.rstrip("\n")[:-1] + "\n")
             found[SNAP] = dedent(body, path)
         i += 1
-    for need in ("upstream_tests_pytest.py", "run_unittest.py", "ini.py", "report.py", SNAP):
+    for need in ("upstream_tests_pytest.py", "run_unittest.py", "ini.py", "report.py", "ut_netns.py", SNAP):
         if need not in found:
             sys.exit("%s: no %s found" % (path, need))
     return found

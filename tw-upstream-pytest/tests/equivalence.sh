@@ -5,6 +5,9 @@
 # exit statuses must match, apart from durations and scratch paths.
 #
 # Usage: tests/equivalence.sh path/to/pytest-core.yaml python
+#
+# Given a slim core that calls tw-upstream-pytest (with it on PATH), it
+# checks the slim core against the tool run directly instead.
 
 set -u
 
@@ -34,13 +37,15 @@ s = open(sys.argv[1]).read()
 inputs = {"stage": "build", "caller": "upstream-tests/pytest", "python": "DEFAULT", "dir": ".",
           "paths": "", "args": "", "markers": "", "ignore": "", "ignore-files": "",
           "import-mode": "auto", "clear-addopts": "false", "jobs": "1", "timeout": "600",
-          "overall-timeout": "3600", "runner": "pytest", "extensions": "auto", "network": "none"}
+          "overall-timeout": "3600", "runner": "pytest", "extensions": "auto", "network": "none",
+          "min-run-percent": "5", "package": "", "test-tree": ""}
 for a in sys.argv[2:]:
     k, v = a.split("=", 1)
     inputs[k] = v
 for k, v in inputs.items():
     s = s.replace("${{inputs.%s}}" % k, v)
 s = s.replace("${{context.name}}", "demo")
+s = s.replace("${{package.name}}", "demo")
 s = s.replace("/var/cache/melange/upstream-tests-pytest", "$UT_SCRATCH_BASE")
 if "${{" in s:
     sys.exit("unsubstituted: " + s[s.index("${{"):][:60])
@@ -104,6 +109,8 @@ compare neg
 compare shadow
 compare netprobe
 compare allskip
+compare mostlyskip
+compare mostlyskip min-run-percent=0
 compare empty
 compare collect
 compare select 'args=-k "alpha or beta"'
