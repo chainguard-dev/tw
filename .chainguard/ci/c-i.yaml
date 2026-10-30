@@ -66,6 +66,11 @@ checks:
         - storage.googleapis.com
         # melange's build and test environments.
         - packages.wolfi.dev
+    vars:
+      # The egress proxy presents a sandbox CA that guest setup adds to the
+      # guest's bundle. melange's sandboxes install Wolfi's bundle instead, so
+      # have them trust the guest's too.
+      MELANGE_EXTRA_CA_CERTS: /etc/ssl/certs/ca-certificates.crt
     steps:
       - name: build
         cmd: make build
