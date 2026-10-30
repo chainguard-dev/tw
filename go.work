@@ -5,6 +5,7 @@ use (
 	./gosh
 	./no-docs-check
 	./package-type-check
+	./soversion-check
 	./symlink-check
 	./tests/runner
 	./tw

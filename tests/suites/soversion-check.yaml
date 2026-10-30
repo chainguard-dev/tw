@@ -1,0 +1,29 @@
+name: Soversion-check pipeline validation tests
+
+description: Test suite for test/tw/soversion-check pipeline
+
+testcases:
+  - name: Matching soversion libjemalloc2
+    description: Verify soversion-check passes when libjemalloc2 ships libjemalloc.so.2
+    package: libjemalloc2
+    pipelines:
+      - uses: test/tw/soversion-check
+    expect_pass: true
+  - name: Matching hyphenated soversion libxml2-16
+    description: Verify soversion-check passes when libxml2-16 ships libxml2.so.16
+    package: libxml2-16
+    pipelines:
+      - uses: test/tw/soversion-check
+    expect_pass: true
+  - name: Name without soversion zlib
+    description: Verify soversion-check fails when zlib ships libz.so.1 but its name does not end in 1
+    package: zlib
+    pipelines:
+      - uses: test/tw/soversion-check
+    expect_pass: false
+  - name: No shared libraries bash
+    description: Verify soversion-check fails for a package with no shared libraries
+    package: bash
+    pipelines:
+      - uses: test/tw/soversion-check
+    expect_pass: false
