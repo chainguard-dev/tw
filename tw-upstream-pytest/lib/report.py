@@ -27,9 +27,15 @@ res, cerr = r["results"], r["collect_errors"]
 c = collections.Counter(res.values())
 fail = c["failed"] + c["error"] + len(cerr)
 ign = [t for t in E.get("UT_IGNORE", "").split() if t]
+desel = r["deselected"]
+if not desel:
+    # xdist: every worker collects (and deselects) the same tests.
+    for f in sorted(glob.glob(os.path.join(out, "deselected-*.json"))):
+        desel = json.load(open(f))
+        break
 ignored = 0
 for t in ign:
-    n = sum(1 for d in r["deselected"] if d == t or d.startswith(t + "::") or d.startswith(t + "["))
+    n = sum(1 for d in desel if d == t or d.startswith(t + "::") or d.startswith(t + "["))
     ignored += n
     if n:
         print("IGNORE %s: %s (deselected %d)" % (pkg, t, n))

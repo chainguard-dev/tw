@@ -115,17 +115,23 @@ class _SourceTests(object):
     def setup(cls):
         if not (DSP and SRC and os.path.isdir(DSP)):
             return
-        skip = {"melange-out", ".wheels", ".git", "build", "node_modules", ".tox", ".venv"}
+        # Trees that hold copies or uses of a package, not its source.
+        skip = {"melange-out", ".wheels", ".git", "build", "node_modules", ".tox", ".venv",
+                "docs", "doc", "examples", "example", "benchmarks", "bench"}
         for top in os.listdir(DSP):
             if not os.path.isdir(os.path.join(DSP, top)) or top.endswith((".dist-info", ".egg-info", ".data")) or top == "__pycache__":
                 continue
-            found = None
-            for depth in range(0, 3):
+            # The src layout first; then the shallowest match, by name.
+            found = os.path.join(SRC, "src", top)
+            if not os.path.isdir(found):
+                found = None
+            for depth in range(0, 3) if not found else ():
                 pats = [os.path.join(SRC, *(["*"] * depth), top)]
                 for pat in pats:
                     for c in sorted(glob.glob(pat)):
                         rel = os.path.relpath(c, SRC).split(os.sep)
-                        if os.path.isdir(c) and not (set(rel) & skip):
+                        # (the package's own name may be in skip: build)
+                        if os.path.isdir(c) and not (set(rel[:-1]) & skip):
                             found = c
                             break
                     if found:
@@ -591,6 +597,26 @@ def pytest_configure(config):
 def pytest_collection(session):
     _front()
 
+IGNORE = tuple(t for t in os.environ.get("UT_IGNORE", "").split() if t)
+
+def ignored(nodeid):
+    # The ignore input's boundary rule (report.py counts by it too): the
+    # exact node id, or the id followed by "::" (a file's or class's
+    # tests) or "[" (parametrized cases). pytest's --deselect matches any
+    # prefix, so test_x would also drop test_x_regression unreported.
+    return any(nodeid == t or nodeid.startswith((t + "::", t + "[")) for t in IGNORE)
+
+@hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(session, config, items):
+    # First, so that every test an ignore entry names is counted under its
+    # IGNORE line even if -m or -k would deselect it too.
+    if not IGNORE:
+        return
+    drop = [i for i in items if ignored(i.nodeid)]
+    if drop:
+        items[:] = [i for i in items if not ignored(i.nodeid)]
+        config.hook.pytest_deselected(items=drop)
+
 def pytest_deselected(items):
     deselected.extend(i.nodeid for i in items)
 
@@ -656,5 +682,9 @@ def pytest_sessionfinish(session, exitstatus):
     wid = getattr(session.config, "workerinput", {}).get("workerid", "main")
     _dump_mods(wid)
     if wid != "main":
+        # Under xdist the workers collect and deselect; the controller
+        # never sees it. report.py reads these when results.json has none.
+        with open(os.path.join(OUT, "deselected-%s.json" % wid), "w") as fh:
+            json.dump(deselected, fh)
         return
     _dump(exitstatus, session.testscollected)

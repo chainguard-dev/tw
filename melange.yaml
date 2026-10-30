@@ -78,7 +78,8 @@ subpackages:
             [ -x /usr/bin/tw-pip-check ]
 
   # The runner behind stereo's upstream-tests/pytest pipelines. pytest is
-  # not a dependency: callers add pyX.Y-pytest for the python they test.
+  # not a dependency: callers add pyX.Y-pytest (and pyX.Y-pytest-timeout
+  # for a per-test timeout) for the python they test.
   - name: tw-upstream-pytest
     options:
       no-provides: true
@@ -92,8 +93,10 @@ subpackages:
       environment:
         contents:
           packages:
-            # every supported python3.X, each with its pytest
+            # every supported python3.X, each with its pytest and
+            # pytest-timeout (the default --timeout needs it)
             - py3-supported-pytest
+            - py3-supported-pytest-timeout
             - py3-supported-python
       pipeline:
         - name: files and interface version
@@ -109,7 +112,7 @@ subpackages:
             n=0
             for py in /usr/bin/python3.[0-9] /usr/bin/python3.[0-9][0-9]; do
               # py3-supported-pytest covers the supported versions only
-              [ -x "$py" ] && "$py" -c 'import pytest' 2>/dev/null || continue
+              [ -x "$py" ] && "$py" -c 'import pytest, pytest_timeout' 2>/dev/null || continue
               n=$((n + 1))
               for want in pass fail; do
                 ws=$(mktemp -d)

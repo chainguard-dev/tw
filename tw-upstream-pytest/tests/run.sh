@@ -6,7 +6,8 @@
 # mostly-skip).
 #
 # Usage: tests/run.sh [python ...]
-# Default: every python3.X on PATH that can import pytest; none is an error.
+# Default: every python3.X on PATH that can import pytest and pytest-timeout
+# (the default --timeout needs it); none is an error.
 
 set -u
 
@@ -19,26 +20,38 @@ export UT_LIB="$here/../lib"
 if [ $# -eq 0 ]; then
   for p in python3.10 python3.11 python3.12 python3.13 python3.14 python3.15; do
     command -v "$p" >/dev/null 2>&1 || continue
-    "$p" -c 'import pytest' 2>/dev/null || continue
+    "$p" -c 'import pytest, pytest_timeout' 2>/dev/null || continue
     set -- "$@" "$p"
   done
   if [ $# -eq 0 ]; then
-    echo "ERROR: no python3.X with pytest found; pass one as an argument" >&2
+    echo "ERROR: no python3.X with pytest and pytest-timeout found; pass one as an argument" >&2
     exit 1
   fi
 fi
+for p in "$@"; do
+  if ! "$p" -c 'import pytest, pytest_timeout' 2>/dev/null; then
+    echo "ERROR: $p cannot import pytest and pytest_timeout (add py3.X-pytest and py3.X-pytest-timeout)" >&2
+    exit 1
+  fi
+done
 
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/tw-upstream-pytest-test.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT
 export UT_SCRATCH_BASE="$tmp/scratch"
+# A pytest_timeout that fails to import, put first on PYTHONPATH to test
+# the tool without pytest-timeout.
+mkdir -p "$tmp/no-pytest-timeout"
+echo 'raise ImportError("pytest_timeout hidden by tests/run.sh")' > "$tmp/no-pytest-timeout/pytest_timeout.py"
 
 npass=0 nfail=0
 pass() { echo "  [PASS] $*"; npass=$((npass + 1)); }
 fail() { echo "  [FAIL] $*"; nfail=$((nfail + 1)); }
 
 # run_case PY FIXTURE WANT_RC [tool options...]: lay out a workspace with
-# the fixture's tree, install its demo/ into destdir's site-packages, run
-# the tool from the workspace. Output in $out, status in $rc.
+# the fixture's tree, install its demo/ (or .installed/demo/, when the
+# installed package differs from the source tree) into destdir's
+# site-packages, run the tool from the workspace. Output in $out, status
+# in $rc.
 run_case() {
   py=$1 fx=$2 want=$3
   shift 3
@@ -49,7 +62,9 @@ run_case() {
   dest="$ws/melange-out/demo"
   sp=$("$py" -c 'import site; print(site.getsitepackages()[0])')
   mkdir -p "$dest$sp"
-  cp -R "$here/fixtures/$fx/demo" "$dest$sp/"
+  inst="$here/fixtures/$fx/demo"
+  [ -d "$here/fixtures/$fx/.installed/demo" ] && inst="$here/fixtures/$fx/.installed/demo"
+  cp -R "$inst" "$dest$sp/"
   out=$(cd "$ws" && $TOOL_SH "$tool" --name demo --stage build --caller upstream-tests/pytest \
     --destdir "$dest" --python "$py" "$@" 2>&1)
   rc=$?
@@ -141,19 +156,73 @@ for py in "$@"; do
 
   run_case "$py" select 0 --args '-k "alpha or beta"'
   has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0"
-  has "-k alpha or beta tests"
+  has "-k 'alpha or beta' tests"
+
+  # --args is parsed once: a command substitution in it runs once.
+  rm -f "$tmp/argcount"
+  run_case "$py" select 0 --args "-k \"\$(echo x >> $tmp/argcount; echo alpha)\""
+  has "UPSTREAM-TESTS demo: pass=1 fail=0 skip=0"
+  fx=select
+  if [ "$(wc -l < "$tmp/argcount")" -eq 1 ]; then pass "$fx: args expanded once"; else fail "$fx: args expanded $(wc -l < "$tmp/argcount") times"; fi
+
+  # --ignore boundaries: test_x must not take test_x_regression with it.
+  run_case "$py" ignoreprefix 0 --ignore "tests/test_prefix.py::test_x"
+  has "IGNORE demo: tests/test_prefix.py::test_x (deselected 1)"
+  has "UPSTREAM-TESTS demo: pass=4 fail=0 skip=0 ignored=1"
+  hasnt "matches no collected test"
+  # A prefix of a test name only (test_o of test_other) matches nothing;
+  # a parametrized case alone, or all of them.
+  run_case "$py" ignoreprefix 0 --ignore "tests/test_prefix.py::test_x tests/test_prefix.py::test_p[a] tests/test_prefix.py::test_o"
+  has "IGNORE demo: tests/test_prefix.py::test_p[a] (deselected 1)"
+  has "ignore entry 'tests/test_prefix.py::test_o' matches no collected test"
+  has "UPSTREAM-TESTS demo: pass=3 fail=0 skip=0 ignored=2"
+  run_case "$py" ignoreprefix 0 --ignore "tests/test_prefix.py::test_x tests/test_prefix.py::test_p"
+  has "IGNORE demo: tests/test_prefix.py::test_p (deselected 2)"
+  has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0 ignored=3"
+  hasnt "--deselect"
+  run_case "$py" ignoreprefix 1
+  has "UPSTREAM-TESTS-FAIL demo: tests/test_prefix.py::test_x"
+  # Under xdist the workers deselect; the report still counts it.
+  if "$py" -c 'import xdist' 2>/dev/null; then
+    run_case "$py" ignoreprefix 0 --jobs 2 --ignore "tests/test_prefix.py::test_x"
+    has "IGNORE demo: tests/test_prefix.py::test_x (deselected 1)"
+    has "UPSTREAM-TESTS demo: pass=4 fail=0 skip=0 ignored=1"
+  else
+    echo "  [SKIP] ignoreprefix --jobs 2 ($py): no pytest-xdist"
+  fi
+
+  # src layout next to docs/demo: demo.tests comes from src/demo/tests.
+  run_case "$py" srclayout 0
+  has "UPSTREAM-TESTS demo: pass=1 fail=0 skip=0"
+
+  # A per-test timeout needs pytest-timeout; timeout 0 does not.
+  export PYTHONPATH="$tmp/no-pytest-timeout"
+  run_case "$py" pass 1
+  has "timeout=600 needs pytest-timeout"
+  has "HINT: add py3-supported-pytest-timeout (or py3.X-pytest-timeout) to environment.contents.packages, or set timeout: 0"
+  # (-p no:timeout: pytest would otherwise load the hidden plugin itself.)
+  run_case "$py" pass 0 --timeout 0 --args '-p no:timeout'
+  has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=1"
+  unset PYTHONPATH
 
   run_case "$py" unittest 0 --runner unittest
   has "python -m unittest discover -s tests"
   has "UPSTREAM-TESTS demo: pass=1 fail=0 skip=0"
+  # unittest cannot honour these; the default timeout is fine.
+  run_case "$py" unittest 0 --runner unittest --timeout 600 --jobs 1
+  run_case "$py" unittest 1 --runner unittest --ignore tests/test_ut.py::DemoTest::test_add
+  has "runner unittest cannot honour: ignore;"
+  run_case "$py" unittest 1 --runner unittest --ignore-files tests/test_ut.py --markers slow --jobs 2 --timeout 30
+  has "runner unittest cannot honour: ignore-files markers jobs=2 timeout=30;"
+  hasnt "IGNORE demo"
 
   # Usage errors: exit 1 before running anything.
   run_case "$py" pass 1 --stage test
   has "stage must be build (got 'test')"
   run_case "$py" pass 1 --extensions requried
   has "extensions must be auto, required or none (got 'requried')"
-  run_case "$py" pass 1 --network allow
-  has "network must be none; the network guard cannot be turned off (got 'allow')"
+  run_case "$py" pass 1 --network none
+  has "unknown option '--network'"
   run_case "$py" pass 1 --runner nose
   has "runner must be pytest or unittest (got 'nose')"
   run_case "$py" pass 1 --package py3-foo
