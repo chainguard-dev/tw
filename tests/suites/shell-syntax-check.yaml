@@ -33,3 +33,17 @@ testcases:
     pipelines:
       - uses: test/tw/shell-syntax-check
     expect_pass: true
+  - name: Broken sh script in shell-syntax-check-test-bad-script
+    description: A script with a shebang and a syntax error fails
+    package: shell-syntax-check-test-bad-script
+    pipelines:
+      - uses: test/tw/shell-syntax-check
+    expect_pass: false
+  - name: Broken sh script passed in files
+    description: The explicit files input fails on a broken script too
+    package: shell-syntax-check-test-bad-script
+    pipelines:
+      - uses: test/tw/shell-syntax-check
+        with:
+          files: /usr/bin/bad-script
+    expect_pass: false

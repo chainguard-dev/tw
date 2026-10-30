@@ -55,3 +55,21 @@ subpackages:
       pipeline:
         - runs: |
             [ -f /usr/share/bash-completion/completions/bad ]
+
+  # An executable sh script with a syntax error. The suite expects
+  # shell-syntax-check to fail on it.
+  - name: shell-syntax-check-test-bad-script
+    description: Package with a broken sh script
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.contextdir}}/usr/bin
+          cat > ${{targets.contextdir}}/usr/bin/bad-script << 'EOF'
+          #!/bin/sh
+          if true; then
+            echo bad
+          EOF
+          chmod 755 ${{targets.contextdir}}/usr/bin/bad-script
+    test:
+      pipeline:
+        - runs: |
+            [ -x /usr/bin/bad-script ]

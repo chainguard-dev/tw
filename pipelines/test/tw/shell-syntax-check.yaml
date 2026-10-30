@@ -55,20 +55,27 @@ pipeline:
       set -euo pipefail
       total=0
 
+      syntax_error() {
+        echo "ERROR: syntax check failed: $1"
+        exit 1
+      }
+
       # check_by_shebang: read shebang, pick checker, run it.
       # Returns 0 if the file was recognised and checked, 1 if skipped.
+      # Callers use it as an if condition, where set -e does not apply,
+      # so a failed check exits here rather than returning.
       check_by_shebang() {
         local f="$1" shebang
         shebang=$(head -1 "$f" 2>/dev/null) || return 1
         case "$shebang" in
           "#!/bin/bash"*|"#!/usr/bin/bash"*|"#!/usr/bin/env bash"*)
-            bash --norc -n "$f" ;;
+            bash --norc -n "$f" || syntax_error "$f" ;;
           "#!/bin/sh"*|"#!/usr/bin/env sh"*|"#!/bin/dash"*|"#!/usr/bin/env dash"*|"#!/usr/bin/ash"*|"#!/usr/bin/env ash"*|"#!/bin/busybox"*|"#!/usr/bin/busybox"*)
-            sh -n "$f" ;;
+            sh -n "$f" || syntax_error "$f" ;;
           "#!/bin/zsh"*|"#!/usr/bin/zsh"*|"#!/usr/bin/env zsh"*)
-            zsh -n "$f" ;;
+            zsh -n "$f" || syntax_error "$f" ;;
           "#!/usr/bin/fish"*|"#!/usr/bin/env fish"*)
-            fish --no-execute "$f" ;;
+            fish --no-execute "$f" || syntax_error "$f" ;;
           *) return 1 ;;
         esac
         return 0
