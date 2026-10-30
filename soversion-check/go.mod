@@ -2,7 +2,7 @@ module soversion-check
 
 go 1.27.0
 
-require chainguard.dev/apko v1.4.12
+require chainguard.dev/apko v1.4.13
 
 require (
 	chainguard.dev/go-grpc-kit v0.20.0 // indirect
@@ -58,7 +58,7 @@ require (
 	golang.org/x/term v0.47.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
-	google.golang.org/api v0.302.0 // indirect
+	google.golang.org/api v0.305.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260803160001-6ac0973c030d // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20261005182115-fad411399dd8 // indirect
 	google.golang.org/grpc v1.84.0 // indirect
