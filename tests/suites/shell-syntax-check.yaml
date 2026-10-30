@@ -1,0 +1,17 @@
+name: Shell-syntax-check pipeline validation tests
+
+description: Test suite for test/tw/shell-syntax-check pipeline
+
+testcases:
+  - name: Valid shell files in shell-syntax-check-test-good
+    description: A valid bash completion and sh script pass
+    package: shell-syntax-check-test-good
+    pipelines:
+      - uses: test/tw/shell-syntax-check
+    expect_pass: true
+  - name: Broken bash completion in shell-syntax-check-test-bad
+    description: A completion with a syntax error fails through the bash wrapper
+    package: shell-syntax-check-test-bad
+    pipelines:
+      - uses: test/tw/shell-syntax-check
+    expect_pass: false

@@ -1,0 +1,57 @@
+package:
+  name: shell-syntax-check-test
+  version: "0.0.0"
+  epoch: 0
+  description: Synthetic packages for shell-syntax-check pipeline cases
+
+environment:
+  contents:
+    packages:
+      - busybox
+      - wolfi-base
+
+pipeline:
+  - runs: |
+      echo "Synthetic packages for the shell-syntax-check pipeline"
+
+subpackages:
+  # A valid bash completion and a valid sh script: shell-syntax-check
+  # passes.
+  - name: shell-syntax-check-test-good
+    description: Package with valid shell files
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.contextdir}}/usr/share/bash-completion/completions
+          mkdir -p ${{targets.contextdir}}/usr/bin
+          cat > ${{targets.contextdir}}/usr/share/bash-completion/completions/good << 'EOF'
+          _good() {
+            COMPREPLY=($(compgen -W "start stop" -- "${COMP_WORDS[COMP_CWORD]}"))
+          }
+          complete -F _good good
+          EOF
+          cat > ${{targets.contextdir}}/usr/bin/good << 'EOF'
+          #!/bin/sh
+          echo good
+          EOF
+          chmod 755 ${{targets.contextdir}}/usr/bin/good
+    test:
+      pipeline:
+        - uses: test/tw/shell-syntax-check
+
+  # A bash completion with a syntax error. tests/suites/shell-syntax-check.yaml
+  # expects shell-syntax-check to fail on it.
+  - name: shell-syntax-check-test-bad
+    description: Package with a broken bash completion
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.contextdir}}/usr/share/bash-completion/completions
+          cat > ${{targets.contextdir}}/usr/share/bash-completion/completions/bad << 'EOF'
+          _bad() {
+            if [ -n "$1" ]; then
+          }
+          complete -F _bad bad
+          EOF
+    test:
+      pipeline:
+        - runs: |
+            [ -f /usr/share/bash-completion/completions/bad ]
