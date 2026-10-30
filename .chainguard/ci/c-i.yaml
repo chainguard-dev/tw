@@ -19,6 +19,7 @@ environment:
     # chelm's tests run helm template.
     - helm
     - shellcheck~0.11
+    - yam~0.2
     # bubblewrap is melange's default runner.
     - melange~0.63
     - bubblewrap~0.13
@@ -39,13 +40,8 @@ checks:
       every tracked shell script.
     timeout: 10m
     trigger: [presubmit, postsubmit]
-    network:
-      egress:
-        # make lint go-installs yam; the module proxy redirects zips to GCS.
-        - proxy.golang.org
-        - sum.golang.org
-        - storage.googleapis.com
-    cmd: make lint
+    # Wolfi's yam, so make does not go-install its pinned one.
+    cmd: make lint BIN_TOOLS_D=/usr/bin
 
   test:
     description: >-
