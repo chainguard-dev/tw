@@ -1,0 +1,79 @@
+# Replaces .github/workflows/c-i.yaml: the same make targets, on pull
+# requests and on pushes to main, natively on both architectures.
+version: 1
+
+environment:
+  packages:
+    - go-1.27~1.27
+    - make
+    - git
+    - bash
+    - busybox
+    - coreutils
+    - findutils
+    - gawk
+    - grep
+    - sed
+    # ldd-check's tests run glibc's ldd.
+    - posix-libc-utils
+    # GHA installed shellcheck 0.10.0; Wolfi carries 0.11.
+    - shellcheck~0.11
+    # setup-melange installed the latest release; bubblewrap is melange's
+    # default runner.
+    - melange~0.63
+    - bubblewrap~0.13
+  caches:
+    gomod: {}
+    gobuild: {}
+  vars:
+    # The guest's /tmp is a tmpfs capped at a quarter of guest RAM; keep
+    # melange's workspaces and Go's build directory on the scratch disk.
+    TMPDIR: /var/tmp
+    GOTMPDIR: /var/tmp
+    GOTOOLCHAIN: local
+
+checks:
+  lint:
+    description: >-
+      Runs make lint: yam formatting over every YAML file and shellcheck over
+      every tracked shell script.
+    timeout: 10m
+    trigger: [presubmit, postsubmit]
+    network:
+      egress:
+        # make lint go-installs yam; the module proxy redirects zips to GCS.
+        - proxy.golang.org
+        - sum.golang.org
+        - storage.googleapis.com
+    cmd: make lint
+
+  test:
+    description: >-
+      Builds the tw melange package and runs every project's tests, the
+      package's melange tests and the pipeline test suites, once per
+      architecture.
+    timeout: 45m
+    trigger: [presubmit, postsubmit]
+    # Makefile's ARCH comes from uname -m, so each instance builds and tests
+    # its own architecture; bubblewrap cannot cross-build.
+    foreach:
+      - name: x86_64
+        resources: medium-amd64
+      - name: aarch64
+        resources: medium-arm64
+    network:
+      egress:
+        - proxy.golang.org
+        - sum.golang.org
+        - storage.googleapis.com
+        # melange's build and test environments.
+        - packages.wolfi.dev
+    steps:
+      - name: build
+        cmd: make build
+      - name: test projects
+        cmd: make test-projects
+      - name: test melange
+        cmd: make test-melange
+      - name: test pipelines
+        cmd: make test-pipelines
