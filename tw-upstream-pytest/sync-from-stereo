@@ -1,0 +1,111 @@
+#!/usr/bin/env python3
+"""Extract the Python sources embedded in stereo's
+os/pipelines/upstream-tests/pytest-core.yaml into lib/.
+
+The stereo pipeline used to carry the pytest plugin, the unittest runner,
+the ini reader, the report and the snapshot script inline, as shell
+heredocs. tw-upstream-pytest ships the same code as files. This script
+keeps the two byte-for-byte in sync while the stereo side is still the
+reference: run it against a pytest-core.yaml, review the diff in lib/,
+then port any change to the shell around the heredocs into
+tw-upstream-pytest by hand.
+
+Usage: sync-from-stereo [--check] path/to/pytest-core.yaml
+
+--check compares instead of writing and exits 1 on any difference.
+A heredoc this script does not know is an error, so that new embedded
+code is not silently left behind.
+"""
+import hashlib
+import os
+import re
+import sys
+
+HEREDOCS = {
+    "UT_PLUGIN": "upstream_tests_pytest.py",
+    "UT_UNITTEST": "run_unittest.py",
+    "UT_INI": "ini.py",
+    "UT_REPORT": "report.py",
+    # test stage (teststage-v2); absent from the build-stage-only core.
+    "UT_MODES": "modes.py",
+    "UT_ROOTS": "roots.py",
+}
+SNAP = "snapshot.py"
+INDENT = "      "  # the runs: block's indentation in pytest-core.yaml
+
+
+def dedent(lines, where):
+    out = []
+    for n, l in lines:
+        if l.strip() == "":
+            out.append("\n")
+        elif l.startswith(INDENT):
+            out.append(l[len(INDENT):])
+        else:
+            sys.exit("%s:%d: line is not indented %d spaces" % (where, n, len(INDENT)))
+    return "".join(out)
+
+
+def extract(path):
+    with open(path) as fh:
+        lines = list(enumerate(fh.readlines(), 1))
+    found, i = {}, 0
+    while i < len(lines):
+        n, l = lines[i]
+        m = re.search(r"<<'(UT_[A-Z0-9_]+)'\s*$", l)
+        if m:
+            tag = m.group(1)
+            if tag not in HEREDOCS:
+                sys.exit("%s:%d: unknown heredoc %s; add it to HEREDOCS" % (path, n, tag))
+            body, i = [], i + 1
+            while i < len(lines) and lines[i][1].rstrip("\n") != INDENT + tag:
+                body.append(lines[i])
+                i += 1
+            if i == len(lines):
+                sys.exit("%s:%d: heredoc %s is not terminated" % (path, n, tag))
+            found[HEREDOCS[tag]] = dedent(body, path)
+        elif l.startswith(INDENT + "snap='"):
+            # snap='import os, sys\n ... last line ending in a single quote
+            body = [(n, l.replace("snap='", "", 1))]
+            while not body[-1][1].rstrip("\n").endswith("'"):
+                i += 1
+                body.append(lines[i])
+            last_n, last = body[-1]
+            body[-1] = (last_n, last.rstrip("\n")[:-1] + "\n")
+            found[SNAP] = dedent(body, path)
+        i += 1
+    for need in ("upstream_tests_pytest.py", "run_unittest.py", "ini.py", "report.py", SNAP):
+        if need not in found:
+            sys.exit("%s: no %s found" % (path, need))
+    return found
+
+
+def main(argv):
+    check = False
+    if argv and argv[0] == "--check":
+        check, argv = True, argv[1:]
+    if len(argv) != 1:
+        sys.exit(__doc__)
+    src = argv[0]
+    libd = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib")
+    rc = 0
+    for name, text in sorted(extract(src).items()):
+        dst = os.path.join(libd, name)
+        cur = open(dst).read() if os.path.exists(dst) else None
+        if cur == text:
+            print("same     %s" % name)
+            continue
+        if check:
+            print("DIFFERS  %s" % name)
+            rc = 1
+            continue
+        with open(dst, "w") as fh:
+            fh.write(text)
+        print("wrote    %s" % name)
+    with open(src, "rb") as fh:
+        print("source   %s sha256=%s" % (src, hashlib.sha256(fh.read()).hexdigest()))
+    return rc
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

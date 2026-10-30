@@ -1,0 +1,406 @@
+#!/bin/sh
+# tw-upstream-pytest: run a Python project's upstream pytest (or unittest)
+# suite as a hard gate against an installed build. The runner behind
+# stereo's upstream-tests/pytest pipelines; see README.md.
+#
+# SYNC POINT: this script is a port of the `runs:` block of stereo's
+# os/pipelines/upstream-tests/pytest-core.yaml at
+#   chainguard-dev/stereo PR #410387, commit 024a1a627d76,
+#   pytest-core.yaml sha256 02e917b5e4cf1fc8a71c6aac4e865c46a2d538ce977c94d5c96e83ba92a51a62
+# with ${{inputs.X}} replaced by the matching option and the heredocs moved
+# to $UT_LIB (lib/ in the source tree; ./sync-from-stereo extracts them).
+# Messages, exit codes and the UPSTREAM-TESTS lines are unchanged.
+#
+# shellcheck disable=SC2086 # word splitting of paths/ignore lists is intended
+set -e
+
+cmd=tw-upstream-pytest
+# Interface version. Bump it when an option is added or its meaning
+# changes, so that stereo pipelines can require a minimum.
+CONTRACT=1
+UT_LIB=${UT_LIB:-/usr/libexec/tw/upstream-pytest}
+
+show_help() {
+  cat <<EOF
+Usage: $cmd --name NAME --stage build --destdir DIR [OPTIONS]
+
+Runs a Python project's upstream test suite against the installed build,
+with the network guard, import pinning, origin check, destdir snapshot and
+hard-gate rules of stereo's upstream-tests/pytest pipelines, and prints the
+UPSTREAM-TESTS summary lines. Exits 0 when the gate passes, 1 otherwise.
+
+Options (each takes --opt VALUE or --opt=VALUE; one per pipeline input):
+  --name NAME             (sub)package name in the summary (context.name)
+  --stage build|test      build: test the destdir (test: not yet supported)
+  --caller NAME           prefix of messages (default: $cmd)
+  --destdir DIR           install root under test (stage build)
+  --workspace DIR         melange workspace (default: current directory)
+  --python PY             interpreter (default DEFAULT: python3, or the
+                          single /usr/bin/python3.X)
+  --dir DIR               project directory, relative to the workspace (.)
+  --paths 'P ...'         test paths or node ids (default: testpaths)
+  --args 'ARGS'           extra pytest (or unittest discover) arguments,
+                          parsed by the shell as the inline pipeline did
+  --markers EXPR          -m expression
+  --ignore 'ID ...'       node ids (or prefixes) to deselect
+  --ignore-files 'P ...'  paths not to collect (--ignore)
+  --import-mode MODE      auto (append), append, prepend, importlib
+  --clear-addopts BOOL    true drops the project's addopts
+  --jobs N|auto           xdist workers (1: serial)
+  --timeout SECS          per-test timeout (0: off; default 600)
+  --overall-timeout SECS  wall-clock limit (default 3600)
+  --runner pytest|unittest
+  --extensions auto|required|none
+  --network none|allow    none (default): the network guard is on
+  --envpkgs TEXT          where callers add test requirements, named in
+                          messages (default: by stage)
+  Reserved for the test stage and newer gates (only the defaults work in
+  contract $CONTRACT): --package, --test-tree, --origin, --import-from
+  installed, --isolate true, --min-run-percent ''.
+  --version               print the interface version and exit
+  -h, --help              show this help and exit
+EOF
+}
+
+die_usage() { echo "$cmd: $*" >&2; exit 1; }
+
+name="" stage="" caller="$cmd" dest="" ws="$PWD" py=DEFAULT dir=. paths=""
+args="" markers="" ignore="" ignore_files="" import_mode=auto
+clear_addopts=false jobs=1 timeout=600 overall_timeout=3600 runner=pytest
+extensions=auto network=none envpkgs="" upkg="" test_tree="" origin=""
+import_from=installed isolate=true min_run_percent=""
+
+while [ $# -ne 0 ]; do
+  opt="$1"
+  case "$opt" in
+    -h|--help) show_help; exit 0 ;;
+    --version) echo "$cmd contract $CONTRACT"; exit 0 ;;
+    --*=*) val="${opt#*=}"; opt="${opt%%=*}" ;;
+    --*)
+      [ $# -ge 2 ] || die_usage "option $opt needs a value"
+      val="$2"; shift ;;
+    *) die_usage "unexpected argument '$opt' (see --help)" ;;
+  esac
+  case "$opt" in
+    --name) name="$val" ;;
+    --stage) stage="$val" ;;
+    --caller) caller="$val" ;;
+    --destdir) dest="$val" ;;
+    --workspace) ws="$val" ;;
+    --python) py="$val" ;;
+    --dir) dir="$val" ;;
+    --paths) paths="$val" ;;
+    --args) args="$val" ;;
+    --markers) markers="$val" ;;
+    --ignore) ignore="$val" ;;
+    --ignore-files) ignore_files="$val" ;;
+    --import-mode) import_mode="$val" ;;
+    --clear-addopts) clear_addopts="$val" ;;
+    --jobs) jobs="$val" ;;
+    --timeout) timeout="$val" ;;
+    --overall-timeout) overall_timeout="$val" ;;
+    --runner) runner="$val" ;;
+    --extensions) extensions="$val" ;;
+    --network) network="$val" ;;
+    --envpkgs) envpkgs="$val" ;;
+    --package) upkg="$val" ;;
+    --test-tree) test_tree="$val" ;;
+    --origin) origin="$val" ;;
+    --import-from) import_from="$val" ;;
+    --isolate) isolate="$val" ;;
+    --min-run-percent) min_run_percent="$val" ;;
+    *) die_usage "unknown option '$opt' (see --help)" ;;
+  esac
+  shift
+done
+
+[ -n "$name" ] || die_usage "--name is required"
+for f in upstream_tests_pytest.py run_pytest.py run_unittest.py ini.py report.py snapshot.py; do
+  [ -f "$UT_LIB/$f" ] || die_usage "missing $UT_LIB/$f (set UT_LIB to the lib/ directory)"
+done
+
+# ---- From here on: pytest-core.yaml's runs: block. ----
+PKG="$name"
+ws=$(cd "$ws" && pwd)
+cd "$ws"
+me="$caller"
+# Only the build stage so far; the test stage
+# (test/upstream-tests/pytest) comes with its own branches.
+if [ "$stage" != build ]; then
+  echo "$me: stage must be build (got '$stage')" >&2
+  exit 1
+fi
+# Not in pytest-core.yaml yet: options reserved for the test stage port.
+if [ -n "$upkg" ] || [ -n "$test_tree" ] || [ -n "$origin" ] || [ "$import_from" != installed ] || [ "$isolate" != true ] || [ -n "$min_run_percent" ]; then
+  echo "$me: --package, --test-tree, --origin, --import-from, --isolate and --min-run-percent are reserved; contract $CONTRACT supports only their defaults" >&2
+  exit 1
+fi
+case "$network" in none|allow) ;; *)
+  echo "$me: network must be none or allow (got '$network')" >&2
+  exit 1 ;;
+esac
+if [ -z "$dest" ]; then
+  echo "$me: destdir is empty (the build stage passes targets.contextdir)" >&2
+  exit 1
+fi
+case "$dest" in /*) ;; *) dest="$ws/$dest" ;; esac
+# Where the caller adds test requirements (named in messages).
+[ -n "$envpkgs" ] || envpkgs=environment.contents.packages
+if [ "$py" = DEFAULT ]; then
+  if p=$(command -v python3); then
+    py=$(readlink -f "$p")
+  else
+    set -- /usr/bin/python3.[0-9] /usr/bin/python3.[0-9][0-9]
+    found=""
+    for p in "$@"; do [ -x "$p" ] && found="$found $p"; done
+    set -- $found
+    if [ "$#" -ne 1 ]; then
+      echo "$me: set 'python': found $# interpreters:$found" >&2
+      exit 1
+    fi
+    py=$1
+  fi
+fi
+if ! command -v "$py" >/dev/null 2>&1; then
+  echo "$me: interpreter '$py' not found" >&2
+  exit 1
+fi
+if [ ! -d "$dir" ]; then
+  echo "$me: dir '$dir' does not exist" >&2
+  exit 1
+fi
+case "$runner" in pytest|unittest) ;; *)
+  echo "$me: runner must be pytest or unittest (got '$runner')" >&2
+  exit 1 ;;
+esac
+# The code under test is imported from the destdir ("installed").
+from=installed
+mode="$import_mode"
+[ "$mode" = auto ] && mode=append
+sp=$("$py" -c 'import site; print(site.getsitepackages()[0])')
+dsp="$dest$sp"
+if [ "$from" = installed ] && [ ! -d "$dsp" ]; then
+  echo "$me: nothing installed in $dsp; run this after py/pip-build-install (with the same python) and before strip" >&2
+  exit 1
+fi
+# pytest may depend on the package under test (exceptiongroup, pluggy,
+# iniconfig, packaging, ...), and py/pip-build-install uninstalls the
+# build environment's copy of the package it installs (pip
+# --force-reinstall --root): then pytest only imports with the destdir
+# on the path, which is how the suite runs anyway.
+chkpath=""
+[ "$from" = installed ] && chkpath="$dsp"
+if [ "$runner" = pytest ] && ! err=$(cd / && PYTHONPATH="$chkpath" "$py" -c 'import pytest' 2>&1); then
+  echo "$me: pytest is not importable with $py ($(printf '%s\n' "$err" | tail -n 1)); add py3-supported-pytest (or py3.X-pytest) to $envpkgs" >&2
+  exit 1
+fi
+
+# Scratch space on the disk-backed melange cache (/tmp is a small
+# tmpfs in the qemu guest), removed when the step ends.
+sbase=${UT_SCRATCH_BASE:-/var/cache/melange/upstream-tests-pytest}
+mkdir -p "$sbase"
+scratch=$(mktemp -d "$sbase/run.XXXXXX")
+pth=""
+# shellcheck disable=SC2329 # called by the EXIT trap
+cleanup() {
+  [ -n "$pth" ] && rm -f "$pth"
+  rm -rf "$scratch"
+}
+trap cleanup EXIT
+mkdir -p "$scratch/home" "$scratch/out" "$scratch/plugin"
+
+# The suite runs in a scratch copy of the workspace, minus
+# melange-out/ and .wheels/.
+run="$scratch/ws"
+mkdir -p "$run"
+for e in "$ws"/* "$ws"/.[!.]* "$ws"/..?*; do
+  [ -e "$e" ] || [ -L "$e" ] || continue
+  case "${e##*/}" in melange-out|.wheels) continue ;; esac
+  cp -a "$e" "$run"/
+done
+cd "$run/$dir"
+src="$PWD"
+# The project's pytest settings this step needs to know about:
+# testpaths, and whether it sets python_files.
+ini=$("$py" -I "$UT_LIB/ini.py") || ini=""
+tp=$(printf '%s\n' "$ini" | sed -n 1p)
+pyfiles=$(printf '%s\n' "$ini" | sed -n 2p)
+
+# Test paths: the input, else the project's testpaths, else tests/ or
+# test/ if there is one (recursing from the project root collects
+# examples, docs, benchmarks and vendored trees too).
+if [ -z "$paths" ] && [ -z "$tp" ]; then
+  for c in tests test testing; do
+    # only a directory that holds Python test modules (tests/ is
+    # sometimes C/C++ or data); otherwise pytest recurses from dir.
+    if [ -d "$c" ] && [ -n "$(find "$c" \( -name 'test_*.py' -o -name '*_test.py' -o -name test.py -o -name tests.py \) -print 2>/dev/null | head -n 1)" ]; then
+      paths=$c
+      echo "$me: no testpaths configured; running $c/"
+      break
+    fi
+  done
+fi
+
+# The plugin: result recording, network guard, sys.path ordering and
+# the import-origin record. Loaded with -p in the pytest process and
+# (through the same command line) in xdist workers.
+cp "$UT_LIB/upstream_tests_pytest.py" "$UT_LIB/run_pytest.py" "$UT_LIB/run_unittest.py" "$scratch/plugin/"
+
+set -f
+# --continue-on-collection-errors: a module that fails to import is
+# still a failure (recorded below), but the rest of the suite runs,
+# so one log shows every problem.
+set -- -q -rfE --tb=short -o cache_dir="$scratch/pytest-cache" -p upstream_tests_pytest \
+  --continue-on-collection-errors \
+  --rootdir="$src" --confcutdir="$src" --import-mode="$mode" \
+  --ignore="$ws/melange-out" --ignore="$ws/.wheels" \
+  --ignore="$src/melange-out" --ignore="$src/.wheels"
+[ "$clear_addopts" = true ] && set -- "$@" -o addopts=
+# test.py/tests.py modules: see pytest_collect_file in the plugin.
+[ "$pyfiles" = set ] || export UT_EXTRA_TESTFILES=1
+for f in $ignore_files; do
+  [ -e "$f" ] || echo "$me: WARNING: ignore-files entry '$f' does not exist" >&2
+  set -- "$@" --ignore="$f"
+  echo "IGNORE ${PKG}: $f (not collected)"
+done
+for t in $ignore; do
+  set -- "$@" --deselect="$t"
+done
+[ -n "$markers" ] && set -- "$@" -m "$markers"
+jobs_in="$jobs"
+if [ "$jobs" = auto ]; then
+  jobs=$(nproc)
+  [ "$jobs" -gt 4 ] && jobs=4
+fi
+if [ "$jobs" != 1 ]; then
+  if ! "$py" -c 'import xdist' 2>/dev/null; then
+    echo "$me: jobs=$jobs_in needs pytest-xdist; add py3-supported-pytest-xdist to $envpkgs or set jobs: 1" >&2
+    exit 1
+  fi
+  set -- "$@" -n "$jobs"
+fi
+if [ "$timeout" != 0 ]; then
+  if "$py" -c 'import pytest_timeout' 2>/dev/null; then
+    # signal method: a hung test fails and the run goes on. The thread
+    # method (some upstream configs choose it) dumps stacks and exits the
+    # whole process, so nothing after the hung test runs or is recorded.
+    set -- "$@" --timeout="$timeout" --timeout-method=signal
+  else
+    set -- "$@" -o faulthandler_timeout="$timeout"
+  fi
+fi
+set +f
+
+nonet=1
+[ "$network" = allow ] && nonet=0
+export UT_OUT="$scratch/out" UT_FROM="$from" UT_NONET=$nonet UT_SRC="$src"
+# No bytecode next to the sources (the destdir must not change).
+# PYTHONPYCACHEPREFIX would keep sys.dont_write_bytecode False for
+# children, but it also moves the pyc files that installers/compileall
+# tests expect in __pycache__ (installer's own suite fails with it).
+export PYTHONDONTWRITEBYTECODE=1 HOME="$scratch/home" XDG_CACHE_HOME="$scratch/home/.cache"
+if [ $nonet = 1 ]; then
+  export http_proxy=http://127.0.0.1:9 https_proxy=http://127.0.0.1:9 all_proxy=http://127.0.0.1:9
+  export HTTP_PROXY=$http_proxy HTTPS_PROXY=$https_proxy ALL_PROXY=$all_proxy
+  export no_proxy=localhost,127.0.0.1,::1 NO_PROXY=localhost,127.0.0.1,::1
+fi
+export LANG="${LANG:-C.UTF-8}"
+# SOURCE_DATE_EPOCH is for reproducible build output; upstream suites
+# run without it, and some (zipfile/tarfile/wheel timestamps) behave
+# differently with it set.
+unset SOURCE_DATE_EPOCH
+# `python` and `python3` on PATH are the interpreter under test (tests
+# and scripts spawn them by name; in a multi-version build python3
+# would otherwise be another version, and `python` may not exist).
+mkdir -p "$scratch/bin"
+ln -s "$(command -v "$py")" "$scratch/bin/python"
+ln -s "$(command -v "$py")" "$scratch/bin/python3"
+export PATH="$scratch/bin:$PATH"
+# Children started with -I/-E (CPython test.support's script_helper,
+# hardened entry points) ignore PYTHONPATH and would not see the build;
+# a .pth file in the build environment's site-packages (removed again
+# when the step ends) makes the destdir importable for them too, after
+# the interpreter's own site-packages.
+if [ "$from" = installed ] && [ -w "$sp" ]; then
+  pth="$sp/zz-upstream-tests-pytest-$$.pth"
+  printf '%s\n' "$dsp" > "$pth"
+fi
+# Shared libraries the build installed, in this subpackage or a sibling
+# built earlier in the same run (pyarrow needs libarrow.so from the
+# main package): the tests load them from there, not from the system.
+libs=""
+for d in "$dest" "$ws"/melange-out/*; do
+  for l in usr/lib usr/lib64 usr/local/lib; do
+    [ -d "$d/$l" ] && [ -n "$(find "$d/$l" -maxdepth 1 -name '*.so*' -print 2>/dev/null | head -n 1)" ] && libs="$libs${libs:+:}$d/$l"
+  done
+done
+[ -n "$libs" ] && export LD_LIBRARY_PATH="$libs${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+if [ "$from" = installed ]; then
+  export UT_DSP="$dsp" PYTHONSAFEPATH=1
+  export PYTHONPATH="$dsp:$scratch/plugin${PYTHONPATH:+:$PYTHONPATH}"
+  export PATH="$dest/usr/bin:$PATH"
+fi
+# `-p pytest_cov` in upstream addopts fails before any plugin hook can
+# help; without pytest-cov, an empty stand-in module (on PYTHONPATH after
+# everything else) lets it load, and its --cov* options are ignored as above.
+if ! "$py" -c 'import pytest_cov' 2>/dev/null; then
+  mkdir -p "$scratch/stubs"
+  echo '__upstream_tests_stub__ = True' > "$scratch/stubs/pytest_cov.py"
+  export PYTHONPATH="$PYTHONPATH:$scratch/stubs"
+fi
+
+# Snapshot the package before the run: the tests must not change it.
+"$py" -I "$UT_LIB/snapshot.py" "$dest" | sort > "$scratch/before"
+wrap=""
+command -v timeout >/dev/null 2>&1 && wrap="timeout $overall_timeout"
+echo "$me: $("$py" -c 'import sys, pytest; print("python", sys.version.split()[0], "pytest", pytest.__version__)') import-from=$from import-mode=$mode jobs=$jobs cwd=$src"
+# The inline pipeline pasted args into this echo too (eval: same output).
+eval "echo \"\$me: pytest \$* $args \$paths\""
+start=$(date +%s)
+rc=0
+set -f
+# In its own process group, so that what the tests leave behind
+# (servers, compilers, grandchildren of a killed run) can be killed
+# afterwards; a leftover holding stdout would hang the build.
+grp=""
+command -v setsid >/dev/null 2>&1 && grp=setsid
+if [ "$runner" = unittest ]; then
+  ustart="$paths"
+  [ -z "$ustart" ] && ustart=$(printf '%s\n' $tp | head -n 1)
+  [ -z "$ustart" ] && ustart=.
+  # -t (top level = the project) only when the start directory is a
+  # package; a plain directory is its own top level (its modules import
+  # each other by basename), as `python -m unittest discover` does.
+  top=""
+  # shellcheck disable=SC2034 # used in the eval below
+  [ -f "$ustart/__init__.py" ] && top="-t $src"
+  eval "echo \"\$me: python -m unittest discover -s \$ustart \$top $args\""
+  eval "set -- discover -s \"\$ustart\" \$top $args"
+  $grp $wrap "$py" "$scratch/plugin/run_unittest.py" "$@" </dev/null &
+else
+  # --args: the inline pipeline pasted the input into the script, so the
+  # shell parsed its quotes (-k "not slow"); eval does the same here.
+  eval "set -- \"\$@\" $args"
+  $grp $wrap "$py" "$scratch/plugin/run_pytest.py" "$@" $paths </dev/null &
+fi
+pid=$!
+wait $pid || rc=$?
+if [ -n "$grp" ]; then
+  # Kill what the tests left behind in their process group (servers,
+  # grandchildren). The group is usually gone already.
+  kill -KILL -- "-$pid" 2>/dev/null || echo "$me: no leftover processes in the test process group"
+fi
+set +f
+end=$(date +%s)
+"$py" -I "$UT_LIB/snapshot.py" "$dest" | sort > "$scratch/after"
+
+echo "UPSTREAM-TESTS ${PKG}: duration=$((end - start))s"
+
+set +e
+UT_PKG="$PKG" UT_RC="$rc" UT_ME="$me" UT_IGNORE="$ignore" UT_SRC="$src" \
+UT_SNAP="$scratch" UT_DEST="$dest" UT_LIMIT="$overall_timeout" UT_EXT="$extensions" \
+UT_ENVPKGS="$envpkgs" \
+  "$py" -I "$UT_LIB/report.py"
+status=$?
+set -e
+exit $status

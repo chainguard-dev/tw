@@ -18,6 +18,9 @@ environment:
     - posix-libc-utils
     # chelm's tests run helm template.
     - helm
+    # tw-upstream-pytest's tests run pytest under every supported python3.X.
+    - py3-supported-pytest
+    - py3-supported-python
     - shellcheck~0.11
     - yam~0.2
     # bubblewrap is melange's default runner.
