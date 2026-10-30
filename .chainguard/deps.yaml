@@ -5,7 +5,7 @@
 version: 1
 updates:
   - name: go
-    schedule: "15 11 * * 1-5" # weekdays
+    schedule: "0 5 * * 1-5" # weekdays
     paths: ["go.work", "go.work.sum", "**/go.mod", "**/go.sum"]
     environment: .chainguard/ci/c-i.yaml
     prompt: >-
@@ -13,5 +13,4 @@ updates:
       update them together, then run go mod tidy in each module and go work
       sync at the root. Leave each module's go directive, and the toolchain
       in .chainguard/ci, as they are unless an update requires a newer Go.
-      Prefer releases at least 7 days old. Verify with make build and make
-      test-projects.
+      Verify with make build and make test-projects.
