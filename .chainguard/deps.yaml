@@ -1,0 +1,17 @@
+# The Chainguard deps agent opens one pull request per entry, on
+# chainguard/deps/<name>, that updates the entry's dependencies and fixes
+# what the updates break. Schedules are UTC. The paths and prompt guide the
+# agent; they are not enforced.
+version: 1
+updates:
+  - name: go
+    schedule: "15 11 * * 1-5" # weekdays
+    paths: ["go.work", "go.work.sum", "**/go.mod", "**/go.sum"]
+    environment: .chainguard/ci/c-i.yaml
+    prompt: >-
+      The Go modules are tied together by go.work at the repository root;
+      update them together, then run go mod tidy in each module and go work
+      sync at the root. Leave each module's go directive, and the toolchain
+      in .chainguard/ci, as they are unless an update requires a newer Go.
+      Prefer releases at least 7 days old. Verify with make build and make
+      test-projects.
