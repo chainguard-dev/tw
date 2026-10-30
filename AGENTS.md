@@ -85,4 +85,4 @@ Chainguard Checks runs `.chainguard/ci/c-i.yaml` on pull requests and pushes
 to main; `Chainguard Checks (presubmit)` is required. A test that needs a new
 host or package needs it added there: checks run with allowlisted egress and
 only the packages the environment lists. The deps agent opens Go module
-updates on `chainguard/deps/go`; dependabot runs alongside it for now.
+updates on `chainguard/deps/go`.
