@@ -16,6 +16,8 @@ environment:
     - sed
     # ldd-check's tests run glibc's ldd.
     - posix-libc-utils
+    # chelm's tests run helm template.
+    - helm
     - shellcheck~0.11
     # bubblewrap is melange's default runner.
     - melange~0.63
