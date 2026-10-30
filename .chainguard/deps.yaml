@@ -5,7 +5,7 @@
 version: 1
 updates:
   - name: go
-    schedule: "15 11 * * 1-5" # weekdays
+    schedule: "0 5 * * 1-5" # weekdays
     paths: ["go.work", "go.work.sum", "**/go.mod", "**/go.sum"]
     environment: .chainguard/ci/c-i.yaml
     prompt: >-
