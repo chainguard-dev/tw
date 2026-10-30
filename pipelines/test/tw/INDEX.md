@@ -39,7 +39,7 @@ This directory contains test pipelines for validating Wolfi packages. Use this i
 Use these pipelines to validate that packages conform to expected structural patterns for their type.
 
 ### `configpackage`
-Validates that a configuration package installs files under the expected directory.
+Validates that a configuration package installs non-empty files under the expected directory. Only files owned by the package are checked.
 
 **When to use:** For `-config` packages that install runtime configuration files.
 
