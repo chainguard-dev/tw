@@ -13,5 +13,4 @@ updates:
       update them together, then run go mod tidy in each module and go work
       sync at the root. Leave each module's go directive, and the toolchain
       in .chainguard/ci, as they are unless an update requires a newer Go.
-      Prefer releases at least 7 days old. Verify with make build and make
-      test-projects.
+      Verify with make build and make test-projects.
