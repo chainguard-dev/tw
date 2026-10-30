@@ -1,0 +1,53 @@
+name: Configpackage pipeline validation tests
+
+description: Test suite for test/tw/configpackage pipeline
+
+testcases:
+  - name: Valid config package wolfi-baselayout
+    description: wolfi-baselayout installs non-empty files under etc/
+    package: wolfi-baselayout
+    pipelines:
+      - uses: test/tw/configpackage
+    expect_pass: true
+  - name: Valid config package ca-certificates-bundle with absolute dir
+    description: A leading / on dir is accepted
+    package: ca-certificates-bundle
+    pipelines:
+      - uses: test/tw/configpackage
+        with:
+          dir: /etc/ssl/certs/
+    expect_pass: true
+  - name: Invalid config package giflib-doc
+    description: giflib-doc installs nothing under etc/
+    package: giflib-doc
+    pipelines:
+      - uses: test/tw/configpackage
+    expect_pass: false
+  - name: Invalid config package wolfi-baselayout with other dir
+    description: Files the package installs elsewhere do not count
+    package: wolfi-baselayout
+    pipelines:
+      - uses: test/tw/configpackage
+        with:
+          dir: /usr/share/myapp/
+    expect_pass: false
+  - name: Invalid config package for a package not installed
+    description: Listing a package that is not installed fails
+    package: wolfi-baselayout
+    pipelines:
+      - uses: test/tw/configpackage
+        with:
+          package: does-not-exist
+    expect_pass: false
+  - name: Invalid config package configpackage-test-empty
+    description: The only file under etc/ is empty (built from tests/manual)
+    package: configpackage-test-empty
+    pipelines:
+      - uses: test/tw/configpackage
+    expect_pass: false
+  - name: Invalid config package configpackage-test-dangling
+    description: The only file under etc/ is a dangling symlink (built from tests/manual)
+    package: configpackage-test-dangling
+    pipelines:
+      - uses: test/tw/configpackage
+    expect_pass: false

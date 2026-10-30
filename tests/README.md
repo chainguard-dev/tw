@@ -60,6 +60,8 @@ Manual tests live in `manual/` and are full melange YAML files with subpackages 
 
 **When to use:** Only when you need to create synthetic packages with specific file layouts that don't exist in Wolfi. For example, testing `header-check` with deliberately malformed headers, or testing edge cases that require precise control over package contents.
 
+The synthetic packages are built into `.out/packages`, which suite tests also use as a repository. A melange test can't expect its pipeline to fail, so to check that a pipeline rejects a synthetic package, build the package here and add an `expect_pass: false` case for it under `suites/`. `suites/configpackage.yaml` does this.
+
 See [Writing Manual Tests](#writing-manual-tests) below for the format.
 
 ## Running Tests

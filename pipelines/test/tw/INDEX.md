@@ -39,12 +39,13 @@ This directory contains test pipelines for validating Wolfi packages. Use this i
 Use these pipelines to validate that packages conform to expected structural patterns for their type.
 
 ### `configpackage`
-Validates configuration packages contain non-empty text config files in the expected directory.
+Validates that a configuration package installs non-empty files under the expected directory. Only files owned by the package are checked.
 
 **When to use:** For `-config` packages that install runtime configuration files.
 
 **Inputs:**
-- `dir` (optional, default: `/etc/`) - Directory to search for config files
+- `dir` (optional, default: `etc/`) - Directory to search for config files; a leading `/` is ignored
+- `package` (optional, default: `${{context.name}}`) - Package whose files are checked
 
 ---
 

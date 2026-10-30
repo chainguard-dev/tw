@@ -43,6 +43,7 @@ MELANGE_OPTS += --source-dir=./
 
 MELANGE_BUILD_OPTS += --signing-key=${KEY}
 MELANGE_BUILD_OPTS += --out-dir=${OUT_DIR}
+MELANGE_BUILD_OPTS += --pipeline-dir=${TOP_D}/pipelines
 
 MELANGE_TEST_OPTS += --repository-append ${OUT_DIR}
 MELANGE_TEST_OPTS += --repository-append ${TEST_OUT_DIR}
@@ -97,21 +98,28 @@ build-test-runner:
 	@echo "==> Building test runner..."
 	@cd $(TEST_DIR)/runner && go build -o pipeline-runner .
 
+# Build the synthetic packages in tests/manual into TEST_OUT_DIR, where
+# suite tests can also use them as packages that should fail.
+.PHONY: build-manual
+build-manual: $(KEY)
+	@echo "==> Building manual test packages..."
+	@for test_file in $(MANUAL_TEST_FILES); do \
+		echo "Building $$test_file"; \
+		$(MELANGE) build $$test_file $(MELANGE_OPTS) --signing-key=${KEY} --pipeline-dir ${TOP_D}/pipelines --out-dir=${TEST_OUT_DIR} || { \
+			echo "ERROR: Build failed for $$test_file" >&2; \
+			exit 1; \
+		}; \
+	done
+
 # Run manual tests (full melange YAML files with *-test.yaml pattern)
 .PHONY: test-manual
-test-manual: $(KEY)
+test-manual: build-manual
 	@echo "==> Running manual tests..."
 	@if [ -z "$(MANUAL_TEST_FILES)" ]; then \
 		echo "No manual test files found"; \
 		exit 0; \
 	fi
 	@rc=0; for test_file in $(MANUAL_TEST_FILES); do \
-		echo "Building $$test_file"; \
-		$(MELANGE) build $$test_file $(MELANGE_OPTS) --signing-key=${KEY} --pipeline-dir ${TOP_D}/pipelines --out-dir=${TEST_OUT_DIR} || rc=$$?; \
-		if [ $$rc -ne 0 ]; then \
-			echo "ERROR: Build failed for $$test_file" >&2; \
-			exit $$rc; \
-		fi; \
 		echo "Testing $$test_file"; \
 		$(MELANGE) test $$test_file $(MELANGE_OPTS) $(MELANGE_TEST_OPTS) || rc=$$?; \
 		if [ $$rc -ne 0 ]; then \
@@ -122,7 +130,7 @@ test-manual: $(KEY)
 
 # Run suite tests (declarative test files)
 .PHONY: test-suite
-test-suite: build $(KEY) build-test-runner
+test-suite: build build-manual $(KEY) build-test-runner
 	@echo "==> Running suite tests..."
 	@if [ -z "$(SUITE_TEST_FILES)" ]; then \
 		echo "No suite test files found"; \
@@ -133,7 +141,7 @@ test-suite: build $(KEY) build-test-runner
 		--pipeline-dir $(TOP_D)/pipelines \
 		--arch $(ARCH) \
 		--out-dir $(TEST_DIR)/.out/generated \
-		--repositories "$(OUT_DIR),$(WOLFI_REPO)" \
+		--repositories "$(OUT_DIR),$(TEST_OUT_DIR),$(WOLFI_REPO)" \
 		--keyrings "$(KEY).pub,$(WOLFI_KEY)" \
 		--append-packages "wolfi-base"
 

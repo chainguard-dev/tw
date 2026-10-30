@@ -1,0 +1,56 @@
+package:
+  name: configpackage-test
+  version: "0.0.0"
+  epoch: 0
+  description: Synthetic packages for configpackage pipeline edge cases
+
+environment:
+  contents:
+    packages:
+      - busybox
+      - wolfi-base
+
+pipeline:
+  - runs: |
+      echo "Synthetic packages for the configpackage pipeline"
+
+subpackages:
+  # The only file under etc/ is empty. tests/suites/configpackage.yaml
+  # expects configpackage to fail on it.
+  - name: configpackage-test-empty
+    description: Package whose only config file is empty
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.contextdir}}/etc/configpackage-test
+          : > ${{targets.contextdir}}/etc/configpackage-test/empty.conf
+    test:
+      pipeline:
+        - runs: |
+            [ -f /etc/configpackage-test/empty.conf ]
+            [ ! -s /etc/configpackage-test/empty.conf ]
+
+  # The only file under etc/ is a dangling symlink. The suite expects
+  # configpackage to fail on it.
+  - name: configpackage-test-dangling
+    description: Package whose only config file is a dangling symlink
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.contextdir}}/etc/configpackage-test
+          ln -s /nonexistent/configpackage-test.conf ${{targets.contextdir}}/etc/configpackage-test/dangling.conf
+    test:
+      pipeline:
+        - runs: |
+            [ -L /etc/configpackage-test/dangling.conf ]
+            [ ! -e /etc/configpackage-test/dangling.conf ]
+
+  # One empty and one non-empty file under etc/: configpackage passes.
+  - name: configpackage-test-mixed
+    description: Package with an empty and a non-empty config file
+    pipeline:
+      - runs: |
+          mkdir -p ${{targets.contextdir}}/etc/configpackage-test
+          : > ${{targets.contextdir}}/etc/configpackage-test/empty.conf
+          echo "key = value" > ${{targets.contextdir}}/etc/configpackage-test/mixed.conf
+    test:
+      pipeline:
+        - uses: test/tw/configpackage
