@@ -39,3 +39,15 @@ testcases:
         with:
           package: does-not-exist
     expect_pass: false
+  - name: Invalid config package configpackage-test-empty
+    description: The only file under etc/ is empty (built from tests/manual)
+    package: configpackage-test-empty
+    pipelines:
+      - uses: test/tw/configpackage
+    expect_pass: false
+  - name: Invalid config package configpackage-test-dangling
+    description: The only file under etc/ is a dangling symlink (built from tests/manual)
+    package: configpackage-test-dangling
+    pipelines:
+      - uses: test/tw/configpackage
+    expect_pass: false
