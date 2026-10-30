@@ -64,6 +64,11 @@ checks:
         - storage.googleapis.com
         # melange's build and test environments.
         - packages.wolfi.dev
+        # tw's helm-inventory tests pull the podinfo chart from its Helm
+        # repository and from ghcr.io, which redirects blobs.
+        - stefanprodan.github.io
+        - ghcr.io
+        - pkg-containers.githubusercontent.com
     vars:
       # The egress proxy presents a sandbox CA that guest setup adds to the
       # guest's bundle. melange's sandboxes install Wolfi's bundle instead, so
