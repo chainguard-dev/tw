@@ -1,0 +1,121 @@
+name: Check Daemon Output
+
+description: |
+  Starts a daemon/server, waits for expected log output, optionally runs
+  post-startup checks, then cleans up. Thin wrapper over the daemon-check-output
+  tool: each input is written to a file via a quoted heredoc (no shell expansion
+  of user content) and the file paths are passed to the tool.
+
+  DAEMON DEPENDENCIES:
+  - Each step is ISOLATED - the daemon stops after the step completes.
+  - If service A depends on service B, start B in A's setup script (a separate
+    test step for B would stop before A runs).
+
+  wait-for-it is available for use in setup/post scripts.
+
+needs:
+  packages:
+    - daemon-check-output
+    - wait-for-it
+
+inputs:
+  start:
+    description: |
+      The command to run to start the daemon. Use absolute paths, not
+      "cd && command" patterns.
+    required: true
+  setup:
+    description: |
+      Optional commands to run BEFORE starting the daemon (create dirs, generate
+      config, etc). '#!/bin/sh -ex' is prepended if there is no shebang.
+    required: false
+  post:
+    description: |
+      Optional commands to run AFTER the daemon is ready (health checks, client
+      operations). Handled like setup.
+    required: false
+  check-url:
+    description: |
+      Optional declarative HTTP check(s) to run after the daemon is ready, in
+      place of hand-written "curl in post" checks. YAML describing one check or a
+      list of checks. Each check is retried until it passes or `timeout` elapses,
+      so a port that is still coming up is tolerated.
+
+      Fields per check:
+        url:            (required) the URL to request
+        method:         HTTP method (default GET)
+        headers:        map of request headers (e.g. Authorization)
+        expected:
+          code:         expected status code; if omitted, any status < 400 passes
+          body-contains: substring, or list of substrings, that must be present
+
+      Example:
+        check-url: |
+          - url: http://localhost:8080/health
+            expected:
+              code: 200
+              body-contains: "hello world"
+          - url: http://localhost:8080/metrics
+    required: false
+  timeout:
+    description: Maximum seconds to wait for expected_output to appear.
+    default: 30
+  expected_output:
+    description: |
+      Newline-separated regex patterns that must ALL appear in the daemon output.
+      Use "." to match any output.
+    required: true
+  error_strings:
+    description: |
+      Newline-separated regex patterns that indicate errors. Any match fails the
+      test. Set to empty string to disable error checking.
+    required: true
+    default: |
+      ERROR
+      FAIL
+      FATAL
+      Traceback.*most.recent.call
+      Exception in thread
+      java.lang.NullPointerException
+      java.lang.RuntimeException
+      Gem::MissingSpecError
+      command not found
+
+pipeline:
+  - name: "start daemon and check output"
+    runs: |
+      d=$(mktemp -d)
+      trap 'rm -rf "$d"' EXIT
+
+      cat > "$d/start" <<'TW_DCO_EOF'
+      ${{inputs.start}}
+      TW_DCO_EOF
+
+      cat > "$d/expected" <<'TW_DCO_EOF'
+      ${{inputs.expected_output}}
+      TW_DCO_EOF
+
+      cat > "$d/errors" <<'TW_DCO_EOF'
+      ${{inputs.error_strings}}
+      TW_DCO_EOF
+
+      cat > "$d/setup" <<'TW_DCO_EOF'
+      ${{inputs.setup}}
+      TW_DCO_EOF
+
+      cat > "$d/post" <<'TW_DCO_EOF'
+      ${{inputs.post}}
+      TW_DCO_EOF
+
+      cat > "$d/check-url" <<'TW_DCO_EOF'
+      ${{inputs.check-url}}
+      TW_DCO_EOF
+
+      daemon-check-output \
+          --timeout="${{inputs.timeout}}" \
+          --start-file="$d/start" \
+          --expected-file="$d/expected" \
+          --error-strings-file="$d/errors" \
+          --setup-file="$d/setup" \
+          --post-file="$d/post" \
+          --check-url-file="$d/check-url"
