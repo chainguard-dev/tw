@@ -43,6 +43,7 @@ MELANGE_OPTS += --source-dir=./
 
 MELANGE_BUILD_OPTS += --signing-key=${KEY}
 MELANGE_BUILD_OPTS += --out-dir=${OUT_DIR}
+MELANGE_BUILD_OPTS += --pipeline-dir=${TOP_D}/pipelines
 
 MELANGE_TEST_OPTS += --repository-append ${OUT_DIR}
 MELANGE_TEST_OPTS += --repository-append ${TEST_OUT_DIR}
