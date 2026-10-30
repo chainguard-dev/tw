@@ -1,5 +1,5 @@
-# Replaces .github/workflows/c-i.yaml: the same make targets, on pull
-# requests and on pushes to main, natively on both architectures.
+# The repository's make targets, on pull requests and on pushes to main,
+# natively on both architectures.
 version: 1
 
 environment:
@@ -16,10 +16,8 @@ environment:
     - sed
     # ldd-check's tests run glibc's ldd.
     - posix-libc-utils
-    # GHA installed shellcheck 0.10.0; Wolfi carries 0.11.
     - shellcheck~0.11
-    # setup-melange installed the latest release; bubblewrap is melange's
-    # default runner.
+    # bubblewrap is melange's default runner.
     - melange~0.63
     - bubblewrap~0.13
   caches:
