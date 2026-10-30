@@ -105,6 +105,9 @@ main() {
 	cd tw || fail "failed cd into git cloned $TWGIT"
 	cksum=$(git rev-parse "$tag") || fail "$tag did not exist"
 
+	# stereo's lint requires the root pipelines/ to match the copies below;
+	# with no busybox.yaml there, only the pipelines are synced.
+	sync_to_dir "${stereo_dir}"
 	sync_to_dir "${stereo_dir}/os"
 	sync_to_dir "${stereo_dir}/enterprise-packages"
 	sync_to_dir "${stereo_dir}/extra-packages"

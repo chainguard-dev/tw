@@ -16,7 +16,8 @@ environment:
       - build-base
       - busybox
       - ca-certificates-bundle
-      - go
+      - glibc-2.44-dev
+      - go-1.27
 
 pipeline:
   #wolfi#- uses: git-checkout
