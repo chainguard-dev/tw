@@ -134,6 +134,14 @@ for py in "$@"; do
     echo "  [SKIP] netchild ($py): no network namespace here (netns=unavailable), so a non-Python child is not isolated; run as root with CAP_SYS_ADMIN to cover it"
   fi
 
+  # Retry plugins are disabled: a test that only passes on a retry fails,
+  # whether or not pytest-rerunfailures / flaky are installed.
+  run_case "$py" retry 1
+  has "UPSTREAM-TESTS-FAIL demo: tests/test_retry.py::test_fails_on_first_run"
+  has "UPSTREAM-TESTS demo: pass=0 fail=1 skip=0"
+  has "-p no:rerunfailures -p no:flaky"
+  hasnt "unrecognized arguments"
+
   run_case "$py" allskip 1
   has "UPSTREAM-TESTS demo: pass=0 fail=0 skip=2"
   has "no test passed (everything skipped, xfailed or deselected)"

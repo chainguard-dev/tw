@@ -61,6 +61,8 @@ and stereo picks them up when `pytest-core` switches to calling this tool;
 the inline copy is not patched in the meantime. So the tool intentionally
 differs from 87239accdf8:
 
+- Test-retry plugins are always disabled (`-p no:rerunfailures -p no:flaky`); their options and `@flaky` markers are accepted but inert, so a test that only passes on a retry fails the gate.
+
 - `--ignore` entries are deselected by the plugin with the boundary rule
   the report counts by (the exact node id, or the id followed by `::` or
   `[`), not by pytest's prefix-matching `--deselect`;

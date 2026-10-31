@@ -64,8 +64,14 @@ norm() {
       -e 's/run\.[A-Za-z0-9]\{6\}/run.X/g' \
       -e 's/ in [0-9.]*s / in Ns /' -e 's/ in [0-9.]*s$/ in Ns/' \
       -e 's/zz-upstream-tests-pytest-[0-9]*\.pth/zz.pth/' \
-      -e 's/upstream_tests_pytest\.py:[0-9]*/upstream_tests_pytest.py:N/g'
+      -e 's/upstream_tests_pytest\.py:[0-9]*/upstream_tests_pytest.py:N/g' \
+      -e 's/ -p no:rerunfailures -p no:flaky / /'
 }
+# The last rule hides one intended difference everywhere: the tool always
+# disables the test-retry plugins (pytest-rerunfailures, flaky), so its
+# echoed pytest command has '-p no:rerunfailures -p no:flaky' and the inline
+# pipeline's doesn't. With neither plugin installed the runs are otherwise
+# identical; the retry fixture in tests/run.sh covers the behaviour.
 
 # setup_ws: a fresh workspace with $fx's tree, its demo/ installed into
 # the destdir's site-packages (the same paths for both runs).

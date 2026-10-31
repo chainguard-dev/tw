@@ -440,6 +440,12 @@ def _guard():
 # accepted and ignored instead of failing with "unrecognized arguments".
 # Only options that actually appear on the command line/addopts are added.
 STUBBED = []
+# Test-retry plugins are always disabled (-p no:rerunfailures -p no:flaky,
+# passed by the runner): the gate requires every test to pass or fail
+# deterministically on its first run. Their modules may still be installed
+# (a suite that imports flaky needs the package), so their options are
+# stubbed even when importable, and @flaky markers stay inert.
+RETRY_MODS = ("pytest_rerunfailures", "flaky")
 NOTES = []
 STUB_OPTS = {
     "pytest_cov": (["--cov", "--cov-report", "--cov-config", "--cov-fail-under", "--cov-context", "--cov-precision"],
@@ -464,6 +470,7 @@ STUB_OPTS = {
     "pytest_instafail": ([], ["--instafail"]),
     "pytest_sugar": ([], ["--force-sugar"]),
     "pytest_rerunfailures": (["--reruns", "--reruns-delay", "--only-rerun"], []),
+    "flaky": (["--max-runs", "--min-passes"], ["--force-flaky", "--no-flaky-report", "--no-success-flaky-report"]),
     "pytest_randomly": (["--randomly-seed"], ["--randomly-dont-reorganize", "--randomly-dont-reset-seed"]),
     "pytest_forked": ([], ["--forked"]),
     "pytest_remotedata": (["--remote-data"], []),
@@ -514,7 +521,7 @@ def pytest_load_initial_conftests(early_config, parser, args):
     for mod, (valued, flags) in STUB_OPTS.items():
         try:
             sp_ = iu.find_spec(mod)
-            if sp_ is not None and "/stubs/" not in (sp_.origin or ""):
+            if sp_ is not None and "/stubs/" not in (sp_.origin or "") and mod not in RETRY_MODS:
                 continue
         except Exception:
             pass
