@@ -24,6 +24,7 @@ This directory contains test pipelines for validating Wolfi packages. Use this i
 | `pip-check` | Validate Python package dependencies | none |
 | `shell-deps.check` | Check shell scripts for missing commands | `files` |
 | `shell-deps-check-packages` | Check package shell scripts for deps | `package` |
+| `shell-syntax-check` | Syntax-check shell completions and scripts | none |
 | `srcpackage` | Validate source packages contain source files | none |
 | `staticpackage` | Validate static library packages | none |
 | `symlink-check` | Verify symlinks are valid | none |
@@ -261,6 +262,19 @@ Checks installed package shell scripts for dependency issues.
 **Dependencies:** tw
 
 **Uses:** `tw shell-deps check-package`
+
+---
+
+### `shell-syntax-check`
+Checks the syntax of the shell completion files and executable shell scripts a package installs, using each shell's parse-only mode.
+
+**When to use:** For packages that ship bash, zsh or fish completions, or shell scripts in `usr/bin`, `usr/sbin` or `usr/libexec`.
+
+**Inputs:**
+- `files` (optional) - Space-separated list of files to check instead of auto-detecting
+- `package` (optional, default: `${{context.name}}`) - Package whose files are auto-detected when `files` is not set
+
+**Dependencies:** apk-tools, bash, fish, zsh
 
 ---
 
