@@ -11,6 +11,10 @@ DSP = os.environ.get("UT_DSP", "")
 FROM = os.environ.get("UT_FROM", "installed")
 SRC = os.environ.get("UT_SRC", "")
 results, collect_errors, deselected, skips = {}, [], [], {}
+# Collectors skipped at collection (pytest.importorskip, pytest.skip(...,
+# allow_module_level=True)): node id -> reason. None of their tests is
+# collected, so report.py counts each as one skipped test.
+module_skips = {}
 RANK = {"passed": 0, "skipped": 1, "xfailed": 2, "failed": 4, "error": 5}
 
 if FROM == "installed" and DSP:
@@ -545,7 +549,7 @@ running = [None]
 def _dump(exitstatus, collected, killed=None):
     with open(os.path.join(OUT, "results.json"), "w") as fh:
         json.dump({"results": results, "collect_errors": collect_errors,
-                   "deselected": deselected, "skips": skips,
+                   "deselected": deselected, "skips": skips, "module_skips": module_skips,
                    "collected": collected, "killed_during": killed, "why": why_failed,
                    "exitstatus": int(exitstatus), "stubbed": STUBBED, "notes": NOTES[:50]}, fh)
 
@@ -631,6 +635,14 @@ def pytest_collectreport(report):
     # One entry per node id (--doctest-modules collects a file twice).
     if report.failed and (report.nodeid or "<session>") not in [n for n, _ in collect_errors]:
         collect_errors.append((report.nodeid or "<session>", str(report.longrepr)[-4000:]))
+    # A module (or directory, from its conftest) skipped while it was
+    # collected: its tests never reach runtest_logreport. Under xdist each
+    # worker records its own (written at sessionfinish): the controller
+    # passes on only the first skipped report with a given longrepr, so two
+    # modules skipped by one shared helper would count once.
+    lr = report.longrepr
+    if report.skipped and report.nodeid and isinstance(lr, (tuple, list)) and len(lr) == 3:
+        module_skips.setdefault(report.nodeid, str(lr[2]))
 
 def _set(nodeid, outcome):
     if RANK[outcome] >= RANK.get(results.get(nodeid), -1):
@@ -690,8 +702,11 @@ def pytest_sessionfinish(session, exitstatus):
     _dump_mods(wid)
     if wid != "main":
         # Under xdist the workers collect and deselect; the controller
-        # never sees it. report.py reads these when results.json has none.
+        # never sees it. report.py reads these when results.json has none,
+        # and merges every worker's module skips (by node id).
         with open(os.path.join(OUT, "deselected-%s.json" % wid), "w") as fh:
             json.dump(deselected, fh)
+        with open(os.path.join(OUT, "modskips-%s.json" % wid), "w") as fh:
+            json.dump(module_skips, fh)
         return
     _dump(exitstatus, session.testscollected)

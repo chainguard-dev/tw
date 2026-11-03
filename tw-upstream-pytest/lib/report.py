@@ -33,18 +33,59 @@ if not desel:
     for f in sorted(glob.glob(os.path.join(out, "deselected-*.json"))):
         desel = json.load(open(f))
         break
+# Collectors (modules, or directories through their conftest) skipped at
+# collection: importorskip, pytest.skip(..., allow_module_level=True).
+# Under xdist, every worker's record too, merged by node id: the
+# controller drops a skipped report whose longrepr it has seen, so two
+# modules skipped by one shared helper reach it once.
+ms = dict(r.get("module_skips") or {})
+for f in sorted(glob.glob(os.path.join(out, "modskips-*.json"))):
+    for k, v in json.load(open(f)).items():
+        ms.setdefault(k, v)
 ignored = 0
+stale = []
 for t in ign:
     n = sum(1 for d in desel if d == t or d.startswith(t + "::") or d.startswith(t + "["))
     ignored += n
     if n:
         print("IGNORE %s: %s (deselected %d)" % (pkg, t, n))
+        continue
+    # Nothing to deselect in a module that was skipped at collection or
+    # failed to import (that failure is reported on its own): the entry
+    # cannot be checked in this run, so it is not called stale.
+    f_ = t.split("::")[0]
+    gone = [m for m in list(ms) + [n_ for n_, _ in cerr] if m != "<session>" and (f_ == m or f_.startswith(m.rstrip("/") + "/"))]
+    if gone:
+        print("%s: note: ignore entry '%s' is in %s, which was not collected (%s); not checked" % (
+            me, t, gone[0], "skipped at collection" if gone[0] in ms else "collection error"))
+        continue
+    # A stale entry (the test was renamed or removed) or a path: an entry is
+    # a node id, so a directory or a file without that boundary matches
+    # nothing, and its tests run.
+    p_ = os.path.join(src, t)
+    if os.path.isdir(p_):
+        hint = "'%s' is a directory: an ignore entry is a node id; list directories in ignore-files (not collected)" % t
+    elif os.path.isfile(p_):
+        hint = "'%s' is a file with no collected test; list it in ignore-files if it should not be collected" % t
     else:
-        print("%s: WARNING: ignore entry '%s' matches no collected test" % (me, t), file=sys.stderr)
+        hint = "no such test (renamed or removed upstream?); an entry is a node id, matched exactly or followed by '::' or '['. For an id that exists only on some builds (python version, arch, optional backend), use --args \"--deselect ID\" instead: pytest skips it silently where it is absent (a prefix match)"
+    sys.stdout.flush()  # keep the order of the lines in a combined log
+    print("%s: ERROR: ignore entry '%s' matches no collected test: %s" % (me, t, hint), file=sys.stderr)
+    stale.append(t)
+# Deselected by something other than an ignore entry: --markers, or -m,
+# -k or --deselect in --args. Not in ignored=; pytest's own summary shows
+# them serially, but not under xdist, so say how many here.
+other = sum(1 for d in desel if not any(d == t or d.startswith((t + "::", t + "[")) for t in ign))
+if other:
+    print("%s: note: %d test(s) deselected by markers, -m, -k or --deselect (not in ignored=, not counted towards min-run-percent)" % (me, other))
 if r["skips"]:
     print("%s: most common skip reasons:" % me)
     for reason, n in sorted(r["skips"].items(), key=lambda x: -x[1])[:10]:
         print("  %5d  %s" % (n, reason[:200]))
+if ms:
+    print("%s: skipped at collection (each counts as one skipped test): %d" % (me, len(ms)))
+    for nodeid in sorted(ms)[:10]:
+        print("  %s: %s" % (nodeid, " ".join(ms[nodeid].split())[:200]))
 wf = r.get("why") or {}
 if cerr or wf:
     print("%s: failure reasons (first 40):" % me)
@@ -66,6 +107,9 @@ if c["xfailed"]:
     line += " xfail=%d" % c["xfailed"]
 if ignored:
     line += " ignored=%d" % ignored
+if ms:
+    # New field, last, so that parsers of the older fields are unaffected.
+    line += " modskip=%d" % len(ms)
 print(line)
 if rc == 124 or rc >= 128:
     why.append("pytest timed out or was killed (exit %d, overall-timeout=%ss)%s" % (rc, E["UT_LIMIT"], " while running %s" % r["killed_during"] if r.get("killed_during") else ""))
@@ -75,7 +119,10 @@ if fail:
 # means something was collected.
 collected = max(r["collected"], len(res))
 if collected == 0 or rc == 5:
-    why.append("no tests collected; the suite did not run (check dir, paths, markers, ignore)")
+    if ms:
+        why.append("no tests collected; every module was skipped at collection (%d, reasons above): the suite did not run" % len(ms))
+    else:
+        why.append("no tests collected; the suite did not run (check dir, paths, markers, ignore)")
 elif c["passed"] == 0:
     why.append("no test passed (everything skipped, xfailed or deselected); the suite did not really run")
 else:
@@ -85,11 +132,16 @@ else:
     # was collected and not deselected (ignore, markers, -k in args).
     # ignore-files are never collected, so named exceptions do not
     # count against the package.
+    # A module skipped at collection (importorskip) counts as one skipped
+    # test: its tests were never collected, so their number is unknown.
     ran = c["passed"] + c["xfailed"] + c["failed"] + c["error"]
-    sel = ran + c["skipped"]
+    sel = ran + c["skipped"] + len(ms)
     if sel and ran * 100 < float(E["UT_MINRUN"]) * sel:
-        why.append("only %d of %d collected tests ran (%.1f%%), below min-run-percent=%s; the rest were skipped (reasons above). If that is upstream's default, set min-run-percent lower in the caller with a comment and a TODO(upstream-tests)" % (
-            ran, sel, 100.0 * ran / sel, E["UT_MINRUN"]))
+        why.append("only %d of %d collected tests ran (%.1f%%%s), below min-run-percent=%s; the rest were skipped (reasons above). If that is upstream's default, set min-run-percent lower in the caller with a comment and a TODO(upstream-tests)" % (
+            ran, sel, 100.0 * ran / sel, "; %d of the %d are modules skipped at collection" % (len(ms), sel) if ms else "", E["UT_MINRUN"]))
+if stale:
+    why.append("%d ignore entr%s match%s no collected test (%s): fix or drop %s, see the ERROR lines above; directories go in ignore-files, ids that exist only on some builds in --args \"--deselect ID\"" % (
+        len(stale), "y" if len(stale) == 1 else "ies", "es" if len(stale) == 1 else "", " ".join(stale), "it" if len(stale) == 1 else "them"))
 if rc not in (0, 1, 5, 124) and rc < 128:
     why.append("pytest exited %d (2 interrupted, 3 internal error, 4 usage error)" % rc)
 if rc == 1 and not fail:
@@ -167,7 +219,7 @@ if before != after:
         E.get("UT_DEST", ""), "; ".join(ch[:20])))
 if why:
     missing = set()
-    blobs = [w for _, w in cerr] + list(r["skips"])
+    blobs = [w for _, w in cerr] + list(r["skips"]) + list(ms.values())
     for b in blobs:
         missing.update(re.findall(r"No module named '([A-Za-z0-9_]+)", b))
         missing.update(re.findall(r"could not import '([A-Za-z0-9_]+)", b))

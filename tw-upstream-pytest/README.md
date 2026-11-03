@@ -13,6 +13,66 @@ the pipelines keep their inputs and documentation and call this tool.
 input, with the same name and default. It exits 0 when the gate passes and
 1 when it fails or the options are wrong.
 
+The last summary line is `UPSTREAM-TESTS <name>: pass=N fail=N skip=N`,
+followed by `xfail=N`, `ignored=N` and `modskip=N` when they are not zero.
+`modskip` (contract 4) counts modules skipped at collection
+(`pytest.importorskip(...)`, `pytest.skip(..., allow_module_level=True)`),
+whose tests are never collected and so are not in `skip`; it is the last
+field so that parsers of the others are unaffected.
+
+Contract 4 gate rules, on top of the stereo pipeline's:
+
+- An `--ignore` entry that matches no collected test fails the gate (it
+  was a warning). An entry is a node id, matched exactly or followed by
+  `::` or `[`, so a directory such as `tests/integration` matches nothing:
+  the message says so and points to `--ignore-files`, which stops it being
+  collected. An entry in a module that was not collected (skipped at
+  collection, or a collection error, which fails on its own) is noted and
+  not checked.
+- A node id that exists only on some builds (a test defined under a
+  `sys.version_info` check, a parametrized case per importable backend
+  such as `test_codec[zstd]`, a class gated on the platform) does not
+  belong in `--ignore`: a py3-supported-* package runs the tool once per
+  python3.X and arch, and the entry fails wherever the id is absent. Use
+  `--args "--deselect tests/test_x.py::test_codec[zstd]"` instead (the
+  stereo pipeline's `args:` input); pytest ignores a `--deselect` that
+  matches nothing. Unlike `--ignore`:
+  - it is pytest's prefix match (`nodeid.startswith`), so
+    `--deselect tests/test_x.py::test_codec` also drops
+    `test_codec_roundtrip`; name the full id, ending in `]` for a
+    parametrized case;
+  - an unmatched one is never reported, so a renamed test goes unnoticed;
+  - the tests it drops get no `IGNORE` line and are not in `ignored=`; the
+    tool prints how many tests were deselected other than by `--ignore`
+    (markers, `-m`, `-k`, `--deselect`), since pytest's own summary leaves
+    them out under xdist.
+
+  Like ignored tests, they are not counted towards `--min-run-percent`.
+  An entry in both `--ignore` and `--deselect` is counted once, under
+  its `IGNORE` line (the ignore entries are applied first). A dedicated
+  input for build-dependent ids may follow if callers need it.
+- Each module skipped at collection counts as one skipped test towards
+  `--min-run-percent`, so a suite whose modules mostly `importorskip` a
+  missing dependency still trips the threshold. pytest's own summary
+  counts them as skipped the same way.
+- With pytest-asyncio 0.24 or later importable and no
+  `asyncio_default_fixture_loop_scope` set by the project (the key in
+  the first of `pytest.toml` or `.pytest.toml` `[pytest]`, `pytest.ini`,
+  `.pytest.ini`, `pyproject.toml` `[tool.pytest]` or
+  `[tool.pytest.ini_options]`, `tox.ini` or `setup.cfg` that holds pytest
+  config, as pytest 9 picks it; `-o` in its `addopts`, unless
+  `--clear-addopts true`; `--args`; or `PYTEST_ADDOPTS`), the tool ignores
+  the plugin's "is unset" deprecation warning with
+  `-W 'ignore:The configuration option "asyncio_default_fixture_loop_scope" is unset:pytest.PytestDeprecationWarning'`.
+  Under the project's `filterwarnings = error` (pytest 9) that warning is
+  an INTERNALERROR and nothing runs; command-line filters apply after the
+  ini's, so this one wins. The option itself stays unset, so each async
+  fixture's event loop keeps its caching scope (forcing `function` would
+  break module- and session-scoped async fixtures with a ScopeMismatch).
+  A project that sets the scope, or disables the plugin with
+  `-p no:asyncio` (in `addopts`, `--args` or `PYTEST_ADDOPTS`), gets no
+  flag.
+
 Limits worth knowing:
 
 - `--runner unittest` runs `python -m unittest discover`, which cannot
@@ -43,7 +103,10 @@ Limits worth knowing:
   `tests/fixtures/`. They include the stereo pilot's negative controls: a
   failing test, a write into the installed package, the source tree
   shadowing the build, tests that need the network, a suite where every
-  test skips, an empty suite and a missing test dependency.
+  test skips, an empty suite and a missing test dependency; and, for
+  contract 4, stale and directory `--ignore` entries, modules skipped at
+  collection, and pytest-asyncio under `filterwarnings = error` (those
+  cases need pytest-asyncio; without it, only the absent case runs).
 - `tests/equivalence.sh`: runs a stereo `pytest-core.yaml`'s inline
   `runs:` block and this tool on the fixtures and compares their output.
   Most cases must match; the intended differences (below) are listed as
@@ -75,14 +138,26 @@ differs from 87239accdf8:
 - the plugin prefers `src/<pkg>`, and skips `docs`, `examples` and
   `benchmarks` trees, when it looks for the package's source-tree tests;
 - there is no `--network` option (the pipeline has no such input);
-- the scratch space is also removed on INT and TERM.
+- the scratch space is also removed on INT and TERM;
+- contract 4: unmatched `--ignore` entries fail the gate, modules skipped
+  at collection are counted (`modskip=`, and in `--min-run-percent`),
+  tests deselected other than by `--ignore` are counted in a note line,
+  and pytest-asyncio's "loop scope is unset" deprecation warning is
+  ignored with `-W` (all described above);
+- the project's pytest config is also read from `pytest.toml` and
+  `.pytest.toml` (pytest 9 reads them first), for `testpaths`,
+  `python_files`, the loop scope and `addopts`.
 
 `tests/equivalence.sh path/to/pytest-core.yaml python3.13` checks the
-rest: at 87239accdf8 on Python 3.13, 11 cases give the same output and 7
-are the intended differences above. `sync-from-stereo --check` reports
-`lib/report.py` and `lib/upstream_tests_pytest.py` as different for the
-same reason; do not run it without `--check` against 87239accdf8, which
-would revert the fixes.
+rest: at 87239accdf8 on Python 3.13, 16 cases give the same output and 13
+are the intended differences above (with pytest-asyncio installed; 13 and
+12 without it, when its four cases are skipped). Two differences are
+hidden in every case by its output normalization, and named there: the
+retry plugins' `-p no:` options, and the asyncio `-W` option with the
+inline run's pytest-asyncio deprecation warning. `sync-from-stereo
+--check` reports `lib/report.py`, `lib/upstream_tests_pytest.py` and
+`lib/ini.py` as different for the same reason; do not run it without
+`--check` against 87239accdf8, which would revert the fixes.
 
 `CONTRACT` in `tw-upstream-pytest` is the interface version
 (`--version`). Bump it when an option is added or changes meaning.
