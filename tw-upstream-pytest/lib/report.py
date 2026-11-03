@@ -35,7 +35,13 @@ if not desel:
         break
 # Collectors (modules, or directories through their conftest) skipped at
 # collection: importorskip, pytest.skip(..., allow_module_level=True).
-ms = r.get("module_skips") or {}
+# Under xdist, every worker's record too, merged by node id: the
+# controller drops a skipped report whose longrepr it has seen, so two
+# modules skipped by one shared helper reach it once.
+ms = dict(r.get("module_skips") or {})
+for f in sorted(glob.glob(os.path.join(out, "modskips-*.json"))):
+    for k, v in json.load(open(f)).items():
+        ms.setdefault(k, v)
 ignored = 0
 stale = []
 for t in ign:

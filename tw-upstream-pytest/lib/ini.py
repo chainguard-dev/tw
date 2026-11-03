@@ -43,3 +43,5 @@ print("set" if "python_files" in d else "unset")
 # (-o asyncio_default_fixture_loop_scope=...).
 print("set" if d.get(LOOP, "").strip() else "unset")
 print("set" if LOOP in d.get("addopts", "") else "unset")
+# pytest-asyncio disabled in addopts (-p no:asyncio).
+print("set" if "no:asyncio" in d.get("addopts", "") else "unset")

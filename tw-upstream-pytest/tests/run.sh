@@ -227,6 +227,15 @@ for py in "$@"; do
     has "UPSTREAM-TESTS demo: pass=4 fail=0 skip=0 ignored=1"
     run_case "$py" modskip 0 --jobs 2
     has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=1 modskip=2"
+    # Two modules skipped by one shared conftest helper: the same longrepr,
+    # which xdist's controller passes on once; the workers' records keep
+    # both, so the count and the ignore check agree with the serial run.
+    run_case "$py" modskipshared 0 --jobs 2
+    has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0 modskip=2"
+    run_case "$py" modskipshared 0 --jobs 2 --ignore tests/test_x2.py::test_needs_x
+    has "note: ignore entry 'tests/test_x2.py::test_needs_x' is in tests/test_x2.py, which was not collected (skipped at collection); not checked"
+    has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0 modskip=2"
+    hasnt "matches no collected test"
     run_case "$py" mostlymodskip 1 --jobs 2
     has "UPSTREAM-TESTS demo: pass=1 fail=0 skip=0 modskip=20"
     has "only 1 of 21 collected tests ran (4.8%; 20 of the 21 are modules skipped at collection), below min-run-percent=5"
@@ -235,7 +244,7 @@ for py in "$@"; do
       has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0"
     fi
   else
-    echo "  [SKIP] ignoreprefix, modskip, mostlymodskip, asyncio --jobs 2 ($py): no pytest-xdist"
+    echo "  [SKIP] ignoreprefix, modskip, modskipshared, mostlymodskip, asyncio --jobs 2 ($py): no pytest-xdist"
   fi
 
   # tw#503: a directory is not a node id; it matches nothing and its
@@ -256,6 +265,12 @@ for py in "$@"; do
   has "UPSTREAM-TESTS demo: pass=1 fail=0 skip=0 ignored=1"
   run_case "$py" ignoredir 1 --ignore "tests/integration/test_live.py demo/__init__.py"
   has "'demo/__init__.py' is a file with no collected test; list it in ignore-files"
+
+  # The same, serial (the reference for the --jobs 2 run above).
+  run_case "$py" modskipshared 0
+  has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0 modskip=2"
+  run_case "$py" modskipshared 0 --ignore tests/test_x2.py::test_needs_x
+  has "note: ignore entry 'tests/test_x2.py::test_needs_x' is in tests/test_x2.py, which was not collected (skipped at collection); not checked"
 
   # tw#504: modules skipped at collection are counted (modskip=, last)
   # and listed; per-test skips are unchanged (skip=).
@@ -311,38 +326,96 @@ for py in "$@"; do
     fx=ini.py
     if [ "$got" = "$want " ]; then pass "ini.py loop scope ($cfg): $got"; else fail "ini.py loop scope ($cfg): got '$got', want '$want '"; fi
   done
+  # ini.py: pytest-asyncio disabled in addopts.
+  for cfg in ini toml none; do
+    d="$tmp/ini-noaio-$cfg"
+    rm -rf "$d"
+    mkdir -p "$d"
+    want="set"
+    case "$cfg" in
+      ini) printf '[pytest]\naddopts = -ra -p no:asyncio\n' > "$d/pytest.ini" ;;
+      toml) printf '[tool.pytest.ini_options]\naddopts = ["-p", "no:asyncio"]\n' > "$d/pyproject.toml" ;;
+      none) printf '[pytest]\naddopts = -ra\n' > "$d/pytest.ini"; want="unset" ;;
+    esac
+    got=$(cd "$d" && "$py" -I "$UT_LIB/ini.py" | sed -n 5p)
+    fx=ini.py
+    if [ "$got" = "$want" ]; then pass "ini.py no:asyncio ($cfg): $got"; else fail "ini.py no:asyncio ($cfg): got '$got', want '$want'"; fi
+  done
 
   # tw#505: filterwarnings = error, pytest-asyncio and no loop scope: the
-  # tool sets it to function (before: an INTERNALERROR, nothing ran). A
-  # project's own setting is left alone, wherever it comes from.
+  # tool ignores the plugin's "is unset" warning (before: an INTERNALERROR,
+  # nothing ran). The scope stays unset. A project's own setting, or the
+  # plugin disabled with -p no:asyncio, gets no flag.
   if "$py" -c 'import pytest_asyncio' 2>/dev/null; then
     run_case "$py" asyncio 0
-    has "and no asyncio_default_fixture_loop_scope in the project's config: passing -o asyncio_default_fixture_loop_scope=function"
-    has " -o asyncio_default_fixture_loop_scope=function "
+    has "and no asyncio_default_fixture_loop_scope in the project's config: ignoring its \"is unset\" deprecation warning (-W)"
+    has " -W 'ignore:The configuration option \"asyncio_default_fixture_loop_scope\" is unset:pytest.PytestDeprecationWarning' "
+    hasnt "asyncio_default_fixture_loop_scope=function"
     has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0"
     hasnt "INTERNALERROR"
+    # The -W adds no config key: --strict-config is fine.
+    run_case "$py" asyncio 0 --args --strict-config
+    has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0"
+    # Module- and session-scoped async fixtures keep their loop scope
+    # (unset: the caching scope), with the same results as plain pytest.
+    run_case "$py" asyncioscoped 0
+    has " -W 'ignore:The configuration option \"asyncio_default_fixture_loop_scope\" is unset:pytest.PytestDeprecationWarning' "
+    has "UPSTREAM-TESTS demo: pass=4 fail=0 skip=0"
+    hasnt "ScopeMismatch"
+    rm -rf "$tmp/plain"
+    cp -R "$here/fixtures/asyncioscoped" "$tmp/plain"
+    plain=$(cd "$tmp/plain" && PYTHONPATH=. PYTHONDONTWRITEBYTECODE=1 "$py" -m pytest -q -p no:cacheprovider 2>&1 | tail -n 1)
+    fx=asyncioscoped-plain
+    case "$plain" in
+      "4 passed"*) pass "asyncioscoped ($py): plain pytest: $plain" ;;
+      *) fail "asyncioscoped ($py): plain pytest: $plain" ;;
+    esac
     run_case "$py" asyncioscope 0
-    hasnt "asyncio_default_fixture_loop_scope=function"
+    hasnt "is unset"
+    hasnt " -W "
     has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0"
     export WANT_LOOP_SCOPE=module
     run_case "$py" asyncio 0 --args "-o asyncio_default_fixture_loop_scope=module"
-    hasnt "asyncio_default_fixture_loop_scope=function"
+    hasnt " -W "
     has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0"
     export PYTEST_ADDOPTS="-o asyncio_default_fixture_loop_scope=module"
     run_case "$py" asyncio 0
-    hasnt "asyncio_default_fixture_loop_scope=function"
+    hasnt " -W "
     has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0"
     unset PYTEST_ADDOPTS
     unset WANT_LOOP_SCOPE
+    # Importable but disabled (-p no:asyncio in addopts, --args or
+    # PYTEST_ADDOPTS): no flag, and the run passes, under --strict-config too.
+    run_case "$py" asyncionoplugin 0
+    hasnt " -W "
+    has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0"
+    run_case "$py" asyncionoplugin 0 --args --strict-config
+    hasnt " -W "
+    has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0"
+    run_case "$py" asyncionoplugin 0 --clear-addopts true --args "-p no:asyncio --strict-config"
+    hasnt " -W "
+    has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0"
+    export PYTEST_ADDOPTS="-p no:asyncio"
+    run_case "$py" asyncionoplugin 0 --clear-addopts true --args --strict-config
+    hasnt " -W "
+    has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0"
+    unset PYTEST_ADDOPTS
   else
-    echo "  [SKIP] asyncio, asyncioscope ($py): no pytest-asyncio (the absent case runs instead)"
+    echo "  [SKIP] asyncio, asyncioscoped, asyncioscope, asyncionoplugin ($py): no pytest-asyncio (the absent case runs instead)"
   fi
   # Without pytest-asyncio (hidden, or not installed): no flag.
   # (-p no:asyncio: pytest would otherwise load the hidden plugin itself.)
   export PYTHONPATH="$tmp/no-pytest-asyncio"
   run_case "$py" asyncio 1 --args '-p no:asyncio'
-  hasnt "asyncio_default_fixture_loop_scope=function"
+  hasnt " -W "
   has "UPSTREAM-TESTS-FAIL demo: tests/test_async.py [collection]"
+  # Not importable, and not disabled by name (no plugin autoloading, so
+  # pytest does not load the hidden module itself): no flag.
+  export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+  run_case "$py" pass 0 --timeout 0
+  hasnt " -W "
+  has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=1"
+  unset PYTEST_DISABLE_PLUGIN_AUTOLOAD
   unset PYTHONPATH
 
   # src layout next to docs/demo: demo.tests comes from src/demo/tests.

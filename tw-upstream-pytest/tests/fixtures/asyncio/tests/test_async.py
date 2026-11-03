@@ -17,6 +17,7 @@ async def test_double(base):
 
 
 def test_loop_scope(request):
-    # function (the tool's -o), or what WANT_LOOP_SCOPE says the caller set.
-    want = os.environ.get("WANT_LOOP_SCOPE", "function")
-    assert request.config.getini("asyncio_default_fixture_loop_scope") == want
+    # Unset (the tool only ignores the warning), or what WANT_LOOP_SCOPE
+    # says the caller set.
+    want = os.environ.get("WANT_LOOP_SCOPE", "")
+    assert (request.config.getini("asyncio_default_fixture_loop_scope") or "") == want

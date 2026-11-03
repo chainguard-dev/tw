@@ -37,11 +37,17 @@ Contract 4 gate rules, on top of the stereo pipeline's:
   `asyncio_default_fixture_loop_scope` set by the project (the ini key in
   `pytest.ini`, `.pytest.ini`, `pyproject.toml` `[tool.pytest.ini_options]`,
   `tox.ini` or `setup.cfg`; `-o` in its `addopts`, unless
-  `--clear-addopts true`; `--args`; or `PYTEST_ADDOPTS`), the tool passes
-  `-o asyncio_default_fixture_loop_scope=function`, pytest-asyncio's
-  announced default. Unset, the plugin's deprecation warning is an
-  INTERNALERROR under the project's `filterwarnings = error`, and nothing
-  runs. A project that sets the scope is left alone.
+  `--clear-addopts true`; `--args`; or `PYTEST_ADDOPTS`), the tool ignores
+  the plugin's "is unset" deprecation warning with
+  `-W 'ignore:The configuration option "asyncio_default_fixture_loop_scope" is unset:pytest.PytestDeprecationWarning'`.
+  Under the project's `filterwarnings = error` (pytest 9) that warning is
+  an INTERNALERROR and nothing runs; command-line filters apply after the
+  ini's, so this one wins. The option itself stays unset, so each async
+  fixture's event loop keeps its caching scope (forcing `function` would
+  break module- and session-scoped async fixtures with a ScopeMismatch).
+  A project that sets the scope, or disables the plugin with
+  `-p no:asyncio` (in `addopts`, `--args` or `PYTEST_ADDOPTS`), gets no
+  flag.
 
 Limits worth knowing:
 

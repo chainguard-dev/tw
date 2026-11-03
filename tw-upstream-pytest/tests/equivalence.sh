@@ -66,18 +66,18 @@ norm() {
       -e 's/zz-upstream-tests-pytest-[0-9]*\.pth/zz.pth/' \
       -e 's/upstream_tests_pytest\.py:[0-9]*/upstream_tests_pytest.py:N/g' \
       -e 's/ -p no:rerunfailures -p no:flaky / /' \
-      -e '/: pytest-asyncio .* passing -o asyncio_default_fixture_loop_scope=function$/d' \
-      -e 's/ -o asyncio_default_fixture_loop_scope=function / /' \
+      -e '/: pytest-asyncio .* ignoring its "is unset" deprecation warning (-W)$/d' \
+      -e "s/ -W 'ignore:The configuration option \"asyncio_default_fixture_loop_scope\" is unset:pytest\\.PytestDeprecationWarning' / /" \
       -e '/pytest_asyncio\/plugin\.py:[0-9]*: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset/,/warnings\.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))/d'
 }
 # The last four rules hide two intended differences everywhere. The tool
 # always disables the test-retry plugins (pytest-rerunfailures, flaky), so
 # its echoed pytest command has '-p no:rerunfailures -p no:flaky' and the
 # inline pipeline's doesn't. With pytest-asyncio 0.24+ installed and no
-# loop scope in the project's config (contract 4), it says so and passes
-# '-o asyncio_default_fixture_loop_scope=function', so the inline run's
-# "asyncio_default_fixture_loop_scope is unset" deprecation warning (printed
-# by every inline run then) is gone. Otherwise the runs are
+# loop scope in the project's config (contract 4), it says so and passes a
+# -W that ignores pytest-asyncio's "asyncio_default_fixture_loop_scope is
+# unset" deprecation warning, so that warning (printed by every inline run
+# then) is gone. Otherwise the runs are
 # identical; the retry and asyncio fixtures (run.sh, and the asyncio
 # `differs` case below) cover the behaviour.
 
@@ -180,11 +180,13 @@ differs "modules skipped at collection count towards min-run-percent (contract 4
   mostlymodskip
 same mostlyskip min-run-percent=4
 if "$py" -c 'import pytest_asyncio' 2>/dev/null; then
-  differs "pytest-asyncio without a loop scope under filterwarnings = error: the tool passes -o asyncio_default_fixture_loop_scope=function (inline: INTERNALERROR)" \
+  differs "pytest-asyncio without a loop scope under filterwarnings = error: the tool ignores its \"is unset\" warning with -W (inline: INTERNALERROR)" \
     asyncio
+  same asyncioscoped
   same asyncioscope
+  same asyncionoplugin
 else
-  echo "  [SKIP] asyncio, asyncioscope: no pytest-asyncio for $py"
+  echo "  [SKIP] asyncio, asyncioscoped, asyncioscope, asyncionoplugin: no pytest-asyncio for $py"
 fi
 differs "extensions is validated" \
   pass extensions=requried
