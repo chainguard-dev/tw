@@ -3,7 +3,7 @@ module chainguard.dev/tw/chelm
 go 1.27.0
 
 require (
-	chainguard.dev/sdk v0.1.448
+	chainguard.dev/sdk v0.1.454
 	dario.cat/mergo v1.0.2
 	github.com/google/go-containerregistry v0.22.1
 	github.com/opencontainers/go-digest v1.0.0
@@ -27,7 +27,7 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stretchr/testify v1.12.1 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	go.yaml.in/yaml/v2 v2.4.4 // indirect
+	go.yaml.in/yaml/v2 v2.4.5 // indirect
 	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
