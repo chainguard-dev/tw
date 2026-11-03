@@ -39,11 +39,11 @@
 #       pytest.skip(allow_module_level=True)) are listed, counted in a
 #       new last summary field modskip=N, and count as one skipped test
 #       each towards min-run-percent;
-#     - with pytest-asyncio 0.24 or later importable and no
-#       asyncio_default_fixture_loop_scope in the project's config,
-#       addopts or args, -o asyncio_default_fixture_loop_scope=function
-#       is passed (the unset-option deprecation warning was an
-#       INTERNALERROR under filterwarnings = error).
+#     - with pytest-asyncio 0.24 or later importable (and not disabled
+#       with -p no:asyncio) and no asyncio_default_fixture_loop_scope in
+#       the project's config, addopts or args, its "is unset" deprecation
+#       warning is ignored with -W (it was an INTERNALERROR under
+#       filterwarnings = error); the option itself stays unset.
 #
 # shellcheck disable=SC2086 # word splitting of paths/ignore lists is intended
 set -e
@@ -116,12 +116,13 @@ Summary: UPSTREAM-TESTS NAME: pass=N fail=N skip=N [xfail=N] [ignored=N]
 [modskip=N]; modskip (contract 4) counts modules skipped at collection,
 whose tests are not in skip.
 
-When pytest-asyncio 0.24 or later is importable and neither the project's
-pytest config (ini key or addopts) nor --args sets
-asyncio_default_fixture_loop_scope, the tool passes
--o asyncio_default_fixture_loop_scope=function (contract 4): unset, the
-plugin's deprecation warning is an INTERNALERROR under
-filterwarnings = error.
+When pytest-asyncio 0.24 or later is importable, not disabled with
+-p no:asyncio, and neither the project's pytest config (ini key or
+addopts) nor --args nor PYTEST_ADDOPTS sets
+asyncio_default_fixture_loop_scope, the tool ignores the plugin's "is
+unset" deprecation warning with -W (contract 4): under
+filterwarnings = error it is an INTERNALERROR. The option stays unset, so
+each async fixture's event loop keeps its caching scope.
 
 The network guard is always on. On Python 3.10 child interpreters started
 by the tests (python -c 'import pkg' from the source tree) can import the

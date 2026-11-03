@@ -40,7 +40,7 @@ d = main()
 print(" ".join(d.get("testpaths", "").split()))
 print("set" if "python_files" in d else "unset")
 # pytest-asyncio's fixture loop scope, set as an ini key, and set in addopts
-# (-o asyncio_default_fixture_loop_scope=...).
+# (-o asyncio_default_fixture_loop_scope=...); the tool then passes no -W.
 print("set" if d.get(LOOP, "").strip() else "unset")
 print("set" if LOOP in d.get("addopts", "") else "unset")
 # pytest-asyncio disabled in addopts (-p no:asyncio).

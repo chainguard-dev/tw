@@ -117,15 +117,15 @@ differs from 87239accdf8:
 - the scratch space is also removed on INT and TERM;
 - contract 4: unmatched `--ignore` entries fail the gate, modules skipped
   at collection are counted (`modskip=`, and in `--min-run-percent`), and
-  pytest-asyncio's fixture loop scope defaults to `function` (all
-  described above).
+  pytest-asyncio's "loop scope is unset" deprecation warning is ignored
+  with `-W` (all described above).
 
 `tests/equivalence.sh path/to/pytest-core.yaml python3.13` checks the
-rest: at 87239accdf8 on Python 3.13, 14 cases give the same output and 12
+rest: at 87239accdf8 on Python 3.13, 16 cases give the same output and 12
 are the intended differences above (with pytest-asyncio installed; 13 and
-11 without it, when its two cases are skipped). Two differences are
+11 without it, when its four cases are skipped). Two differences are
 hidden in every case by its output normalization, and named there: the
-retry plugins' `-p no:` options, and the asyncio `-o` option with the
+retry plugins' `-p no:` options, and the asyncio `-W` option with the
 inline run's pytest-asyncio deprecation warning. `sync-from-stereo
 --check` reports `lib/report.py`, `lib/upstream_tests_pytest.py` and
 `lib/ini.py` as different for the same reason; do not run it without
