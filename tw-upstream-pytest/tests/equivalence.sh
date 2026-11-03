@@ -27,6 +27,20 @@ export UT_LIB="$here/../lib"
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/tw-upstream-pytest-equiv.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT
 export UT_SCRATCH_BASE="$tmp/scratch"
+# The fixtures: a copy of fixtures/, plus mostlymodskip, generated as in
+# tests/run.sh (one test and 20 modules skipped at collection).
+fixtures="$tmp/fixtures"
+cp -R "$here/fixtures" "$fixtures"
+d="$fixtures/mostlymodskip"
+mkdir -p "$d/demo" "$d/tests"
+printf 'def add(a, b):\n    return a + b\n' > "$d/demo/__init__.py"
+printf 'import demo\n\n\ndef test_runs():\n    assert demo.add(1, 1) == 2\n' > "$d/tests/test_runs.py"
+i=1
+while [ "$i" -le 20 ]; do
+  n=$(printf '%02d' "$i")
+  printf 'import pytest\n\npytest.importorskip("nonexistent_mod_%s")\n\n\ndef test_needs_mod():\n    pass\n' "$n" > "$d/tests/test_opt$n.py"
+  i=$((i + 1))
+done
 
 # The runs: block, dedented.
 awk '/^    runs: \|$/ { on = 1; next } on { sub(/^      /, ""); print }' "$core" > "$tmp/core.sh"
@@ -87,12 +101,12 @@ setup_ws() {
   ws="$tmp/ws"
   rm -rf "$ws"
   mkdir -p "$ws"
-  cp -R "$here/fixtures/$fx/." "$ws/"
+  cp -R "$fixtures/$fx/." "$ws/"
   dest="$ws/melange-out/demo"
   sp=$("$py" -c 'import site; print(site.getsitepackages()[0])')
   mkdir -p "$dest$sp"
-  inst="$here/fixtures/$fx/demo"
-  [ -d "$here/fixtures/$fx/.installed/demo" ] && inst="$here/fixtures/$fx/.installed/demo"
+  inst="$fixtures/$fx/demo"
+  [ -d "$fixtures/$fx/.installed/demo" ] && inst="$fixtures/$fx/.installed/demo"
   cp -R "$inst" "$dest$sp/"
 }
 

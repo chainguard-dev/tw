@@ -1,9 +1,9 @@
 #!/bin/sh
-# Tests for tw-upstream-pytest: run it against the projects in fixtures/,
-# each "installed" into a fake destdir, and check the exit status and the
-# lines stereo's logs and parsers rely on. The negative controls are the
-# ones the stereo pilot used (py3-six neg/bneg, shadow2, netprobe,
-# mostly-skip).
+# Tests for tw-upstream-pytest: run it against the projects in fixtures/
+# (and mostlymodskip, generated below), each "installed" into a fake
+# destdir, and check the exit status and the lines stereo's logs and
+# parsers rely on. The negative controls are the ones the stereo pilot
+# used (py3-six neg/bneg, shadow2, netprobe, mostly-skip).
 #
 # Usage: tests/run.sh [python ...]
 # Default: every python3.X on PATH that can import pytest and pytest-timeout
@@ -46,6 +46,23 @@ echo 'raise ImportError("pytest_timeout hidden by tests/run.sh")' > "$tmp/no-pyt
 # what counts).
 mkdir -p "$tmp/no-pytest-asyncio"
 echo 'raise ImportError("pytest_asyncio hidden by tests/run.sh")' > "$tmp/no-pytest-asyncio/pytest_asyncio.py"
+# The fixtures: a copy of fixtures/, plus mostlymodskip, generated here
+# because it is 20 near-identical modules (tw#504 negative control: one
+# test runs, the 20 other modules are skipped at collection by
+# importorskip, so 1 of 21 ran (4.8%), below the default min-run-percent
+# of 5).
+fixtures="$tmp/fixtures"
+cp -R "$here/fixtures" "$fixtures"
+d="$fixtures/mostlymodskip"
+mkdir -p "$d/demo" "$d/tests"
+printf 'def add(a, b):\n    return a + b\n' > "$d/demo/__init__.py"
+printf 'import demo\n\n\ndef test_runs():\n    assert demo.add(1, 1) == 2\n' > "$d/tests/test_runs.py"
+i=1
+while [ "$i" -le 20 ]; do
+  n=$(printf '%02d' "$i")
+  printf 'import pytest\n\npytest.importorskip("nonexistent_mod_%s")\n\n\ndef test_needs_mod():\n    pass\n' "$n" > "$d/tests/test_opt$n.py"
+  i=$((i + 1))
+done
 
 npass=0 nfail=0
 pass() { echo "  [PASS] $*"; npass=$((npass + 1)); }
@@ -62,12 +79,12 @@ run_case() {
   ws="$tmp/ws-$fx"
   rm -rf "$ws"
   mkdir -p "$ws"
-  cp -R "$here/fixtures/$fx/." "$ws/"
+  cp -R "$fixtures/$fx/." "$ws/"
   dest="$ws/melange-out/demo"
   sp=$("$py" -c 'import site; print(site.getsitepackages()[0])')
   mkdir -p "$dest$sp"
-  inst="$here/fixtures/$fx/demo"
-  [ -d "$here/fixtures/$fx/.installed/demo" ] && inst="$here/fixtures/$fx/.installed/demo"
+  inst="$fixtures/$fx/demo"
+  [ -d "$fixtures/$fx/.installed/demo" ] && inst="$fixtures/$fx/.installed/demo"
   cp -R "$inst" "$dest$sp/"
   out=$(cd "$ws" && $TOOL_SH "$tool" --name demo --stage build --caller upstream-tests/pytest \
     --destdir "$dest" --python "$py" "$@" 2>&1)
@@ -410,7 +427,7 @@ for py in "$@"; do
     has "UPSTREAM-TESTS demo: pass=4 fail=0 skip=0"
     hasnt "ScopeMismatch"
     rm -rf "$tmp/plain"
-    cp -R "$here/fixtures/asyncioscoped" "$tmp/plain"
+    cp -R "$fixtures/asyncioscoped" "$tmp/plain"
     plain=$(cd "$tmp/plain" && PYTHONPATH=. PYTHONDONTWRITEBYTECODE=1 "$py" -m pytest -q -p no:cacheprovider 2>&1 | tail -n 1)
     fx=asyncioscoped-plain
     case "$plain" in
