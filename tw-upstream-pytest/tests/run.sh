@@ -1,8 +1,8 @@
 #!/bin/sh
 # Tests for tw-upstream-pytest: run it against the projects in fixtures/
-# (and mostlymodskip, generated below), each "installed" into a fake
-# destdir, and check the exit status and the lines stereo's logs and
-# parsers rely on. The negative controls are the ones the stereo pilot
+# (and mostlymodskip, asyncioscopetoml and asyncioscopedottoml, generated
+# below), each "installed" into a fake destdir, and check the exit status
+# and the lines stereo's logs and parsers rely on. The negative controls are the ones the stereo pilot
 # used (py3-six neg/bneg, shadow2, netprobe, mostly-skip).
 #
 # Usage: tests/run.sh [python ...]
@@ -62,6 +62,15 @@ while [ "$i" -le 20 ]; do
   n=$(printf '%02d' "$i")
   printf 'import pytest\n\npytest.importorskip("nonexistent_mod_%s")\n\n\ndef test_needs_mod():\n    pass\n' "$n" > "$d/tests/test_opt$n.py"
   i=$((i + 1))
+done
+# asyncioscopetoml and asyncioscopedottoml: asyncioscope with its config
+# in pytest.toml and .pytest.toml (pytest 9's [pytest] table, native TOML
+# types; dannf's review of tw#507).
+for f in pytest.toml .pytest.toml; do
+  case "$f" in pytest.toml) d="$fixtures/asyncioscopetoml" ;; *) d="$fixtures/asyncioscopedottoml" ;; esac
+  cp -R "$fixtures/asyncioscope" "$d"
+  rm "$d/pytest.ini"
+  printf '[pytest]\nfilterwarnings = ["error"]\nasyncio_default_fixture_loop_scope = "module"\n' > "$d/$f"
 done
 
 npass=0 nfail=0
@@ -372,7 +381,7 @@ for py in "$@"; do
   hasnt "modskip="
 
   # ini.py: where a project can set pytest-asyncio's loop scope.
-  for cfg in pytest.ini pyproject.toml setup.cfg tox.ini addopts none empty; do
+  for cfg in pytest.ini pyproject.toml setup.cfg tox.ini addopts none empty pytest.toml .pytest.toml toml-over-ini ini-under-toml toml-notable; do
     d="$tmp/ini-$cfg"
     rm -rf "$d"
     mkdir -p "$d"
@@ -385,13 +394,25 @@ for py in "$@"; do
       addopts) printf '[tool.pytest.ini_options]\naddopts = ["-o", "asyncio_default_fixture_loop_scope=module"]\n' > "$d/pyproject.toml"; want="unset set" ;;
       none) printf '[pytest]\nfilterwarnings = error\n' > "$d/pytest.ini"; want="unset unset" ;;
       empty) printf '[pytest]\nasyncio_default_fixture_loop_scope =\n' > "$d/pytest.ini"; want="unset unset" ;;
+      pytest.toml|.pytest.toml) printf '[pytest]\nasyncio_default_fixture_loop_scope = "module"\n' > "$d/$cfg" ;;
+      # pytest 9 reads pytest.toml before pytest.ini (the first one wins),
+      # and pytest.toml is the config even without a [pytest] table.
+      toml-over-ini)
+        printf '[pytest]\nasyncio_default_fixture_loop_scope = "module"\n' > "$d/.pytest.toml"
+        printf '[pytest]\nfilterwarnings = error\n' > "$d/pytest.ini" ;;
+      ini-under-toml)
+        printf '[pytest]\nfilterwarnings = ["error"]\n' > "$d/pytest.toml"
+        printf '[pytest]\nasyncio_default_fixture_loop_scope = module\n' > "$d/pytest.ini"; want="unset unset" ;;
+      toml-notable)
+        printf '[tool.other]\nx = 1\n' > "$d/pytest.toml"
+        printf '[tool.pytest.ini_options]\nasyncio_default_fixture_loop_scope = "session"\n' > "$d/pyproject.toml"; want="unset unset" ;;
     esac
     got=$(cd "$d" && "$py" -I "$UT_LIB/ini.py" | sed -n '3,4p' | tr '\n' ' ')
     fx=ini.py
     if [ "$got" = "$want " ]; then pass "ini.py loop scope ($cfg): $got"; else fail "ini.py loop scope ($cfg): got '$got', want '$want '"; fi
   done
   # ini.py: pytest-asyncio disabled in addopts.
-  for cfg in ini toml none; do
+  for cfg in ini toml none pytest.toml pytest.toml-str; do
     d="$tmp/ini-noaio-$cfg"
     rm -rf "$d"
     mkdir -p "$d"
@@ -400,11 +421,21 @@ for py in "$@"; do
       ini) printf '[pytest]\naddopts = -ra -p no:asyncio\n' > "$d/pytest.ini" ;;
       toml) printf '[tool.pytest.ini_options]\naddopts = ["-p", "no:asyncio"]\n' > "$d/pyproject.toml" ;;
       none) printf '[pytest]\naddopts = -ra\n' > "$d/pytest.ini"; want="unset" ;;
+      pytest.toml) printf '[pytest]\naddopts = ["-ra", "-p", "no:asyncio"]\n' > "$d/pytest.toml" ;;
+      pytest.toml-str) printf '[pytest]\naddopts = "-ra -p no:asyncio"\n' > "$d/pytest.toml" ;;
     esac
     got=$(cd "$d" && "$py" -I "$UT_LIB/ini.py" | sed -n 5p)
     fx=ini.py
     if [ "$got" = "$want" ]; then pass "ini.py no:asyncio ($cfg): $got"; else fail "ini.py no:asyncio ($cfg): got '$got', want '$want'"; fi
   done
+  # ini.py: testpaths and python_files from pytest.toml (native lists).
+  d="$tmp/ini-testpaths-toml"
+  rm -rf "$d"
+  mkdir -p "$d"
+  printf '[pytest]\ntestpaths = ["tests", "more"]\npython_files = ["check_*.py"]\n' > "$d/pytest.toml"
+  got=$(cd "$d" && "$py" -I "$UT_LIB/ini.py" | sed -n '1,2p' | tr '\n' ' ')
+  fx=ini.py
+  if [ "$got" = "tests more set " ]; then pass "ini.py testpaths (pytest.toml): $got"; else fail "ini.py testpaths (pytest.toml): got '$got', want 'tests more set '"; fi
 
   # tw#505: filterwarnings = error, pytest-asyncio and no loop scope: the
   # tool ignores the plugin's "is unset" warning (before: an INTERNALERROR,
@@ -438,6 +469,15 @@ for py in "$@"; do
     hasnt "is unset"
     hasnt " -W "
     has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0"
+    # The same scope in pytest.toml or .pytest.toml (pytest 9): no -W, no
+    # note, and pytest sees the scope (test_loop_scope).
+    for fx in asyncioscopetoml asyncioscopedottoml; do
+      run_case "$py" "$fx" 0
+      hasnt "is unset"
+      hasnt "no asyncio_default_fixture_loop_scope"
+      hasnt " -W "
+      has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0"
+    done
     export WANT_LOOP_SCOPE=module
     run_case "$py" asyncio 0 --args "-o asyncio_default_fixture_loop_scope=module"
     hasnt " -W "
@@ -465,7 +505,7 @@ for py in "$@"; do
     has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0"
     unset PYTEST_ADDOPTS
   else
-    echo "  [SKIP] asyncio, asyncioscoped, asyncioscope, asyncionoplugin ($py): no pytest-asyncio (the absent case runs instead)"
+    echo "  [SKIP] asyncio, asyncioscoped, asyncioscope, asyncioscopetoml, asyncioscopedottoml, asyncionoplugin ($py): no pytest-asyncio (the absent case runs instead)"
   fi
   # Without pytest-asyncio (hidden, or not installed): no flag.
   # (-p no:asyncio: pytest would otherwise load the hidden plugin itself.)

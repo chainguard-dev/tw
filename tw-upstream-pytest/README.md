@@ -56,9 +56,11 @@ Contract 4 gate rules, on top of the stereo pipeline's:
   missing dependency still trips the threshold. pytest's own summary
   counts them as skipped the same way.
 - With pytest-asyncio 0.24 or later importable and no
-  `asyncio_default_fixture_loop_scope` set by the project (the ini key in
-  `pytest.ini`, `.pytest.ini`, `pyproject.toml` `[tool.pytest.ini_options]`,
-  `tox.ini` or `setup.cfg`; `-o` in its `addopts`, unless
+  `asyncio_default_fixture_loop_scope` set by the project (the key in
+  the first of `pytest.toml` or `.pytest.toml` `[pytest]`, `pytest.ini`,
+  `.pytest.ini`, `pyproject.toml` `[tool.pytest]` or
+  `[tool.pytest.ini_options]`, `tox.ini` or `setup.cfg` that holds pytest
+  config, as pytest 9 picks it; `-o` in its `addopts`, unless
   `--clear-addopts true`; `--args`; or `PYTEST_ADDOPTS`), the tool ignores
   the plugin's "is unset" deprecation warning with
   `-W 'ignore:The configuration option "asyncio_default_fixture_loop_scope" is unset:pytest.PytestDeprecationWarning'`.
@@ -141,7 +143,10 @@ differs from 87239accdf8:
   at collection are counted (`modskip=`, and in `--min-run-percent`),
   tests deselected other than by `--ignore` are counted in a note line,
   and pytest-asyncio's "loop scope is unset" deprecation warning is
-  ignored with `-W` (all described above).
+  ignored with `-W` (all described above);
+- the project's pytest config is also read from `pytest.toml` and
+  `.pytest.toml` (pytest 9 reads them first), for `testpaths`,
+  `python_files`, the loop scope and `addopts`.
 
 `tests/equivalence.sh path/to/pytest-core.yaml python3.13` checks the
 rest: at 87239accdf8 on Python 3.13, 16 cases give the same output and 13

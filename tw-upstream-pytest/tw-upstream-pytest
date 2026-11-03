@@ -47,6 +47,9 @@
 #       the project's config, addopts or args, its "is unset" deprecation
 #       warning is ignored with -W (it was an INTERNALERROR under
 #       filterwarnings = error); the option itself stays unset.
+#   - the project's pytest config is also read from pytest.toml and
+#     .pytest.toml (pytest 9, first in its order), for testpaths,
+#     python_files, the loop scope and addopts.
 #
 # shellcheck disable=SC2086 # word splitting of paths/ignore lists is intended
 set -e
@@ -128,8 +131,10 @@ Summary: UPSTREAM-TESTS NAME: pass=N fail=N skip=N [xfail=N] [ignored=N]
 whose tests are not in skip.
 
 When pytest-asyncio 0.24 or later is importable, not disabled with
--p no:asyncio, and neither the project's pytest config (ini key or
-addopts) nor --args nor PYTEST_ADDOPTS sets
+-p no:asyncio, and neither the project's pytest config (the key or
+addopts, in the file pytest 9 reads: pytest.toml, .pytest.toml,
+pytest.ini, .pytest.ini, pyproject.toml, tox.ini or setup.cfg) nor
+--args nor PYTEST_ADDOPTS sets
 asyncio_default_fixture_loop_scope, the tool ignores the plugin's "is
 unset" deprecation warning with -W (contract 4): under
 filterwarnings = error it is an INTERNALERROR. The option stays unset, so
