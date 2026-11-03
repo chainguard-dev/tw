@@ -174,6 +174,8 @@ differs "a stale ignore entry fails the gate (contract 4; it was a warning)" \
 differs "a directory ignore entry fails, pointing to ignore-files (contract 4); inline --deselect prefix-matched it and dropped its tests uncounted, with only a warning" \
   ignoredir "ignore=tests/integration"
 same ignoredir "ignore-files=tests/integration"
+differs "tests deselected other than by ignore (here --deselect in args, absent ids skipped silently by both) are counted in a note line" \
+  buildgate "args=--deselect tests/test_gated.py::test_slow --deselect tests/test_gated.py::test_future"
 differs "modules skipped at collection are listed and counted (modskip=, contract 4)" \
   modskip
 differs "modules skipped at collection count towards min-run-percent (contract 4)" \

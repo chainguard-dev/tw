@@ -68,10 +68,16 @@ for t in ign:
     elif os.path.isfile(p_):
         hint = "'%s' is a file with no collected test; list it in ignore-files if it should not be collected" % t
     else:
-        hint = "no such test (renamed or removed upstream?); an entry is a node id, matched exactly or followed by '::' or '['"
+        hint = "no such test (renamed or removed upstream?); an entry is a node id, matched exactly or followed by '::' or '['. For an id that exists only on some builds (python version, arch, optional backend), use --args \"--deselect ID\" instead: pytest skips it silently where it is absent (a prefix match)"
     sys.stdout.flush()  # keep the order of the lines in a combined log
     print("%s: ERROR: ignore entry '%s' matches no collected test: %s" % (me, t, hint), file=sys.stderr)
     stale.append(t)
+# Deselected by something other than an ignore entry: --markers, or -m,
+# -k or --deselect in --args. Not in ignored=; pytest's own summary shows
+# them serially, but not under xdist, so say how many here.
+other = sum(1 for d in desel if not any(d == t or d.startswith((t + "::", t + "[")) for t in ign))
+if other:
+    print("%s: note: %d test(s) deselected by markers, -m, -k or --deselect (not in ignored=, not counted towards min-run-percent)" % (me, other))
 if r["skips"]:
     print("%s: most common skip reasons:" % me)
     for reason, n in sorted(r["skips"].items(), key=lambda x: -x[1])[:10]:
@@ -134,7 +140,7 @@ else:
         why.append("only %d of %d collected tests ran (%.1f%%%s), below min-run-percent=%s; the rest were skipped (reasons above). If that is upstream's default, set min-run-percent lower in the caller with a comment and a TODO(upstream-tests)" % (
             ran, sel, 100.0 * ran / sel, "; %d of the %d are modules skipped at collection" % (len(ms), sel) if ms else "", E["UT_MINRUN"]))
 if stale:
-    why.append("%d ignore entr%s match%s no collected test (%s): fix or drop %s, see the ERROR lines above; directories go in ignore-files" % (
+    why.append("%d ignore entr%s match%s no collected test (%s): fix or drop %s, see the ERROR lines above; directories go in ignore-files, ids that exist only on some builds in --args \"--deselect ID\"" % (
         len(stale), "y" if len(stale) == 1 else "ies", "es" if len(stale) == 1 else "", " ".join(stale), "it" if len(stale) == 1 else "them"))
 if rc not in (0, 1, 5, 124) and rc < 128:
     why.append("pytest exited %d (2 interrupted, 3 internal error, 4 usage error)" % rc)

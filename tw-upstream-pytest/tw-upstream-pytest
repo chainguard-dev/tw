@@ -34,7 +34,10 @@
 #   - scratch space is also removed on INT/TERM;
 #   - contract 4 (tw#503, tw#504, tw#505):
 #     - an ignore entry that matches no collected test fails the gate
-#       (it was a warning), with a hint for directories (ignore-files);
+#       (it was a warning), with a hint for directories (ignore-files)
+#       and for ids that exist only on some builds (--args "--deselect
+#       ID", which pytest skips silently where nothing matches); tests
+#       deselected other than by ignore are counted in a note line;
 #     - modules skipped at collection (pytest.importorskip,
 #       pytest.skip(allow_module_level=True)) are listed, counted in a
 #       new last summary field modskip=N, and count as one skipped test
@@ -84,7 +87,15 @@ Options (each takes --opt VALUE or --opt=VALUE; one per pipeline input):
                           (contract 4; a directory matches nothing: use
                           --ignore-files), unless its module was not
                           collected (skipped at collection, or a
-                          collection error)
+                          collection error). For an id that exists only
+                          on some builds (a test under a sys.version_info
+                          check, a parametrized case per importable
+                          backend, a platform-gated class), use
+                          --args "--deselect ID": pytest skips it silently
+                          where it is absent, but matches any prefix
+                          (test_x also drops test_x_regression), and the
+                          tests it drops get no IGNORE line and are not in
+                          ignored=
   --ignore-files 'P ...'  paths not to collect (--ignore)
   --import-mode MODE      auto (append), append, prepend, importlib
   --clear-addopts BOOL    true drops the project's addopts

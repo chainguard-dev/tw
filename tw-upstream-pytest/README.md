@@ -29,6 +29,28 @@ Contract 4 gate rules, on top of the stereo pipeline's:
   collected. An entry in a module that was not collected (skipped at
   collection, or a collection error, which fails on its own) is noted and
   not checked.
+- A node id that exists only on some builds (a test defined under a
+  `sys.version_info` check, a parametrized case per importable backend
+  such as `test_codec[zstd]`, a class gated on the platform) does not
+  belong in `--ignore`: a py3-supported-* package runs the tool once per
+  python3.X and arch, and the entry fails wherever the id is absent. Use
+  `--args "--deselect tests/test_x.py::test_codec[zstd]"` instead (the
+  stereo pipeline's `args:` input); pytest ignores a `--deselect` that
+  matches nothing. Unlike `--ignore`:
+  - it is pytest's prefix match (`nodeid.startswith`), so
+    `--deselect tests/test_x.py::test_codec` also drops
+    `test_codec_roundtrip`; name the full id, ending in `]` for a
+    parametrized case;
+  - an unmatched one is never reported, so a renamed test goes unnoticed;
+  - the tests it drops get no `IGNORE` line and are not in `ignored=`; the
+    tool prints how many tests were deselected other than by `--ignore`
+    (markers, `-m`, `-k`, `--deselect`), since pytest's own summary leaves
+    them out under xdist.
+
+  Like ignored tests, they are not counted towards `--min-run-percent`.
+  An entry in both `--ignore` and `--deselect` is counted once, under
+  its `IGNORE` line (the ignore entries are applied first). A dedicated
+  input for build-dependent ids may follow if callers need it.
 - Each module skipped at collection counts as one skipped test towards
   `--min-run-percent`, so a suite whose modules mostly `importorskip` a
   missing dependency still trips the threshold. pytest's own summary
@@ -116,14 +138,15 @@ differs from 87239accdf8:
 - there is no `--network` option (the pipeline has no such input);
 - the scratch space is also removed on INT and TERM;
 - contract 4: unmatched `--ignore` entries fail the gate, modules skipped
-  at collection are counted (`modskip=`, and in `--min-run-percent`), and
-  pytest-asyncio's "loop scope is unset" deprecation warning is ignored
-  with `-W` (all described above).
+  at collection are counted (`modskip=`, and in `--min-run-percent`),
+  tests deselected other than by `--ignore` are counted in a note line,
+  and pytest-asyncio's "loop scope is unset" deprecation warning is
+  ignored with `-W` (all described above).
 
 `tests/equivalence.sh path/to/pytest-core.yaml python3.13` checks the
-rest: at 87239accdf8 on Python 3.13, 16 cases give the same output and 12
+rest: at 87239accdf8 on Python 3.13, 16 cases give the same output and 13
 are the intended differences above (with pytest-asyncio installed; 13 and
-11 without it, when its four cases are skipped). Two differences are
+12 without it, when its four cases are skipped). Two differences are
 hidden in every case by its output normalization, and named there: the
 retry plugins' `-p no:` options, and the asyncio `-W` option with the
 inline run's pytest-asyncio deprecation warning. `sync-from-stereo

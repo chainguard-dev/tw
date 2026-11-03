@@ -215,6 +215,41 @@ for py in "$@"; do
   hasnt "--deselect"
   run_case "$py" ignoreprefix 1
   has "UPSTREAM-TESTS-FAIL demo: tests/test_prefix.py::test_x"
+  # Ids that exist only on some builds (test_future: a python that is not
+  # out yet; test_codec[no_such_backend]: a backend that is not
+  # importable). As ignore entries they fail the gate where absent, with
+  # a hint to use --args "--deselect ID", which pytest skips silently;
+  # where the id exists, --deselect drops it (no IGNORE line, not in
+  # ignored=, a note with the count, not in the min-run denominator).
+  g=tests/test_gated.py
+  run_case "$py" buildgate 1 --ignore "$g::test_slow $g::test_codec[no_such_backend] $g::test_future"
+  has "IGNORE demo: $g::test_slow (deselected 1)"
+  has "ERROR: ignore entry '$g::test_codec[no_such_backend]' matches no collected test: no such test"
+  has "ERROR: ignore entry '$g::test_future' matches no collected test"
+  has "use --args \"--deselect ID\" instead: pytest skips it silently where it is absent"
+  has "FAILED: 2 ignore entries match no collected test ($g::test_codec[no_such_backend] $g::test_future)"
+  has "ids that exist only on some builds in --args \"--deselect ID\""
+  has "UPSTREAM-TESTS demo: pass=3 fail=0 skip=0 ignored=1"
+  run_case "$py" buildgate 0 --ignore "$g::test_slow" --args "--deselect $g::test_codec[no_such_backend] --deselect $g::test_future"
+  has "UPSTREAM-TESTS demo: pass=3 fail=0 skip=0 ignored=1"
+  hasnt "matches no collected test"
+  hasnt "deselected by markers"
+  run_case "$py" buildgate 0 --min-run-percent 100 --args "--deselect $g::test_slow"
+  has "3 passed, 1 deselected"
+  has "note: 1 test(s) deselected by markers, -m, -k or --deselect (not in ignored=, not counted towards min-run-percent)"
+  has "UPSTREAM-TESTS demo: pass=3 fail=0 skip=0"
+  hasnt "IGNORE demo:"
+  hasnt "skip=0 ignored="
+  hasnt "UPSTREAM-TESTS-FAIL"
+  # --deselect is a prefix match: test_codec takes test_codec_roundtrip.
+  run_case "$py" buildgate 0 --ignore "$g::test_slow" --args "--deselect $g::test_codec"
+  has "note: 2 test(s) deselected by markers"
+  has "UPSTREAM-TESTS demo: pass=1 fail=0 skip=0 ignored=1"
+  # Both an ignore entry and a --deselect: counted once, as ignored.
+  run_case "$py" buildgate 0 --ignore "$g::test_slow" --args "--deselect $g::test_slow"
+  has "IGNORE demo: $g::test_slow (deselected 1)"
+  has "UPSTREAM-TESTS demo: pass=3 fail=0 skip=0 ignored=1"
+  hasnt "deselected by markers"
   # Under xdist the workers deselect; the report still counts it.
   if "$py" -c 'import xdist' 2>/dev/null; then
     run_case "$py" ignoreprefix 0 --jobs 2 --ignore "tests/test_prefix.py::test_x"
@@ -225,6 +260,18 @@ for py in "$@"; do
     has "IGNORE demo: tests/test_prefix.py::test_x (deselected 1)"
     has "ERROR: ignore entry 'tests/test_prefix.py::test_gone' matches no collected test"
     has "UPSTREAM-TESTS demo: pass=4 fail=0 skip=0 ignored=1"
+    # --deselect under xdist: pytest's summary has no "deselected"; the
+    # note (from the workers' records) still counts it.
+    run_case "$py" buildgate 0 --jobs 2 --args "--deselect $g::test_slow --deselect $g::test_future"
+    has "note: 1 test(s) deselected by markers"
+    has "UPSTREAM-TESTS demo: pass=3 fail=0 skip=0"
+    hasnt "matches no collected test"
+    run_case "$py" buildgate 0 --jobs 2 --ignore "$g::test_slow" --args "--deselect $g::test_slow --deselect $g::test_codec[no_such_backend]"
+    has "IGNORE demo: $g::test_slow (deselected 1)"
+    has "UPSTREAM-TESTS demo: pass=3 fail=0 skip=0 ignored=1"
+    hasnt "deselected by markers"
+    run_case "$py" buildgate 1 --jobs 2 --ignore "$g::test_slow $g::test_future"
+    has "ERROR: ignore entry '$g::test_future' matches no collected test"
     run_case "$py" modskip 0 --jobs 2
     has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=1 modskip=2"
     # Two modules skipped by one shared conftest helper: the same longrepr,
@@ -244,7 +291,7 @@ for py in "$@"; do
       has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0"
     fi
   else
-    echo "  [SKIP] ignoreprefix, modskip, modskipshared, mostlymodskip, asyncio --jobs 2 ($py): no pytest-xdist"
+    echo "  [SKIP] ignoreprefix, buildgate, modskip, modskipshared, mostlymodskip, asyncio --jobs 2 ($py): no pytest-xdist"
   fi
 
   # tw#503: a directory is not a node id; it matches nothing and its
