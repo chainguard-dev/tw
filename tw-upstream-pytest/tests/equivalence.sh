@@ -65,13 +65,21 @@ norm() {
       -e 's/ in [0-9.]*s / in Ns /' -e 's/ in [0-9.]*s$/ in Ns/' \
       -e 's/zz-upstream-tests-pytest-[0-9]*\.pth/zz.pth/' \
       -e 's/upstream_tests_pytest\.py:[0-9]*/upstream_tests_pytest.py:N/g' \
-      -e 's/ -p no:rerunfailures -p no:flaky / /'
+      -e 's/ -p no:rerunfailures -p no:flaky / /' \
+      -e '/: pytest-asyncio .* passing -o asyncio_default_fixture_loop_scope=function$/d' \
+      -e 's/ -o asyncio_default_fixture_loop_scope=function / /' \
+      -e '/pytest_asyncio\/plugin\.py:[0-9]*: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset/,/warnings\.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))/d'
 }
-# The last rule hides one intended difference everywhere: the tool always
-# disables the test-retry plugins (pytest-rerunfailures, flaky), so its
-# echoed pytest command has '-p no:rerunfailures -p no:flaky' and the inline
-# pipeline's doesn't. With neither plugin installed the runs are otherwise
-# identical; the retry fixture in tests/run.sh covers the behaviour.
+# The last four rules hide two intended differences everywhere. The tool
+# always disables the test-retry plugins (pytest-rerunfailures, flaky), so
+# its echoed pytest command has '-p no:rerunfailures -p no:flaky' and the
+# inline pipeline's doesn't. With pytest-asyncio 0.24+ installed and no
+# loop scope in the project's config (contract 4), it says so and passes
+# '-o asyncio_default_fixture_loop_scope=function', so the inline run's
+# "asyncio_default_fixture_loop_scope is unset" deprecation warning (printed
+# by every inline run then) is gone. Otherwise the runs are
+# identical; the retry and asyncio fixtures (run.sh, and the asyncio
+# `differs` case below) cover the behaviour.
 
 # setup_ws: a fresh workspace with $fx's tree, its demo/ installed into
 # the destdir's site-packages (the same paths for both runs).
@@ -143,7 +151,7 @@ differs() {
 
 EQ_ENV=""
 same pass
-differs "ignore: no --deselect in the echoed command" \
+differs "ignore: no --deselect in the echoed command; the stale entry is an error that fails the gate (contract 4)" \
   neg "ignore=tests/test_neg.py::test_fail tests/test_neg.py::test_nonexistent"
 same neg
 same shadow
@@ -161,6 +169,23 @@ differs "ignore deselects test_x only, not test_x_regression (pytest --deselect 
   ignoreprefix "ignore=tests/test_prefix.py::test_x"
 differs "runner unittest rejects ignore, ignore-files, markers, jobs and timeout" \
   unittest runner=unittest "ignore=tests/test_ut.py::DemoTest::test_add"
+differs "a stale ignore entry fails the gate (contract 4; it was a warning)" \
+  ignoreprefix "ignore=tests/test_prefix.py::test_x tests/test_prefix.py::test_x_regression tests/test_prefix.py::test_gone"
+differs "a directory ignore entry fails, pointing to ignore-files (contract 4); inline --deselect prefix-matched it and dropped its tests uncounted, with only a warning" \
+  ignoredir "ignore=tests/integration"
+same ignoredir "ignore-files=tests/integration"
+differs "modules skipped at collection are listed and counted (modskip=, contract 4)" \
+  modskip
+differs "modules skipped at collection count towards min-run-percent (contract 4)" \
+  mostlymodskip
+same mostlyskip min-run-percent=4
+if "$py" -c 'import pytest_asyncio' 2>/dev/null; then
+  differs "pytest-asyncio without a loop scope under filterwarnings = error: the tool passes -o asyncio_default_fixture_loop_scope=function (inline: INTERNALERROR)" \
+    asyncio
+  same asyncioscope
+else
+  echo "  [SKIP] asyncio, asyncioscope: no pytest-asyncio for $py"
+fi
 differs "extensions is validated" \
   pass extensions=requried
 differs "the plugin takes src/demo, not docs/demo, as the source root" \

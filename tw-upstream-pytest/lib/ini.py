@@ -1,5 +1,6 @@
 import configparser, os
-KEYS = ("testpaths", "python_files")
+LOOP = "asyncio_default_fixture_loop_scope"
+KEYS = ("testpaths", "python_files", LOOP, "addopts")
 def ini(f, sec):
     c = configparser.ConfigParser(interpolation=None)
     try:
@@ -38,3 +39,7 @@ def main():
 d = main()
 print(" ".join(d.get("testpaths", "").split()))
 print("set" if "python_files" in d else "unset")
+# pytest-asyncio's fixture loop scope, set as an ini key, and set in addopts
+# (-o asyncio_default_fixture_loop_scope=...).
+print("set" if d.get(LOOP, "").strip() else "unset")
+print("set" if LOOP in d.get("addopts", "") else "unset")

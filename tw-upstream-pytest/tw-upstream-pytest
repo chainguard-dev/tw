@@ -31,7 +31,19 @@
 #   - the plugin prefers src/<pkg> and skips docs/examples/benchmarks when
 #     it looks for a package's source-tree test modules;
 #   - no --network option (the pipeline has no such input);
-#   - scratch space is also removed on INT/TERM.
+#   - scratch space is also removed on INT/TERM;
+#   - contract 4 (tw#503, tw#504, tw#505):
+#     - an ignore entry that matches no collected test fails the gate
+#       (it was a warning), with a hint for directories (ignore-files);
+#     - modules skipped at collection (pytest.importorskip,
+#       pytest.skip(allow_module_level=True)) are listed, counted in a
+#       new last summary field modskip=N, and count as one skipped test
+#       each towards min-run-percent;
+#     - with pytest-asyncio 0.24 or later importable and no
+#       asyncio_default_fixture_loop_scope in the project's config,
+#       addopts or args, -o asyncio_default_fixture_loop_scope=function
+#       is passed (the unset-option deprecation warning was an
+#       INTERNALERROR under filterwarnings = error).
 #
 # shellcheck disable=SC2086 # word splitting of paths/ignore lists is intended
 set -e
@@ -39,7 +51,7 @@ set -e
 cmd=tw-upstream-pytest
 # Interface version. Bump it when an option is added or its meaning
 # changes, so that stereo pipelines can require a minimum.
-CONTRACT=3
+CONTRACT=4
 UT_LIB=${UT_LIB:-/usr/libexec/tw/upstream-pytest}
 
 show_help() {
@@ -67,7 +79,12 @@ Options (each takes --opt VALUE or --opt=VALUE; one per pipeline input):
   --ignore 'ID ...'       node ids to deselect; an entry also covers ids
                           that continue with '::' or '[' (a file's or
                           class's tests, parametrized cases), but not
-                          test_x_regression for test_x
+                          test_x_regression for test_x. An entry that
+                          matches no collected test fails the gate
+                          (contract 4; a directory matches nothing: use
+                          --ignore-files), unless its module was not
+                          collected (skipped at collection, or a
+                          collection error)
   --ignore-files 'P ...'  paths not to collect (--ignore)
   --import-mode MODE      auto (append), append, prepend, importlib
   --clear-addopts BOOL    true drops the project's addopts
@@ -82,7 +99,9 @@ Options (each takes --opt VALUE or --opt=VALUE; one per pipeline input):
                           left at their defaults); use --paths and --args
   --extensions auto|required|none
   --min-run-percent N     fail when fewer than N% of the selected tests
-                          ran (default 5)
+                          ran (default 5); a module skipped at collection
+                          (pytest.importorskip, allow_module_level skip)
+                          counts as one skipped test (contract 4)
   --envpkgs TEXT          where callers add test requirements, named in
                           messages (default: by stage)
   --origin NAME           origin package (package.name); the test stage's
@@ -92,6 +111,17 @@ Options (each takes --opt VALUE or --opt=VALUE; one per pipeline input):
   --isolate true.
   --version               print the interface version and exit
   -h, --help              show this help and exit
+
+Summary: UPSTREAM-TESTS NAME: pass=N fail=N skip=N [xfail=N] [ignored=N]
+[modskip=N]; modskip (contract 4) counts modules skipped at collection,
+whose tests are not in skip.
+
+When pytest-asyncio 0.24 or later is importable and neither the project's
+pytest config (ini key or addopts) nor --args sets
+asyncio_default_fixture_loop_scope, the tool passes
+-o asyncio_default_fixture_loop_scope=function (contract 4): unset, the
+plugin's deprecation warning is an INTERNALERROR under
+filterwarnings = error.
 
 The network guard is always on. On Python 3.10 child interpreters started
 by the tests (python -c 'import pkg' from the source tree) can import the
@@ -305,6 +335,8 @@ src="$PWD"
 ini=$("$py" -I "$UT_LIB/ini.py") || ini=""
 tp=$(printf '%s\n' "$ini" | sed -n 1p)
 pyfiles=$(printf '%s\n' "$ini" | sed -n 2p)
+loop_ini=$(printf '%s\n' "$ini" | sed -n 3p)
+loop_addopts=$(printf '%s\n' "$ini" | sed -n 4p)
 
 # Test paths: the input, else the project's testpaths, else tests/ or
 # test/ if there is one (recursing from the project root collects
@@ -355,6 +387,32 @@ set -- -q -rfE --tb=short -o cache_dir="$scratch/pytest-cache" -p upstream_tests
   --ignore="$ws/melange-out" --ignore="$ws/.wheels" \
   --ignore="$src/melange-out" --ignore="$src/.wheels"
 [ "$clear_addopts" = true ] && set -- "$@" -o addopts=
+# pytest-asyncio 0.24+ warns (PytestDeprecationWarning) in its
+# pytest_configure when asyncio_default_fixture_loop_scope is unset; under
+# the project's filterwarnings = error that is an INTERNALERROR before any
+# test runs (py3-blinker, py3-ipykernel, py3-nbclient). Set it to function,
+# the plugin's announced default, unless the project chose a scope (ini
+# key, addopts that are kept, args or PYTEST_ADDOPTS).
+loop_set=no
+[ "$loop_ini" = set ] && loop_set=yes
+[ "$loop_addopts" = set ] && [ "$clear_addopts" != true ] && loop_set=yes
+case "$args ${PYTEST_ADDOPTS:-}" in *asyncio_default_fixture_loop_scope*) loop_set=yes ;; esac
+if [ "$runner" = pytest ] && [ "$loop_set" = no ]; then
+  aio=$(cd / && PYTHONPATH="$chkpath${PYTHONPATH:+:$PYTHONPATH}" "$py" -c '
+import re, importlib.metadata as m
+try:
+    v = m.version("pytest-asyncio")
+except Exception:
+    import pytest_asyncio
+    v = getattr(pytest_asyncio, "__version__", "0")
+else:
+    import pytest_asyncio
+print(v if tuple(int(x) for x in re.findall(r"[0-9]+", v)[:2]) >= (0, 24) else "")' 2>/dev/null) || aio=""
+  if [ -n "$aio" ]; then
+    set -- "$@" -o asyncio_default_fixture_loop_scope=function
+    echo "$me: pytest-asyncio $aio and no asyncio_default_fixture_loop_scope in the project's config: passing -o asyncio_default_fixture_loop_scope=function"
+  fi
+fi
 # test.py/tests.py modules: see pytest_collect_file in the plugin.
 [ "$pyfiles" = set ] || export UT_EXTRA_TESTFILES=1
 for f in $ignore_files; do

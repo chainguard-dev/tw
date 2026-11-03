@@ -42,6 +42,10 @@ export UT_SCRATCH_BASE="$tmp/scratch"
 # the tool without pytest-timeout.
 mkdir -p "$tmp/no-pytest-timeout"
 echo 'raise ImportError("pytest_timeout hidden by tests/run.sh")' > "$tmp/no-pytest-timeout/pytest_timeout.py"
+# The same for pytest-asyncio (its metadata stays visible; the import is
+# what counts).
+mkdir -p "$tmp/no-pytest-asyncio"
+echo 'raise ImportError("pytest_asyncio hidden by tests/run.sh")' > "$tmp/no-pytest-asyncio/pytest_asyncio.py"
 
 npass=0 nfail=0
 pass() { echo "  [PASS] $*"; npass=$((npass + 1)); }
@@ -103,7 +107,8 @@ for py in "$@"; do
 
   run_case "$py" neg 1 --ignore "tests/test_neg.py::test_fail tests/test_neg.py::test_nonexistent"
   has "IGNORE demo: tests/test_neg.py::test_fail (deselected 1)"
-  has "ignore entry 'tests/test_neg.py::test_nonexistent' matches no collected test"
+  has "ERROR: ignore entry 'tests/test_neg.py::test_nonexistent' matches no collected test: no such test"
+  has "1 ignore entry matches no collected test (tests/test_neg.py::test_nonexistent)"
   has "UPSTREAM-TESTS demo: pass=3 fail=0 skip=0 ignored=1"
   has "the run changed the installed package"
   has "leak.txt"
@@ -178,12 +183,32 @@ for py in "$@"; do
   has "IGNORE demo: tests/test_prefix.py::test_x (deselected 1)"
   has "UPSTREAM-TESTS demo: pass=4 fail=0 skip=0 ignored=1"
   hasnt "matches no collected test"
-  # A prefix of a test name only (test_o of test_other) matches nothing;
-  # a parametrized case alone, or all of them.
-  run_case "$py" ignoreprefix 0 --ignore "tests/test_prefix.py::test_x tests/test_prefix.py::test_p[a] tests/test_prefix.py::test_o"
+  # A prefix of a test name only (test_o of test_other) matches nothing,
+  # which fails the gate (contract 4); a parametrized case alone, or all
+  # of them.
+  run_case "$py" ignoreprefix 1 --ignore "tests/test_prefix.py::test_x tests/test_prefix.py::test_p[a] tests/test_prefix.py::test_o"
   has "IGNORE demo: tests/test_prefix.py::test_p[a] (deselected 1)"
-  has "ignore entry 'tests/test_prefix.py::test_o' matches no collected test"
+  has "ERROR: ignore entry 'tests/test_prefix.py::test_o' matches no collected test"
   has "UPSTREAM-TESTS demo: pass=3 fail=0 skip=0 ignored=2"
+  has "FAILED: 1 ignore entry matches no collected test (tests/test_prefix.py::test_o)"
+  run_case "$py" ignoreprefix 0 --ignore "tests/test_prefix.py::test_x tests/test_prefix.py::test_p[a]"
+  has "UPSTREAM-TESTS demo: pass=3 fail=0 skip=0 ignored=2"
+  hasnt "matches no collected test"
+  # A whole file, and a class-less '::' boundary at the file: the same.
+  run_case "$py" ignoreprefix 0 --ignore "tests/test_prefix.py::test_x tests/test_prefix.py::test_p[b] tests/test_prefix.py::test_x_regression"
+  has "IGNORE demo: tests/test_prefix.py::test_x (deselected 1)"
+  has "IGNORE demo: tests/test_prefix.py::test_x_regression (deselected 1)"
+  has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0 ignored=3"
+  run_case "$py" ignoreprefix 1 --ignore "tests/test_prefix.py"
+  has "IGNORE demo: tests/test_prefix.py (deselected 5)"
+  has "no tests collected; the suite did not run"
+  hasnt "matches no collected test"
+  # A stale name fails, even when every test passes; two of them.
+  run_case "$py" ignoreprefix 1 --ignore "tests/test_prefix.py::test_x tests/test_prefix.py::test_gone tests/test_prefix.py::test_p[c]"
+  has "ERROR: ignore entry 'tests/test_prefix.py::test_gone' matches no collected test: no such test (renamed or removed upstream?)"
+  has "ERROR: ignore entry 'tests/test_prefix.py::test_p[c]' matches no collected test"
+  has "UPSTREAM-TESTS demo: pass=4 fail=0 skip=0 ignored=1"
+  has "FAILED: 2 ignore entries match no collected test (tests/test_prefix.py::test_gone tests/test_prefix.py::test_p[c]): fix or drop them"
   run_case "$py" ignoreprefix 0 --ignore "tests/test_prefix.py::test_x tests/test_prefix.py::test_p"
   has "IGNORE demo: tests/test_prefix.py::test_p (deselected 2)"
   has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0 ignored=3"
@@ -195,9 +220,130 @@ for py in "$@"; do
     run_case "$py" ignoreprefix 0 --jobs 2 --ignore "tests/test_prefix.py::test_x"
     has "IGNORE demo: tests/test_prefix.py::test_x (deselected 1)"
     has "UPSTREAM-TESTS demo: pass=4 fail=0 skip=0 ignored=1"
+    hasnt "matches no collected test"
+    run_case "$py" ignoreprefix 1 --jobs 2 --ignore "tests/test_prefix.py::test_x tests/test_prefix.py::test_gone"
+    has "IGNORE demo: tests/test_prefix.py::test_x (deselected 1)"
+    has "ERROR: ignore entry 'tests/test_prefix.py::test_gone' matches no collected test"
+    has "UPSTREAM-TESTS demo: pass=4 fail=0 skip=0 ignored=1"
+    run_case "$py" modskip 0 --jobs 2
+    has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=1 modskip=2"
+    run_case "$py" mostlymodskip 1 --jobs 2
+    has "UPSTREAM-TESTS demo: pass=1 fail=0 skip=0 modskip=20"
+    has "only 1 of 21 collected tests ran (4.8%; 20 of the 21 are modules skipped at collection), below min-run-percent=5"
+    if "$py" -c 'import pytest_asyncio' 2>/dev/null; then
+      run_case "$py" asyncio 0 --jobs 2
+      has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0"
+    fi
   else
-    echo "  [SKIP] ignoreprefix --jobs 2 ($py): no pytest-xdist"
+    echo "  [SKIP] ignoreprefix, modskip, mostlymodskip, asyncio --jobs 2 ($py): no pytest-xdist"
   fi
+
+  # tw#503: a directory is not a node id; it matches nothing and its
+  # tests run. The message points to ignore-files, which works.
+  run_case "$py" ignoredir 1 --ignore tests/integration
+  has "ERROR: ignore entry 'tests/integration' matches no collected test: 'tests/integration' is a directory: an ignore entry is a node id; list directories in ignore-files (not collected)"
+  has "1 ignore entry matches no collected test (tests/integration)"
+  run_case "$py" ignoredir 1 --ignore tests/integration/
+  has "'tests/integration/' is a directory"
+  run_case "$py" ignoredir 0 --ignore-files tests/integration
+  has "IGNORE demo: tests/integration (not collected)"
+  has "UPSTREAM-TESTS demo: pass=1 fail=0 skip=0"
+  hasnt "matches no collected test"
+  # A file with that boundary is fine; a file entry that collects nothing
+  # (here: not a test module) is stale.
+  run_case "$py" ignoredir 0 --ignore tests/integration/test_live.py
+  has "IGNORE demo: tests/integration/test_live.py (deselected 1)"
+  has "UPSTREAM-TESTS demo: pass=1 fail=0 skip=0 ignored=1"
+  run_case "$py" ignoredir 1 --ignore "tests/integration/test_live.py demo/__init__.py"
+  has "'demo/__init__.py' is a file with no collected test; list it in ignore-files"
+
+  # tw#504: modules skipped at collection are counted (modskip=, last)
+  # and listed; per-test skips are unchanged (skip=).
+  run_case "$py" modskip 0
+  has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=1 modskip=2"
+  has "skipped at collection (each counts as one skipped test): 2"
+  has "tests/test_optional.py: Skipped: could not import 'nonexistent_mod'"
+  has "tests/test_platform.py: Skipped: fixture: not on this platform"
+  has "fixture: per-test skip"
+  # They count in the min-run-percent denominator: 2 of 5 ran (40%).
+  run_case "$py" modskip 1 --min-run-percent 50
+  has "only 2 of 5 collected tests ran (40.0%; 2 of the 5 are modules skipped at collection), below min-run-percent=50"
+  run_case "$py" modskip 0 --min-run-percent 40
+  # Only module skips: nothing collected, and the message says why.
+  run_case "$py" modskip 1 --paths "tests/test_optional.py tests/test_platform.py"
+  has "UPSTREAM-TESTS demo: pass=0 fail=0 skip=0 modskip=2"
+  has "no tests collected; every module was skipped at collection (2, reasons above)"
+  has "HINT: tests could not import: nonexistent_mod"
+  # An ignore entry in a module skipped at collection cannot be checked:
+  # a note, not a failure.
+  run_case "$py" modskip 0 --ignore "tests/test_optional.py::test_uses_mod tests/test_real.py::test_add_str"
+  has "note: ignore entry 'tests/test_optional.py::test_uses_mod' is in tests/test_optional.py, which was not collected (skipped at collection); not checked"
+  has "UPSTREAM-TESTS demo: pass=1 fail=0 skip=1 ignored=1 modskip=2"
+  # ... nor in one that failed to import (that is its own failure).
+  run_case "$py" collect 1 --ignore "tests/test_missing.py::test_uses_dep"
+  has "which was not collected (collection error); not checked"
+  hasnt "matches no collected test"
+  # A mostly module-skipped suite trips the default threshold: 1 of 21.
+  run_case "$py" mostlymodskip 1
+  has "UPSTREAM-TESTS demo: pass=1 fail=0 skip=0 modskip=20"
+  has "only 1 of 21 collected tests ran (4.8%; 20 of the 21 are modules skipped at collection), below min-run-percent=5"
+  run_case "$py" mostlymodskip 0 --min-run-percent 4
+  # No module skips: no modskip field.
+  run_case "$py" mostlyskip 0 --min-run-percent 4
+  hasnt "modskip="
+
+  # ini.py: where a project can set pytest-asyncio's loop scope.
+  for cfg in pytest.ini pyproject.toml setup.cfg tox.ini addopts none empty; do
+    d="$tmp/ini-$cfg"
+    rm -rf "$d"
+    mkdir -p "$d"
+    want="set unset"
+    case "$cfg" in
+      pytest.ini) printf '[pytest]\nasyncio_default_fixture_loop_scope = module\n' > "$d/pytest.ini" ;;
+      pyproject.toml) printf '[tool.pytest.ini_options]\nasyncio_default_fixture_loop_scope = "session"\n' > "$d/pyproject.toml" ;;
+      setup.cfg) printf '[tool:pytest]\nasyncio_default_fixture_loop_scope = class\n' > "$d/setup.cfg" ;;
+      tox.ini) printf '[pytest]\nasyncio_default_fixture_loop_scope = function\n' > "$d/tox.ini" ;;
+      addopts) printf '[tool.pytest.ini_options]\naddopts = ["-o", "asyncio_default_fixture_loop_scope=module"]\n' > "$d/pyproject.toml"; want="unset set" ;;
+      none) printf '[pytest]\nfilterwarnings = error\n' > "$d/pytest.ini"; want="unset unset" ;;
+      empty) printf '[pytest]\nasyncio_default_fixture_loop_scope =\n' > "$d/pytest.ini"; want="unset unset" ;;
+    esac
+    got=$(cd "$d" && "$py" -I "$UT_LIB/ini.py" | sed -n '3,4p' | tr '\n' ' ')
+    fx=ini.py
+    if [ "$got" = "$want " ]; then pass "ini.py loop scope ($cfg): $got"; else fail "ini.py loop scope ($cfg): got '$got', want '$want '"; fi
+  done
+
+  # tw#505: filterwarnings = error, pytest-asyncio and no loop scope: the
+  # tool sets it to function (before: an INTERNALERROR, nothing ran). A
+  # project's own setting is left alone, wherever it comes from.
+  if "$py" -c 'import pytest_asyncio' 2>/dev/null; then
+    run_case "$py" asyncio 0
+    has "and no asyncio_default_fixture_loop_scope in the project's config: passing -o asyncio_default_fixture_loop_scope=function"
+    has " -o asyncio_default_fixture_loop_scope=function "
+    has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0"
+    hasnt "INTERNALERROR"
+    run_case "$py" asyncioscope 0
+    hasnt "asyncio_default_fixture_loop_scope=function"
+    has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0"
+    export WANT_LOOP_SCOPE=module
+    run_case "$py" asyncio 0 --args "-o asyncio_default_fixture_loop_scope=module"
+    hasnt "asyncio_default_fixture_loop_scope=function"
+    has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0"
+    export PYTEST_ADDOPTS="-o asyncio_default_fixture_loop_scope=module"
+    run_case "$py" asyncio 0
+    hasnt "asyncio_default_fixture_loop_scope=function"
+    has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=0"
+    unset PYTEST_ADDOPTS
+    unset WANT_LOOP_SCOPE
+  else
+    echo "  [SKIP] asyncio, asyncioscope ($py): no pytest-asyncio (the absent case runs instead)"
+  fi
+  # Without pytest-asyncio (hidden, or not installed): no flag.
+  # (-p no:asyncio: pytest would otherwise load the hidden plugin itself.)
+  export PYTHONPATH="$tmp/no-pytest-asyncio"
+  run_case "$py" asyncio 1 --args '-p no:asyncio'
+  hasnt "asyncio_default_fixture_loop_scope=function"
+  has "UPSTREAM-TESTS-FAIL demo: tests/test_async.py [collection]"
+  unset PYTHONPATH
 
   # src layout next to docs/demo: demo.tests comes from src/demo/tests.
   run_case "$py" srclayout 0

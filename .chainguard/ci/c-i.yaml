@@ -22,6 +22,8 @@ environment:
     # default per-test timeout needs it), under every supported python3.X.
     - py3-supported-pytest~9
     - py3-supported-pytest-timeout~2
+    # and pytest-asyncio, for the asyncio loop-scope cases (tw#505).
+    - py3-supported-pytest-asyncio~1
     - py3-supported-python~1
     - shellcheck~0.11
     - yam~0.2
