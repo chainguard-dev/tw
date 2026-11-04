@@ -4,8 +4,8 @@ chainguard.dev/go-grpc-kit v0.21.0 h1:lhy+OeQxxpbvJc9ctBHe4G3T4aEnvXV54T721iu85F
 chainguard.dev/go-grpc-kit v0.21.0/go.mod h1:vpBBX1kjnOMqM/ePAndA7uvYNEKE8rsHitvdZlvqZEM=
 chainguard.dev/go-oidctest v0.4.0 h1:B9YTfoa1WtsrEg0wnFeSP7i9tth0LO+GICm2j8HOgWI=
 chainguard.dev/go-oidctest v0.4.0/go.mod h1:IIic4S3je1I7Acy3bqPtaSPefGEsQDzUp7NJF35MPV4=
-chainguard.dev/sdk v0.1.454 h1:UXC6I7pvX62kWTOoEXjD1IiV7gPmkCdg9WtUidjhipI=
-chainguard.dev/sdk v0.1.454/go.mod h1:d5UIR1Uz5eubnyvFffmR64oWEiKw/MWZ2mUSmy2vEOY=
+chainguard.dev/sdk v0.1.458 h1:z3+7rbcG1G+1RxFimOIXPBBKe1fxeG+z4xOSmb5z+r4=
+chainguard.dev/sdk v0.1.458/go.mod h1:d5UIR1Uz5eubnyvFffmR64oWEiKw/MWZ2mUSmy2vEOY=
 cloud.google.com/go/auth v0.24.2 h1:B1/4OLie/oVowCTrVgFS3NpEtIrLsuudX0/BxKsEk6s=
 cloud.google.com/go/auth v0.24.2/go.mod h1:p4UXqfSXnMVUDutk9xePzI8lj8yyoJ3BLsKWv0NSvQk=
 cloud.google.com/go/auth/oauth2adapt v0.3.1 h1:BKLDdbWS7pafd820dsyFDF6fPEzIGqr7ny6hbTzCCgE=
@@ -149,8 +149,8 @@ github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX
 github.com/google/go-containerregistry v0.22.1 h1:RZuuSYhTvlDvtsK+NkutoCZ//C0X2ebLK8X8l3ULs84=
 github.com/google/go-containerregistry v0.22.1/go.mod h1:bJR35SK8XgisYmhg/FMQ/5RK0S/XrOAqLBV5/LR2XE0=
 github.com/google/gofuzz v1.0.0/go.mod h1:dBl0BpW6vV/+mYPU4Po3pmUjxk6FQPldtuIdl/M65Eg=
-github.com/google/pprof v0.0.0-20261102214848-0031fcd306b0 h1:86rNkgYeJezkpuaJQidi1uAb467frc71yU2PIRDf2FA=
-github.com/google/pprof v0.0.0-20261102214848-0031fcd306b0/go.mod h1:yUo1AMMpsPIDFGuwDK8nLcf8+vvAd5l2O6JDZ6hpwrM=
+github.com/google/pprof v0.0.0-20261103193413-97e8293de3c4 h1:UVOT508qxzSJSX3WvW5Wp+OvqqwD3nJfxlm+z9amahk=
+github.com/google/pprof v0.0.0-20261103193413-97e8293de3c4/go.mod h1:yUo1AMMpsPIDFGuwDK8nLcf8+vvAd5l2O6JDZ6hpwrM=
 github.com/google/s2a-go v0.1.11 h1:7v1V1TraNGP63WptsAkNqr2w8jgm4vM6A6qx6Lsw9iM=
 github.com/google/s2a-go v0.1.11/go.mod h1:pz4tyvwXvJLLbyrkh6FW1eS2zPUXMaTmyNhYtyP2tNw=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
