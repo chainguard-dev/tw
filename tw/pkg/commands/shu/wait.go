@@ -52,8 +52,12 @@ func (c *waitCfg) Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("at least one --tcp must be specified")
 	}
 
-	ctx, cancel := context.WithTimeout(cmd.Context(), c.Timeout)
-	defer cancel()
+	ctx := cmd.Context()
+	if c.Timeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, c.Timeout)
+		defer cancel()
+	}
 
 	g, gctx := errgroup.WithContext(ctx)
 	for _, target := range c.TCPTargets {
