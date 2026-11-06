@@ -2,12 +2,12 @@ module chainguard.dev/tw/no-docs-check
 
 go 1.27.0
 
-require chainguard.dev/apko v1.4.16
+require chainguard.dev/apko v1.4.17
 
 require (
 	chainguard.dev/go-grpc-kit v0.21.0 // indirect
-	chainguard.dev/sdk v0.1.463 // indirect
-	cloud.google.com/go/auth v0.24.2 // indirect
+	chainguard.dev/sdk v0.1.470 // indirect
+	cloud.google.com/go/auth v0.24.3 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.3.1 // indirect
 	cloud.google.com/go/compute/metadata v0.10.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -15,7 +15,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/chainguard-dev/clog v1.8.1 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
-	github.com/go-jose/go-jose/v4 v4.1.8 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.9 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/google/s2a-go v0.1.11 // indirect
