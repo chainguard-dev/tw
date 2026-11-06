@@ -3,7 +3,7 @@ module github.com/chainguard-dev/tw
 go 1.27.0
 
 require (
-	chainguard.dev/apko v1.4.16
+	chainguard.dev/apko v1.4.17
 	github.com/aquasecurity/go-pep440-version v0.0.1
 	github.com/armon/go-radix v1.0.0
 	github.com/avast/retry-go/v4 v4.7.0
@@ -30,8 +30,8 @@ require (
 
 require (
 	chainguard.dev/go-grpc-kit v0.21.0 // indirect
-	chainguard.dev/sdk v0.1.463 // indirect
-	cloud.google.com/go/auth v0.24.2 // indirect
+	chainguard.dev/sdk v0.1.470 // indirect
+	cloud.google.com/go/auth v0.24.3 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.3.1 // indirect
 	cloud.google.com/go/compute/metadata v0.10.0 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6 // indirect
@@ -59,7 +59,7 @@ require (
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.10.0 // indirect
 	github.com/go-errors/errors v1.5.1 // indirect
-	github.com/go-jose/go-jose/v4 v4.1.8 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.9 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v1.0.2 // indirect
@@ -78,7 +78,7 @@ require (
 	github.com/go-openapi/swag/yamlutils v0.29.2 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
-	github.com/google/pprof v0.0.0-20261103193413-97e8293de3c4 // indirect
+	github.com/google/pprof v0.0.0-20261105003125-4bf881d7fb0b // indirect
 	github.com/google/s2a-go v0.1.11 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.25 // indirect
