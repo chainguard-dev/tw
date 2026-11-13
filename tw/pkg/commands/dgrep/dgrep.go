@@ -1,7 +1,6 @@
 package dgrep
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -9,10 +8,10 @@ import (
 	"os"
 	"regexp"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/chainguard-dev/clog"
+	"github.com/chainguard-dev/tw/pkg/logscan"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
@@ -149,10 +148,7 @@ func (c *cfg) retryableRun(ctx context.Context) error {
 	}
 
 	// Process stdout
-	scanner := bufio.NewScanner(strings.NewReader(stdoutBuf.String()))
-	for scanner.Scan() {
-		line := scanner.Text()
-
+	if err := logscan.Lines(&stdoutBuf, func(line string) {
 		// Check expected patterns
 		for i, re := range c.compiled {
 			if re.MatchString(line) {
@@ -174,13 +170,12 @@ func (c *cfg) retryableRun(ctx context.Context) error {
 				})
 			}
 		}
+	}); err != nil {
+		return fmt.Errorf("failed to read stdout logs of container %s: %w", c.Container, err)
 	}
 
 	// Process stderr
-	scanner = bufio.NewScanner(strings.NewReader(stderrBuf.String()))
-	for scanner.Scan() {
-		line := scanner.Text()
-
+	if err := logscan.Lines(&stderrBuf, func(line string) {
 		// Check expected patterns
 		for i, re := range c.compiled {
 			if re.MatchString(line) {
@@ -201,6 +196,8 @@ func (c *cfg) retryableRun(ctx context.Context) error {
 				})
 			}
 		}
+	}); err != nil {
+		return fmt.Errorf("failed to read stderr logs of container %s: %w", c.Container, err)
 	}
 
 	// Print all matches at the end

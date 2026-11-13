@@ -1,7 +1,6 @@
 package kgrep
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"github.com/chainguard-dev/clog"
+	"github.com/chainguard-dev/tw/pkg/logscan"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
@@ -159,10 +159,7 @@ func (c *cfg) retryableRun(ctx context.Context) error {
 		}
 		defer stream.Close()
 
-		scanner := bufio.NewScanner(stream)
-		for scanner.Scan() {
-			line := scanner.Text()
-
+		if err := logscan.Lines(stream, func(line string) {
 			// Check expected patterns
 			for i, re := range c.compiled {
 				if re.MatchString(line) {
@@ -185,6 +182,8 @@ func (c *cfg) retryableRun(ctx context.Context) error {
 					})
 				}
 			}
+		}); err != nil {
+			return fmt.Errorf("failed to read logs from %s/%s: %w", obj.Namespace, obj.Name, err)
 		}
 	}
 
