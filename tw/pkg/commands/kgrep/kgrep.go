@@ -3,6 +3,7 @@ package kgrep
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"slices"
@@ -159,32 +160,12 @@ func (c *cfg) retryableRun(ctx context.Context) error {
 		}
 		defer stream.Close()
 
-		if err := logscan.Lines(stream, func(line string) {
-			// Check expected patterns
-			for i, re := range c.compiled {
-				if re.MatchString(line) {
-					matches = append(matches, match{
-						Name:      obj.Name,
-						Namespace: obj.Namespace,
-						Text:      re.ReplaceAllStringFunc(line, c.highlighter),
-					})
-					matchedPatterns[i] = true
-				}
-			}
-
-			// Check not-expected patterns
-			for _, re := range c.notExpectedCompiled {
-				if re.MatchString(line) {
-					notExpectedMatches = append(notExpectedMatches, match{
-						Name:      obj.Name,
-						Namespace: obj.Namespace,
-						Text:      re.ReplaceAllStringFunc(line, c.highlighter),
-					})
-				}
-			}
-		}); err != nil {
+		expected, notExpected, err := c.scan(stream, obj.Name, obj.Namespace, matchedPatterns)
+		if err != nil {
 			return fmt.Errorf("failed to read logs from %s/%s: %w", obj.Namespace, obj.Name, err)
 		}
+		matches = append(matches, expected...)
+		notExpectedMatches = append(notExpectedMatches, notExpected...)
 	}
 
 	nmatches := len(matches)
@@ -226,6 +207,36 @@ func (c *cfg) retryableRun(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// scan matches each line of r against the expected and not-expected patterns,
+// and marks each expected pattern that matched in matchedPatterns.
+func (c *cfg) scan(r io.Reader, name, namespace string, matchedPatterns map[int]bool) (expected, notExpected []match, err error) {
+	err = logscan.Lines(r, func(line string) {
+		// Check expected patterns
+		for i, re := range c.compiled {
+			if re.MatchString(line) {
+				expected = append(expected, match{
+					Name:      name,
+					Namespace: namespace,
+					Text:      re.ReplaceAllStringFunc(line, c.highlighter),
+				})
+				matchedPatterns[i] = true
+			}
+		}
+
+		// Check not-expected patterns
+		for _, re := range c.notExpectedCompiled {
+			if re.MatchString(line) {
+				notExpected = append(notExpected, match{
+					Name:      name,
+					Namespace: namespace,
+					Text:      re.ReplaceAllStringFunc(line, c.highlighter),
+				})
+			}
+		}
+	})
+	return expected, notExpected, err
 }
 
 func (c *cfg) prerun(_ context.Context, args []string) error {
