@@ -1,7 +1,6 @@
 package dgrep
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -9,10 +8,10 @@ import (
 	"os"
 	"regexp"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/chainguard-dev/clog"
+	"github.com/chainguard-dev/tw/pkg/logscan"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
@@ -148,59 +147,16 @@ func (c *cfg) retryableRun(ctx context.Context) error {
 		return fmt.Errorf("error reading container logs: %v", err)
 	}
 
-	// Process stdout
-	scanner := bufio.NewScanner(strings.NewReader(stdoutBuf.String()))
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		// Check expected patterns
-		for i, re := range c.compiled {
-			if re.MatchString(line) {
-				matches = append(matches, match{
-					Container: c.Container,
-					Text:      re.ReplaceAllStringFunc(line, c.highlighter),
-				})
-				matchedPatterns[i] = true
-				break
-			}
+	for _, s := range []struct {
+		name string
+		buf  *bytes.Buffer
+	}{{"stdout", &stdoutBuf}, {"stderr", &stderrBuf}} {
+		expected, notExpected, err := c.scan(s.buf, matchedPatterns)
+		if err != nil {
+			return fmt.Errorf("failed to read %s logs of container %s: %w", s.name, c.Container, err)
 		}
-
-		// Check not-expected patterns
-		for _, re := range c.notExpectedCompiled {
-			if re.MatchString(line) {
-				notExpectedMatches = append(notExpectedMatches, match{
-					Container: c.Container,
-					Text:      re.ReplaceAllStringFunc(line, c.highlighter),
-				})
-			}
-		}
-	}
-
-	// Process stderr
-	scanner = bufio.NewScanner(strings.NewReader(stderrBuf.String()))
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		// Check expected patterns
-		for i, re := range c.compiled {
-			if re.MatchString(line) {
-				matches = append(matches, match{
-					Container: c.Container,
-					Text:      re.ReplaceAllStringFunc(line, c.highlighter),
-				})
-				matchedPatterns[i] = true
-			}
-		}
-
-		// Check not-expected patterns
-		for _, re := range c.notExpectedCompiled {
-			if re.MatchString(line) {
-				notExpectedMatches = append(notExpectedMatches, match{
-					Container: c.Container,
-					Text:      re.ReplaceAllStringFunc(line, c.highlighter),
-				})
-			}
-		}
+		matches = append(matches, expected...)
+		notExpectedMatches = append(notExpectedMatches, notExpected...)
 	}
 
 	// Print all matches at the end
@@ -243,6 +199,34 @@ func (c *cfg) retryableRun(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// scan matches each line of r against the expected and not-expected patterns,
+// and marks each expected pattern that matched in matchedPatterns.
+func (c *cfg) scan(r io.Reader, matchedPatterns map[int]bool) (expected, notExpected []match, err error) {
+	err = logscan.Lines(r, func(line string) {
+		// Check expected patterns
+		for i, re := range c.compiled {
+			if re.MatchString(line) {
+				expected = append(expected, match{
+					Container: c.Container,
+					Text:      re.ReplaceAllStringFunc(line, c.highlighter),
+				})
+				matchedPatterns[i] = true
+			}
+		}
+
+		// Check not-expected patterns
+		for _, re := range c.notExpectedCompiled {
+			if re.MatchString(line) {
+				notExpected = append(notExpected, match{
+					Container: c.Container,
+					Text:      re.ReplaceAllStringFunc(line, c.highlighter),
+				})
+			}
+		}
+	})
+	return expected, notExpected, err
 }
 
 func (c *cfg) prerun(_ context.Context, args []string) error {
