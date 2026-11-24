@@ -73,6 +73,53 @@ Contract 4 gate rules, on top of the stereo pipeline's:
   `-p no:asyncio` (in `addopts`, `--args` or `PYTEST_ADDOPTS`), gets no
   flag.
 
+## Stage test (contract 5)
+
+    tw-upstream-pytest --name py3.13-foo --stage test --package py3.13-foo \
+        --caller test/upstream-tests/pytest --test-tree . --python python3.13
+
+`--stage test` runs the gate from melange's `test:` stage, against the
+package apk installed in the test environment, in place. It is for gates
+that cannot run in the build stage because their test requirements
+depend on the package itself (pytest needs pluggy, iniconfig and
+packaging), which makes a build-order cycle; a test environment is
+resolved after the build and builds nothing.
+
+- `--package` (default: `--name`) is the installed package under test.
+  Its files are what `apk info -L` lists, read from the apk database
+  (`/usr/lib/apk/db/installed`, so apk-tools need not be installed).
+  The gate fails before running anything when the package is not
+  installed, lists no files (a metapackage), has a listed file missing,
+  has a file that does not match the database's checksum (it was changed
+  after apk installed it), or installs nothing in the interpreter's
+  site-packages (another python's subpackage: set `--python`).
+- `--test-tree` (default: the workspace, `git-checkout`'s default
+  destination) is the source, fetched again in the same test pipeline.
+  As in the build stage, the suite runs from a scratch copy of it, in the
+  network namespace, and `--dir` is relative to it.
+- The import pin and the import-origin check use the package's own
+  top-level names and files: the package's modules must be imported from
+  the files apk installed (not from the source tree, and not from a
+  copy). Other distributions in site-packages are not the package under
+  test.
+- Instead of the destdir snapshot, the package's files (path, size,
+  mtime, mode and SHA-256 of the content) and the entries of every
+  directory that holds one are recorded before and after the run; any
+  file added, removed or changed fails the gate, including a rewrite that
+  keeps the size and mtime.
+- Messages and hints name `test.environment.contents.packages`, where the
+  caller lists pytest and the test requirements; `--destdir` is rejected.
+- Everything else is the build stage's: the same options, hard-gate rules
+  (failures, zero tests, nothing passed, min-run-percent, stale ignore
+  entries, timeouts, unexpected pytest exit codes) and `UPSTREAM-TESTS`
+  lines. In the build stage, `--package` and `--test-tree` are rejected.
+
+The build stage's behaviour and output are unchanged by contract 5:
+`tests/run.sh` with `UT_BASELINE` (`make test-baseline`) runs every build
+stage case with this tool and with the release named by `BASELINE_REF`
+(default v0.0.58, contract 4), and requires the same output and exit
+status, except for the usage messages that now name the test stage.
+
 Limits worth knowing:
 
 - `--runner unittest` runs `python -m unittest discover`, which cannot
@@ -92,7 +139,9 @@ Limits worth knowing:
 
 - `tw-upstream-pytest`: the POSIX shell runner, installed in `/usr/bin`.
 - `lib/`: the pytest plugin (`upstream_tests_pytest.py`), the pytest and
-  unittest entry points, and the ini reader, snapshot and report scripts.
+  unittest entry points, and the ini reader, snapshot and report scripts;
+  `apkfiles.py` reads the apk database and hashes the installed files for
+  the test stage.
   They are installed as plain files in `/usr/libexec/tw/upstream-pytest`,
   not as a Python package, so one copy serves every python3.X. Each run
   copies them into its scratch directory and puts that on `PYTHONPATH`.
@@ -106,7 +155,15 @@ Limits worth knowing:
   test skips, an empty suite and a missing test dependency; and, for
   contract 4, stale and directory `--ignore` entries, modules skipped at
   collection, and pytest-asyncio under `filterwarnings = error` (those
-  cases need pytest-asyncio; without it, only the absent case runs).
+  cases need pytest-asyncio; without it, only the absent case runs); and,
+  for contract 5, the test stage against a venv and a fake apk database
+  (`UT_APK_DB`): a pass, a real failure, the source tree standing in for
+  the installed package, a suite that never imports it, writes into and
+  in-place rewrites of the installed files, zero tests, a stale ignore
+  entry, a timeout, and a package that is not installed, has no files,
+  is for another python, or no longer matches the database. With
+  `UT_BASELINE`, each build stage case is also compared with a released
+  tool (above).
 - `tests/equivalence.sh`: runs a stereo `pytest-core.yaml`'s inline
   `runs:` block and this tool on the fixtures and compares their output.
   Most cases must match; the intended differences (below) are listed as
@@ -146,7 +203,8 @@ differs from 87239accdf8:
   ignored with `-W` (all described above);
 - the project's pytest config is also read from `pytest.toml` and
   `.pytest.toml` (pytest 9 reads them first), for `testpaths`,
-  `python_files`, the loop scope and `addopts`.
+  `python_files`, the loop scope and `addopts`;
+- contract 5: `--stage test` (above).
 
 `tests/equivalence.sh path/to/pytest-core.yaml python3.13` checks the
 rest: at 87239accdf8 on Python 3.13, 16 cases give the same output and 13

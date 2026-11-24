@@ -7,6 +7,13 @@ def testish(name):
 pkg, me, rc = E["UT_PKG"], E["UT_ME"], int(E["UT_RC"])
 out, dsp, src = E["UT_OUT"], E.get("UT_DSP", ""), os.path.realpath(E["UT_SRC"])
 why = []
+# Stage test (contract 5): dsp is the interpreter's own site-packages, so
+# the package's own entries there and its files come from the apk
+# database (UT_DSP_ENTRIES, UT_FILES), not from listing dsp.
+test_stage = E.get("UT_STAGE") == "test"
+if test_stage:
+    pkg_files = [l.rstrip("\n") for l in open(E["UT_FILES"], encoding="utf-8", errors="surrogateescape") if l.strip()]
+    pkg_real = {os.path.realpath(f_) for f_ in pkg_files}
 try:
     r = json.load(open(os.path.join(out, "results.json")))
 except Exception:
@@ -150,7 +157,7 @@ if dsp:
     # Which top-level modules does the package ship, and where were
     # they imported from (pytest process and every xdist worker)?
     own = set()
-    for e in os.listdir(dsp) if os.path.isdir(dsp) else []:
+    for e in (E["UT_DSP_ENTRIES"].split() if test_stage else os.listdir(dsp) if os.path.isdir(dsp) else []):
         if e.endswith((".dist-info", ".egg-info", ".pth")) or e.startswith(("_distutils_hack", "__pycache__")):
             continue
         own.add(re.split(r"[.]", e)[0])
@@ -164,7 +171,7 @@ if dsp:
             top = name.split(".")[0]
             if top not in own:
                 continue
-            if path.startswith(dsp_r + os.sep):
+            if (path in pkg_real) if test_stage else path.startswith(dsp_r + os.sep):
                 hit.add(top)
             elif path.startswith(src + os.sep):
                 # Test-only submodules (foo.tests, not in the wheel) come
@@ -175,7 +182,10 @@ if dsp:
                 if not strict and (not testish(name) or os.path.exists(rel + ".py") or os.path.exists(os.path.join(rel, "__init__.py"))):
                     shadow.add("%s (%s)" % (name, path))
     if shadow:
-        why.append("the package under test was imported from the source tree, not the destdir: %s; check the project's pytest 'pythonpath' setting and import-mode" % ", ".join(sorted(shadow)))
+        why.append("the package under test was imported from the source tree, not the %s: %s; check the project's pytest 'pythonpath' setting and import-mode" % (
+            "installed package" if test_stage else "destdir", ", ".join(sorted(shadow))))
+    elif own and not hit and fail == 0 and test_stage:
+        why.append("none of the installed modules (%s) was imported from the files of %s in %s: the suite did not test the installed package" % (", ".join(sorted(own)), E["UT_DEST"], dsp))
     elif own and not hit and fail == 0:
         why.append("none of the installed modules (%s) was imported from %s: the suite did not test the build" % (", ".join(sorted(own)), dsp))
 # Native extensions: list what the destdir ships, and warn when the
@@ -184,7 +194,9 @@ if dsp:
 # silent: setup falls back to pure Python and the suite may still pass).
 if dsp and os.path.isdir(dsp):
     sos = []
-    for d_, _, fs in os.walk(dsp):
+    if test_stage:
+        sos = [os.path.relpath(f_, dsp) for f_ in pkg_files if f_.startswith(dsp + os.sep) and re.search(r"\.(so|pyd)$", f_)]
+    for d_, _, fs in os.walk(dsp) if not test_stage else ():
         sos += [os.path.relpath(os.path.join(d_, f_), dsp) for f_ in fs if re.search(r"\.(so|pyd)$", f_)]
     skipd = {"tests", "test", "testing", "docs", "doc", "benchmarks", "bench", "examples", "vendor", "third_party", "thirdparty", "melange-out", ".wheels", ".git", "build"}
     csrc = []
@@ -210,7 +222,16 @@ if dsp and os.path.isdir(dsp):
 # the run (busybox has no normal-format diff, so do it here).
 before = set(open(os.path.join(E["UT_SNAP"], "before")).read().splitlines())
 after = set(open(os.path.join(E["UT_SNAP"], "after")).read().splitlines())
-if before != after:
+if test_stage and before != after:
+    # apkfiles.py snapshot: path size mtime mode sha256 (absolute paths:
+    # the package's files and the entries of their directories).
+    bp = {l.rsplit(" ", 4)[0] for l in before}
+    ap = {l.rsplit(" ", 4)[0] for l in after}
+    ch = ["added: " + x for x in sorted(ap - bp)] + ["removed: " + x for x in sorted(bp - ap)]
+    ch += ["changed: " + x for x in sorted({l.rsplit(" ", 4)[0] for l in after - before} & bp)]
+    why.append("the run changed the installed package %s (files written, removed or modified by tests): %s" % (
+        E["UT_DEST"], "; ".join(ch[:20])))
+elif before != after:
     bp = {l.rsplit(" ", 3)[0] for l in before}
     ap = {l.rsplit(" ", 3)[0] for l in after}
     ch = ["added: " + x for x in sorted(ap - bp)] + ["removed: " + x for x in sorted(bp - ap)]

@@ -50,6 +50,15 @@
 #   - the project's pytest config is also read from pytest.toml and
 #     .pytest.toml (pytest 9, first in its order), for testpaths,
 #     python_files, the loop scope and addopts.
+#   - contract 5: --stage test (melange's test: stage) tests the package
+#     apk installed, in place. Its files come from the apk database
+#     (apk info -L), must match the database's checksums, and are what
+#     the import-origin check requires; instead of a destdir snapshot,
+#     the package's files (content hashes) and the entries of their
+#     directories must be unchanged by the run. The re-fetched source
+#     (--test-tree) is copied to scratch and run as in the build stage.
+#     The build stage is unchanged (tests/run.sh with UT_BASELINE
+#     compares its output with a released tool).
 #
 # shellcheck disable=SC2086 # word splitting of paths/ignore lists is intended
 set -e
@@ -57,21 +66,29 @@ set -e
 cmd=tw-upstream-pytest
 # Interface version. Bump it when an option is added or its meaning
 # changes, so that stereo pipelines can require a minimum.
-CONTRACT=4
+CONTRACT=5
 UT_LIB=${UT_LIB:-/usr/libexec/tw/upstream-pytest}
 
 show_help() {
   cat <<EOF
 Usage: $cmd --name NAME --stage build --destdir DIR [OPTIONS]
+       $cmd --name NAME --stage test [--package PKG] [--test-tree DIR] [OPTIONS]
 
 Runs a Python project's upstream test suite against the installed build,
 with the network guard, import pinning, origin check, destdir snapshot and
 hard-gate rules of stereo's upstream-tests/pytest pipelines, and prints the
 UPSTREAM-TESTS summary lines. Exits 0 when the gate passes, 1 otherwise.
 
+--stage test (contract 5) runs from melange's test: stage against the
+package apk installed, in place: its files come from the apk database and
+must match its checksums, the package under test must be imported from
+them, and the run must not change them (content hashes, and the entries
+of their directories). The source is fetched again into --test-tree.
+
 Options (each takes --opt VALUE or --opt=VALUE; one per pipeline input):
   --name NAME             (sub)package name in the summary (context.name)
-  --stage build|test      build: test the destdir (test: not yet supported)
+  --stage build|test      build: test the destdir; test: test the
+                          installed package (contract 5)
   --caller NAME           prefix of messages (default: $cmd)
   --destdir DIR           install root under test (stage build)
   --workspace DIR         melange workspace (default: current directory)
@@ -118,11 +135,13 @@ Options (each takes --opt VALUE or --opt=VALUE; one per pipeline input):
                           counts as one skipped test (contract 4)
   --envpkgs TEXT          where callers add test requirements, named in
                           messages (default: by stage)
-  --origin NAME           origin package (package.name); the test stage's
-                          default test tree is named after it
-  Reserved for the test stage and newer gates (only the defaults work in
-  contract $CONTRACT): --package, --test-tree, --import-from installed,
-  --isolate true.
+  --origin NAME           origin package (package.name)
+  --package PKG           installed package under test (stage test;
+                          default: --name)
+  --test-tree DIR         the re-fetched source tree (stage test; default:
+                          the workspace)
+  Reserved for newer gates (only the defaults work in contract
+  $CONTRACT): --import-from installed, --isolate true.
   --version               print the interface version and exit
   -h, --help              show this help and exit
 
@@ -209,29 +228,54 @@ PKG="$name"
 ws=$(cd "$ws" && pwd)
 cd "$ws"
 me="$caller"
-# Only the build stage so far; the test stage
-# (test/upstream-tests/pytest) comes with its own branches.
-if [ "$stage" != build ]; then
-  echo "$me: stage must be build (got '$stage')" >&2
+# build: the destdir (targets.contextdir) of melange's build stage;
+# test (contract 5): the installed package, in melange's test stage.
+case "$stage" in build|test) ;; *)
+  echo "$me: stage must be build or test (got '$stage')" >&2
+  exit 1 ;;
+esac
+# (--origin is accepted and unused.)
+: "$origin"
+if [ "$import_from" != installed ] || [ "$isolate" != true ]; then
+  echo "$me: --import-from and --isolate are reserved; contract $CONTRACT supports only their defaults" >&2
   exit 1
 fi
-# Not in pytest-core.yaml yet: options reserved for the test stage port.
-# (--origin is accepted and unused until then.)
-: "$origin"
-if [ -n "$upkg" ] || [ -n "$test_tree" ] || [ "$import_from" != installed ] || [ "$isolate" != true ]; then
-  echo "$me: --package, --test-tree, --import-from and --isolate are reserved; contract $CONTRACT supports only their defaults" >&2
+if [ "$stage" = build ] && { [ -n "$upkg" ] || [ -n "$test_tree" ]; }; then
+  echo "$me: --package and --test-tree are for stage test (stage build tests the destdir)" >&2
   exit 1
+fi
+if [ "$stage" = test ]; then
+  if [ -n "$dest" ]; then
+    echo "$me: destdir is for stage build; stage test tests the installed package (--package, default: --name)" >&2
+    exit 1
+  fi
+  [ -f "$UT_LIB/apkfiles.py" ] || die_usage "missing $UT_LIB/apkfiles.py (set UT_LIB to the lib/ directory)"
+  [ -n "$upkg" ] || upkg="$name"
+  # The source tree: the test stage fetches it again (git-checkout's
+  # default destination is the workspace).
+  [ -n "$test_tree" ] || test_tree="$ws"
+  if [ ! -d "$test_tree" ]; then
+    echo "$me: test-tree '$test_tree' does not exist (fetch the source first, in the same test pipeline)" >&2
+    exit 1
+  fi
+  ws=$(cd "$test_tree" && pwd)
+  cd "$ws"
 fi
 case "$extensions" in auto|required|none) ;; *)
   echo "$me: extensions must be auto, required or none (got '$extensions')" >&2
   exit 1 ;;
 esac
+if [ "$stage" = build ]; then
 if [ -z "$dest" ]; then
   echo "$me: destdir is empty (the build stage passes targets.contextdir)" >&2
   exit 1
 fi
 case "$dest" in /*) ;; *) dest="$ws/$dest" ;; esac
+fi
 # Where the caller adds test requirements (named in messages).
+if [ "$stage" = test ]; then
+  [ -n "$envpkgs" ] || envpkgs=test.environment.contents.packages
+fi
 [ -n "$envpkgs" ] || envpkgs=environment.contents.packages
 if [ "$py" = DEFAULT ]; then
   if p=$(command -v python3); then
@@ -283,8 +327,10 @@ from=installed
 mode="$import_mode"
 [ "$mode" = auto ] && mode=append
 sp=$("$py" -c 'import site; print(site.getsitepackages()[0])')
+# stage test: the package is installed in the interpreter's own
+# site-packages ($dest is empty); apkfiles.py (below) checks that it is.
 dsp="$dest$sp"
-if [ "$from" = installed ] && [ ! -d "$dsp" ]; then
+if [ "$stage" = build ] && [ "$from" = installed ] && [ ! -d "$dsp" ]; then
   echo "$me: nothing installed in $dsp; run this after py/pip-build-install (with the same python) and before strip" >&2
   exit 1
 fi
@@ -335,6 +381,14 @@ trap cleanup EXIT
 trap 'cleanup; trap - EXIT; exit 130' INT
 trap 'cleanup; trap - EXIT; exit 143' TERM
 mkdir -p "$scratch/home" "$scratch/out" "$scratch/plugin"
+if [ "$stage" = test ]; then
+  # The package's files from the apk database, checked against its
+  # checksums ($scratch/files), and its top-level names in site-packages
+  # ($scratch/entries; the plugin pins and the origin check use these,
+  # not every distribution installed there).
+  mkdir -p "$scratch/apk"
+  "$py" -I "$UT_LIB/apkfiles.py" list "$upkg" "$sp" "$scratch/apk" "$me" || exit 1
+fi
 
 # The suite runs in a scratch copy of the workspace, minus
 # melange-out/ and .wheels/.
@@ -401,9 +455,12 @@ qargs=$(shq "$@")
 # so one log shows every problem.
 set -- -q -rfE --tb=short -o cache_dir="$scratch/pytest-cache" -p upstream_tests_pytest -p no:rerunfailures -p no:flaky \
   --continue-on-collection-errors \
-  --rootdir="$src" --confcutdir="$src" --import-mode="$mode" \
-  --ignore="$ws/melange-out" --ignore="$ws/.wheels" \
+  --rootdir="$src" --confcutdir="$src" --import-mode="$mode"
+# (stage test: no build output in the test tree.)
+if [ "$stage" = build ]; then
+set -- "$@" --ignore="$ws/melange-out" --ignore="$ws/.wheels" \
   --ignore="$src/melange-out" --ignore="$src/.wheels"
+fi
 [ "$clear_addopts" = true ] && set -- "$@" -o addopts=
 # pytest-asyncio 0.24+ warns (PytestDeprecationWarning) in its
 # pytest_configure when asyncio_default_fixture_loop_scope is unset; under
@@ -497,24 +554,33 @@ export PATH="$scratch/bin:$PATH"
 # a .pth file in the build environment's site-packages (removed again
 # when the step ends) makes the destdir importable for them too, after
 # the interpreter's own site-packages.
-if [ "$from" = installed ] && [ -w "$sp" ]; then
+if [ "$stage" = build ] && [ "$from" = installed ] && [ -w "$sp" ]; then
   pth="$sp/zz-upstream-tests-pytest-$$.pth"
   printf '%s\n' "$dsp" > "$pth"
 fi
 # Shared libraries the build installed, in this subpackage or a sibling
 # built earlier in the same run (pyarrow needs libarrow.so from the
 # main package): the tests load them from there, not from the system.
+# (stage test: they are installed, where the loader finds them.)
 libs=""
+if [ "$stage" = build ]; then
 for d in "$dest" "$ws"/melange-out/*; do
   for l in usr/lib usr/lib64 usr/local/lib; do
     [ -d "$d/$l" ] && [ -n "$(find "$d/$l" -maxdepth 1 -name '*.so*' -print 2>/dev/null | head -n 1)" ] && libs="$libs${libs:+:}$d/$l"
   done
 done
+fi
 [ -n "$libs" ] && export LD_LIBRARY_PATH="$libs${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 if [ "$from" = installed ]; then
   export UT_DSP="$dsp" PYTHONSAFEPATH=1
   export PYTHONPATH="$dsp:$scratch/plugin${PYTHONPATH:+:$PYTHONPATH}"
-  export PATH="$dest/usr/bin:$PATH"
+  if [ "$stage" = build ]; then
+    export PATH="$dest/usr/bin:$PATH"
+  fi
+fi
+if [ "$stage" = test ]; then
+  UT_DSP_ENTRIES=$(cat "$scratch/apk/entries")
+  export UT_STAGE=test UT_DSP_ENTRIES UT_FILES="$scratch/apk/files"
 fi
 # A new, empty network namespace with only loopback up, for the whole
 # test process tree: children that ignore the proxy variables (raw
@@ -542,7 +608,11 @@ if ! "$py" -c 'import pytest_cov' 2>/dev/null; then
 fi
 
 # Snapshot the package before the run: the tests must not change it.
+if [ "$stage" = test ]; then
+  "$py" -I "$UT_LIB/apkfiles.py" snapshot "$scratch/apk/files" > "$scratch/before"
+else
 "$py" -I "$UT_LIB/snapshot.py" "$dest" | sort > "$scratch/before"
+fi
 wrap=""
 command -v timeout >/dev/null 2>&1 && wrap="timeout $overall_timeout"
 echo "$me: $("$py" -c 'import sys, pytest; print("python", sys.version.split()[0], "pytest", pytest.__version__)') import-from=$from import-mode=$mode jobs=$jobs netns=$netns_note cwd=$src"
@@ -584,13 +654,17 @@ fi
 pid=""
 set +f
 end=$(date +%s)
+if [ "$stage" = test ]; then
+  "$py" -I "$UT_LIB/apkfiles.py" snapshot "$scratch/apk/files" > "$scratch/after"
+else
 "$py" -I "$UT_LIB/snapshot.py" "$dest" | sort > "$scratch/after"
+fi
 
 echo "UPSTREAM-TESTS ${PKG}: duration=$((end - start))s netns=$netns"
 
 set +e
 UT_PKG="$PKG" UT_RC="$rc" UT_ME="$me" UT_IGNORE="$ignore" UT_SRC="$src" \
-UT_SNAP="$scratch" UT_DEST="$dest" UT_LIMIT="$overall_timeout" UT_EXT="$extensions" \
+UT_SNAP="$scratch" UT_DEST="${dest:-$upkg}" UT_LIMIT="$overall_timeout" UT_EXT="$extensions" \
 UT_ENVPKGS="$envpkgs" UT_MINRUN="$minrun" \
   "$py" -I "$UT_LIB/report.py"
 status=$?
