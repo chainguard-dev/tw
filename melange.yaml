@@ -102,7 +102,7 @@ subpackages:
         - name: files and interface version
           runs: |
             [ -x /usr/bin/tw-upstream-pytest ]
-            for f in upstream_tests_pytest.py run_pytest.py run_unittest.py ini.py report.py snapshot.py ut_netns.py; do
+            for f in upstream_tests_pytest.py run_pytest.py run_unittest.py ini.py report.py snapshot.py ut_netns.py apkfiles.py; do
               [ -f /usr/libexec/tw/upstream-pytest/$f ]
             done
             tw-upstream-pytest --help
@@ -136,6 +136,37 @@ subpackages:
                   grep -q '^UPSTREAM-TESTS demo: FAILED: ' "$ws/log"
                 fi
                 rm -rf "$ws"
+              done
+            done
+            echo "tested with $n python versions"
+            [ $n -ge 2 ]
+        - name: stage test, the installed package in place, per python version
+          runs: |
+            # py3.X-iniconfig is installed as a dependency of py3.X-pytest:
+            # test it where apk put it (contract 5).
+            n=0
+            for py in /usr/bin/python3.[0-9] /usr/bin/python3.[0-9][0-9]; do
+              [ -x "$py" ] && "$py" -c 'import pytest, pytest_timeout' 2>/dev/null || continue
+              n=$((n + 1))
+              pkg="py${py#/usr/bin/python}-iniconfig"
+              for want in pass write; do
+                tt=$(mktemp -d)
+                mkdir -p "$tt/tests"
+                printf 'import iniconfig\ndef test_parse():\n    assert iniconfig.IniConfig("x", data="[s]\\nk = v\\n")["s"]["k"] == "v"\n' > "$tt/tests/test_ini.py"
+                [ $want = write ] && printf 'import os\ndef test_write():\n    open(os.path.join(os.path.dirname(iniconfig.__file__), "leak.txt"), "w").close()\n' >> "$tt/tests/test_ini.py"
+                rc=0
+                tw-upstream-pytest --name "$pkg" --stage test --package "$pkg" --test-tree "$tt" --python $py > "$tt.log" 2>&1 || rc=$?
+                cat "$tt.log"
+                grep -q "^tw-upstream-pytest: stage test: testing the installed package $pkg: " "$tt.log"
+                if [ $want = pass ]; then
+                  [ $rc -eq 0 ]
+                  grep -q "^UPSTREAM-TESTS $pkg: pass=1 fail=0 skip=0\$" "$tt.log"
+                else
+                  [ $rc -eq 1 ]
+                  grep -q "^UPSTREAM-TESTS $pkg: FAILED: the run changed the installed package $pkg " "$tt.log"
+                  rm -f "$(dirname "$("$py" -c 'import iniconfig; print(iniconfig.__file__)')")/leak.txt"
+                fi
+                rm -rf "$tt" "$tt.log"
               done
             done
             echo "tested with $n python versions"

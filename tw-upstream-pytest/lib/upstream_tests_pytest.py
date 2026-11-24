@@ -49,7 +49,7 @@ class _PinInstalled(object):
     def setup(cls):
         if not (DSP and os.path.isdir(DSP)):
             return
-        for e in os.listdir(DSP):
+        for e in (os.environ["UT_DSP_ENTRIES"].split() if os.environ.get("UT_STAGE") == "test" else os.listdir(DSP)):  # stage test: see the end
             if e.endswith((".dist-info", ".egg-info", ".pth", ".data")) or e.startswith(("__pycache__", "_distutils_hack")):
                 continue
             p = os.path.join(DSP, e)
@@ -122,7 +122,7 @@ class _SourceTests(object):
         # Trees that hold copies or uses of a package, not its source.
         skip = {"melange-out", ".wheels", ".git", "build", "node_modules", ".tox", ".venv",
                 "docs", "doc", "examples", "example", "benchmarks", "bench"}
-        for top in os.listdir(DSP):
+        for top in (os.environ["UT_DSP_ENTRIES"].split() if os.environ.get("UT_STAGE") == "test" else os.listdir(DSP)):  # stage test: see the end
             if not os.path.isdir(os.path.join(DSP, top)) or top.endswith((".dist-info", ".egg-info", ".data")) or top == "__pycache__":
                 continue
             # The src layout first; then the shallowest match, by name.
@@ -710,3 +710,11 @@ def pytest_sessionfinish(session, exitstatus):
             json.dump(module_skips, fh)
         return
     _dump(exitstatus, session.testscollected)
+
+# Stage test (contract 5): DSP is the interpreter's own site-packages,
+# shared with every distribution installed there, so the destdir pin and
+# the source-tree test finders take the package's own top-level entries
+# from UT_DSP_ENTRIES (from the apk database) instead of listing DSP. The
+# build stage's destdir holds only the package. (Kept to single-line
+# changes above, so that the build stage's tracebacks, which show this
+# file's line numbers, are unchanged.)
