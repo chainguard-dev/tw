@@ -8,6 +8,19 @@
 # Usage: tests/run.sh [python ...]
 # Default: every python3.X on PATH that can import pytest and pytest-timeout
 # (the default --timeout needs it); none is an error.
+#
+# Stage test (contract 5) cases install the fixture's demo/ into a venv
+# (--system-site-packages, so pytest stays importable) and describe it in
+# a fake apk database (UT_APK_DB); the source tree is a separate copy
+# passed as --test-tree.
+#
+# UT_BASELINE=DIR (a released tw-upstream-pytest directory: the script
+# and lib/, e.g. from `git archive v0.0.58 tw-upstream-pytest`, or
+# `make test-baseline`): every stage build case also runs that tool on the
+# same workspace and compares the two outputs (durations, pytest timings
+# and the scratch directory's name normalized), so the build stage's
+# output is shown to be unchanged. Cases whose usage message changed on
+# purpose say so and are not compared.
 
 set -u
 
@@ -73,6 +86,13 @@ for f in pytest.toml .pytest.toml; do
   printf '[pytest]\nfilterwarnings = ["error"]\nasyncio_default_fixture_loop_scope = "module"\n' > "$d/$f"
 done
 
+# noimport: a suite that passes without importing the package (stage
+# test negative control for the import-origin check).
+d="$fixtures/noimport"
+mkdir -p "$d/demo" "$d/tests"
+printf 'def add(a, b):\n    return a + b\n' > "$d/demo/__init__.py"
+printf 'def test_nothing_imported():\n    assert 1 + 1 == 2\n' > "$d/tests/test_noimport.py"
+
 npass=0 nfail=0
 pass() { echo "  [PASS] $*"; npass=$((npass + 1)); }
 fail() { echo "  [FAIL] $*"; nfail=$((nfail + 1)); }
@@ -81,10 +101,10 @@ fail() { echo "  [FAIL] $*"; nfail=$((nfail + 1)); }
 # the fixture's tree, install its demo/ (or .installed/demo/, when the
 # installed package differs from the source tree) into destdir's
 # site-packages, run the tool from the workspace. Output in $out, status
-# in $rc.
-run_case() {
-  py=$1 fx=$2 want=$3
-  shift 3
+# in $rc. With UT_BASELINE, run the baseline tool the same way and
+# compare (unless nobase is set: an intended difference).
+nobase=""
+setup_ws() {
   ws="$tmp/ws-$fx"
   rm -rf "$ws"
   mkdir -p "$ws"
@@ -95,6 +115,16 @@ run_case() {
   inst="$fixtures/$fx/demo"
   [ -d "$fixtures/$fx/.installed/demo" ] && inst="$fixtures/$fx/.installed/demo"
   cp -R "$inst" "$dest$sp/"
+}
+# normalize: what differs between two runs of the same case.
+normalize() {
+  sed -e 's/duration=[0-9]*s/duration=Ns/' -e 's/ in [0-9.]*s\b/ in Ns/g' \
+    -e 's/run\.[A-Za-z0-9]\{6\}/run.XXXXXX/g' -e 's/zz-upstream-tests-pytest-[0-9]*\.pth/zz-upstream-tests-pytest-PID.pth/g'
+}
+run_case() {
+  py=$1 fx=$2 want=$3
+  shift 3
+  setup_ws
   out=$(cd "$ws" && $TOOL_SH "$tool" --name demo --stage build --caller upstream-tests/pytest \
     --destdir "$dest" --python "$py" "$@" 2>&1)
   rc=$?
@@ -102,6 +132,95 @@ run_case() {
     pass "$fx ($py): exit $rc"
   else
     fail "$fx ($py): exit $rc, want $want"
+    printf '%s\n' "$out" | sed 's/^/      | /'
+  fi
+  if [ -n "${UT_BASELINE:-}" ] && [ -n "$nobase" ]; then
+    echo "  [SKIP] baseline: $fx ($py): intended difference ($nobase)"
+  elif [ -n "${UT_BASELINE:-}" ]; then
+    new_out=$out new_rc=$rc
+    setup_ws
+    base_out=$(cd "$ws" && UT_LIB="$UT_BASELINE/lib" $TOOL_SH "$UT_BASELINE/tw-upstream-pytest" --name demo --stage build --caller upstream-tests/pytest \
+      --destdir "$dest" --python "$py" "$@" 2>&1)
+    base_rc=$?
+    a=$(printf '%s\n' "$base_out" | normalize)
+    b=$(printf '%s\n' "$new_out" | normalize)
+    if [ "$base_rc" -eq "$new_rc" ] && [ "$a" = "$b" ]; then
+      pass "$fx ($py): same output and exit status as the baseline"
+    else
+      fail "$fx ($py): differs from the baseline (exit $base_rc -> $new_rc)"
+      printf '%s\n' "$a" > "$tmp/base.out"
+      printf '%s\n' "$b" > "$tmp/new.out"
+      diff -u "$tmp/base.out" "$tmp/new.out" | sed 's/^/      | /'
+    fi
+    out=$new_out rc=$new_rc
+  fi
+}
+
+# mkapkdb DB DIR...: a fake apk database (the format apk-tools writes to
+# /usr/lib/apk/db/installed) in which py3-demo owns every file under the
+# DIRs, with Q1 (SHA-1) checksums; plus py3-supported-demo, a metapackage
+# without files, py3.99-demo, which installs for another python, and an
+# unrelated package after them.
+mkapkdb() {
+  _db=$1
+  shift
+  mkdir -p "$tmp/other/usr/lib/python3.99/site-packages/demo"
+  : > "$tmp/other/usr/lib/python3.99/site-packages/demo/__init__.py"
+  "$py" -I - "$_db" "$tmp/other/usr/lib/python3.99/site-packages/demo" "$@" <<'PYEOF'
+import base64, hashlib, os, sys
+db, other, dirs = sys.argv[1], sys.argv[2], sys.argv[3:]
+def block(name, roots):
+    out = ["P:" + name, "V:1.0-r0", "A:x86_64", "o:py3-demo"]
+    for root in roots:
+        for d, dn, fs in os.walk(root):
+            dn.sort()
+            out.append("F:" + d.lstrip("/"))
+            for f in sorted(fs):
+                p = os.path.join(d, f)
+                data = os.readlink(p).encode() if os.path.islink(p) else open(p, "rb").read()
+                out += ["R:" + f, "Z:Q1" + base64.b64encode(hashlib.sha1(data).digest()).decode()]
+    return "\n".join(out) + "\n\n"
+with open(db, "w") as fh:
+    fh.write("P:py3-supported-demo\nV:1.0-r0\nD:py3.13-demo\n\n")
+    fh.write(block("py3.99-demo", [other]))
+    fh.write(block("py3-demo", dirs))
+    fh.write("P:unrelated\nV:1.0-r0\nF:usr/bin\nR:unrelated\nZ:Q1AAAAAAAAAAAAAAAAAAAAAAAAAAA=\n\n")
+PYEOF
+}
+
+# run_test_case PY FIXTURE WANT_RC [tool options...]: stage test. The
+# fixture's demo/ (or .installed/demo/) and a dist-info are installed into
+# a venv's site-packages and listed in a fake apk database as py3-demo;
+# the fixture's tree is the test tree (as git-checkout would fetch it),
+# outside the (empty) workspace. $before_run, if set, runs after the
+# install (to tamper with it). Output in $out, status in $rc.
+before_run=""
+run_test_case() {
+  py=$1 fx=$2 want=$3
+  shift 3
+  venv="$tmp/venv-${py##*/}"
+  [ -x "$venv/bin/python" ] || "$py" -m venv --without-pip --system-site-packages "$venv" || fail "venv for $py"
+  vpy="$venv/bin/python"
+  vsp=$("$vpy" -c 'import site; print(site.getsitepackages()[0])')
+  rm -rf "$vsp/demo" "$vsp/demo-1.0.dist-info"
+  inst="$fixtures/$fx/demo"
+  [ -d "$fixtures/$fx/.installed/demo" ] && inst="$fixtures/$fx/.installed/demo"
+  cp -R "$inst" "$vsp/"
+  mkdir -p "$vsp/demo-1.0.dist-info"
+  printf 'Metadata-Version: 2.1\nName: demo\nVersion: 1.0\n' > "$vsp/demo-1.0.dist-info/METADATA"
+  mkapkdb "$tmp/apkdb" "$vsp/demo" "$vsp/demo-1.0.dist-info"
+  tt="$tmp/tt-$fx"
+  rm -rf "$tt" "$tmp/tws"
+  mkdir -p "$tt" "$tmp/tws"
+  cp -R "$fixtures/$fx/." "$tt/"
+  [ -n "$before_run" ] && eval "$before_run"
+  out=$(cd "$tmp/tws" && UT_APK_DB="$tmp/apkdb" $TOOL_SH "$tool" --name demo --stage test --caller test/upstream-tests/pytest \
+    --package py3-demo --test-tree "$tt" --python "$vpy" "$@" 2>&1)
+  rc=$?
+  if [ "$rc" -eq "$want" ]; then
+    pass "$fx ($py, stage test): exit $rc"
+  else
+    fail "$fx ($py, stage test): exit $rc, want $want"
     printf '%s\n' "$out" | sed 's/^/      | /'
   fi
 }
@@ -202,7 +321,10 @@ for py in "$@"; do
   run_case "$py" select 0 --args "-k \"\$(echo x >> $tmp/argcount; echo alpha)\""
   has "UPSTREAM-TESTS demo: pass=1 fail=0 skip=0"
   fx=select
-  if [ "$(wc -l < "$tmp/argcount")" -eq 1 ]; then pass "$fx: args expanded once"; else fail "$fx: args expanded $(wc -l < "$tmp/argcount") times"; fi
+  # (with UT_BASELINE, the baseline tool ran it once too)
+  want=1
+  [ -n "${UT_BASELINE:-}" ] && want=2
+  if [ "$(wc -l < "$tmp/argcount")" -eq "$want" ]; then pass "$fx: args expanded once"; else fail "$fx: args expanded $(wc -l < "$tmp/argcount") times"; fi
 
   # --ignore boundaries: test_x must not take test_x_regression with it.
   run_case "$py" ignoreprefix 0 --ignore "tests/test_prefix.py::test_x"
@@ -547,17 +669,124 @@ for py in "$@"; do
   has "runner unittest cannot honour: ignore-files markers jobs=2 timeout=30;"
   hasnt "IGNORE demo"
 
+  # A hung test: overall-timeout stops the run, which fails.
+  run_case "$py" hang 1 --timeout 0 --overall-timeout 5
+  has "UPSTREAM-TESTS demo: FAILED: pytest timed out or was killed (exit "
+  has "overall-timeout=5s) while running tests/test_hang.py::test_hang"
+
+  # ---- Stage test (contract 5): the installed package, in place. ----
+  run_test_case "$py" pass 0
+  has "test/upstream-tests/pytest: stage test: testing the installed package py3-demo: 2 files from $tmp/apkdb (2 in $vsp), 2 checksum(s) match the database"
+  has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=1"
+  has "cwd=$UT_SCRATCH_BASE/run."
+  hasnt "FAILED"
+  hasnt "melange-out"
+  # The test tree defaults to the workspace (git-checkout's default
+  # destination), and the run leaves the test tree as it was.
+  out=$(cd "$tt" && UT_APK_DB="$tmp/apkdb" $TOOL_SH "$tool" --name demo --stage test --package py3-demo --python "$vpy" 2>&1)
+  rc=$?
+  fx=pass-default-tree
+  if [ "$rc" -eq 0 ]; then pass "$fx: exit 0"; else fail "$fx: exit $rc"; printf '%s\n' "$out" | sed 's/^/      | /'; fi
+  has "UPSTREAM-TESTS demo: pass=2 fail=0 skip=1"
+  if diff -r "$fixtures/pass" "$tt" >/dev/null; then pass "$fx: test tree unchanged"; else fail "$fx: test tree changed"; fi
+  # A real failure, and a test that writes a file next to the package's.
+  run_test_case "$py" neg 1
+  has "UPSTREAM-TESTS-FAIL demo: tests/test_neg.py::test_fail"
+  has "UPSTREAM-TESTS demo: pass=3 fail=1 skip=0"
+  has "1 failing test(s)/collection error(s)"
+  has "the run changed the installed package py3-demo (files written, removed or modified by tests): added: $vsp/demo/leak.txt"
+  # A test that rewrites an installed file, keeping its size and mtime.
+  run_test_case "$py" tamper 1
+  has "UPSTREAM-TESTS demo: pass=1 fail=0 skip=0"
+  has "the run changed the installed package py3-demo (files written, removed or modified by tests): changed: $vsp/demo/__init__.py"
+  # The source tree's copy stands in for the installed package.
+  run_test_case "$py" shadow 1
+  has "the package under test was imported from the source tree, not the installed package: demo"
+  # The suite passes without importing the package's files.
+  run_test_case "$py" noimport 1
+  has "UPSTREAM-TESTS demo: pass=1 fail=0 skip=0"
+  has "none of the installed modules (demo) was imported from the files of py3-demo in $vsp: the suite did not test the installed package"
+  # Zero tests, everything skipped, a missing test dependency (the HINT
+  # names the test environment), the network, a stale ignore entry, a hang.
+  run_test_case "$py" empty 1
+  has "no tests collected; the suite did not run"
+  run_test_case "$py" allskip 1
+  has "no test passed (everything skipped, xfailed or deselected)"
+  run_test_case "$py" collect 1
+  has "UPSTREAM-TESTS-FAIL demo: tests/test_missing.py [collection]"
+  has "to test.environment.contents.packages, or name the files in ignore-files"
+  hasnt " to environment.contents.packages"
+  run_test_case "$py" netprobe 1
+  has "UPSTREAM-TESTS-FAIL demo: tests/test_net.py::test_needs_network"
+  has "UPSTREAM-TESTS demo: pass=1 fail=2 skip=0"
+  if [ "$isolated" = yes ]; then
+    run_test_case "$py" netchild 0
+    has "netns=isolated"
+    has "UPSTREAM-TESTS demo: pass=1 fail=0 skip=0"
+  fi
+  run_test_case "$py" ignoreprefix 1 --ignore "tests/test_prefix.py::test_x tests/test_prefix.py::test_gone"
+  has "IGNORE demo: tests/test_prefix.py::test_x (deselected 1)"
+  has "ERROR: ignore entry 'tests/test_prefix.py::test_gone' matches no collected test"
+  has "UPSTREAM-TESTS demo: pass=4 fail=0 skip=0 ignored=1"
+  run_test_case "$py" ignoreprefix 0 --ignore "tests/test_prefix.py::test_x"
+  has "UPSTREAM-TESTS demo: pass=4 fail=0 skip=0 ignored=1"
+  run_test_case "$py" hang 1 --timeout 0 --overall-timeout 5
+  has "UPSTREAM-TESTS demo: FAILED: pytest timed out or was killed (exit "
+  has "overall-timeout=5s) while running tests/test_hang.py::test_hang"
+  run_test_case "$py" srclayout 0
+  has "UPSTREAM-TESTS demo: pass=1 fail=0 skip=0"
+  run_test_case "$py" unittest 0 --runner unittest
+  has "UPSTREAM-TESTS demo: pass=1 fail=0 skip=0"
+  if "$py" -c 'import xdist' 2>/dev/null; then
+    run_test_case "$py" neg 1 --jobs 2
+    has "UPSTREAM-TESTS demo: pass=3 fail=1 skip=0"
+    has "added: $vsp/demo/leak.txt"
+  fi
+  export PYTHONPATH="$tmp/no-pytest-timeout"
+  run_test_case "$py" pass 1
+  has "HINT: add py3-supported-pytest-timeout (or py3.X-pytest-timeout) to test.environment.contents.packages, or set timeout: 0"
+  unset PYTHONPATH
+  # The package under test: installed, with files, for this python, and
+  # as apk installed it.
+  run_test_case "$py" pass 1 --package py3-missing
+  has "package 'py3-missing' is not installed (not in $tmp/apkdb)"
+  hasnt "UPSTREAM-TESTS demo: pass="
+  run_test_case "$py" pass 1 --package py3-supported-demo
+  has "apk lists no files for 'py3-supported-demo' (a metapackage?)"
+  run_test_case "$py" pass 1 --package py3.99-demo
+  has "'py3.99-demo' installs nothing in $vsp (it installs into $tmp/other/usr/lib/python3.99/site-packages); set python"
+  before_run='printf "# edited\n" >> "$vsp/demo/__init__.py"'
+  run_test_case "$py" pass 1
+  has "1 installed file(s) of 'py3-demo' differ from the apk database (modified before the run): $vsp/demo/__init__.py"
+  before_run='rm "$vsp/demo-1.0.dist-info/METADATA"'
+  run_test_case "$py" pass 1
+  has "1 file(s) of 'py3-demo' listed in $tmp/apkdb are missing: $vsp/demo-1.0.dist-info/METADATA"
+  before_run=""
+  run_test_case "$py" pass 1 --test-tree "$tmp/nonexistent"
+  has "test-tree '$tmp/nonexistent' does not exist"
+  run_test_case "$py" pass 1 --destdir /tmp
+  has "destdir is for stage build"
+
   # Usage errors: exit 1 before running anything.
-  run_case "$py" pass 1 --stage test
-  has "stage must be build (got 'test')"
+  nobase="message names both stages (contract 5)"
+  run_case "$py" pass 1 --stage bogus
+  has "stage must be build or test (got 'bogus')"
+  nobase=""
   run_case "$py" pass 1 --extensions requried
   has "extensions must be auto, required or none (got 'requried')"
   run_case "$py" pass 1 --network none
   has "unknown option '--network'"
   run_case "$py" pass 1 --runner nose
   has "runner must be pytest or unittest (got 'nose')"
+  nobase="--package is for stage test (contract 5)"
   run_case "$py" pass 1 --package py3-foo
-  has "reserved"
+  has "--package and --test-tree are for stage test"
+  run_case "$py" pass 1 --test-tree .
+  has "--package and --test-tree are for stage test"
+  nobase="message no longer names --package and --test-tree (contract 5)"
+  run_case "$py" pass 1 --isolate false
+  has "--import-from and --isolate are reserved"
+  nobase=""
   run_case "$py" pass 1 --min-run-percent 150
   has "min-run-percent must be a number from 0 to 100 (got '150')"
   run_case "$py" pass 1 --dir nonexistent
